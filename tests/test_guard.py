@@ -1,0 +1,165 @@
+"""Guardia per agenti IA (clin_guard.py) con payload simulati degli hook."""
+
+import contextlib
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+import unittest.mock
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+os.environ["CLIN_LLM"] = "0"
+sys.path.insert(0, str(ROOT))
+
+import clin_guard  # noqa: E402
+
+
+def run(payload: dict) -> dict:
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), unittest.mock.patch("sys.stdin", io.StringIO(json.dumps(payload))):
+        clin_guard.main()
+    return json.loads(buf.getvalue()) if buf.getvalue().strip() else {}
+
+
+
+class TestGuardia(unittest.TestCase):
+    def setUp(self):
+        self.dir = Path(tempfile.mkdtemp())
+        (self.dir / "coorte.csv").write_text("Paziente,CF\nROSSI MARIO,RSSMRA85T10A562S\n", encoding="utf-8")
+        (self.dir / ".clin-protetto").write_text("attiva")
+        (self.dir / "Clin_anonimizzati").mkdir()
+        (self.dir / "Clin_anonimizzati" / "coorte_ANONIMIZZATO.csv").write_text("Paziente\nPAZ-0001\n")
+        self.home = tempfile.mkdtemp()
+        self.patch = unittest.mock.patch.object(clin_guard, "READS_DIR", Path(self.home) / "letture")
+        self.patch.start()
+        self.map_patch = unittest.mock.patch("clin.MAP_DIR", Path(self.home))
+        self.map_patch.start()
+        unittest.mock.patch("clin.MAP_FILE", Path(self.home) / "segnaposto.json").start()
+        import clin_settings  # impostazioni predefinite, mai quelle reali dell'utente
+        unittest.mock.patch.object(clin_settings, "PATH", Path(self.home) / "impostazioni.json").start()
+
+    def tearDown(self):
+        unittest.mock.patch.stopall()
+
+    def pre(self, tool, tool_input):
+        return run({"hook_event_name": "PreToolUse", "tool_name": tool, "cwd": str(self.dir),
+                    "tool_input": tool_input})
+
+    def test_read_reindirizzato_alla_copia(self):
+        out = self.pre("Read", {"file_path": "coorte.csv"})["hookSpecificOutput"]
+        self.assertEqual(out["permissionDecision"], "allow")
+        text = Path(out["updatedInput"]["file_path"]).read_text(encoding="utf-8")
+        self.assertNotIn("ROSSI", text)
+        self.assertNotIn("RSSMRA", text)
+
+    def test_bash_negato_sugli_originali(self):
+        for cmd in ("cat coorte.csv", "head -3 coorte.csv | sort",
+                    "python3 -c \"import pandas as pd; pd.read_csv('coorte.csv')\"", "cat *.csv"):
+            self.assertEqual(self.pre("Bash", {"command": cmd})["hookSpecificOutput"]["permissionDecision"],
+                             "deny", cmd)
+
+    def test_output_dell_agente_permesso(self):
+        import os, time
+        later = time.time() + 5
+        cmd = "python3 -c \"import pandas as pd; pd.read_excel('Clin_anonimizzati/x.xlsx').to_csv('analisi/esiti.csv')\""
+        self.assertEqual(self.pre("Bash", {"command": cmd}), {})            # file nuovo: output
+        (self.dir / "analisi").mkdir()
+        out = self.dir / "analisi" / "esiti.csv"
+        out.write_text("paziente,esito\nPAZ-0001,vivo\n")
+        os.utime(out, (later, later))                                       # creato dopo /clin
+        self.assertEqual(self.pre("Bash", {"command": "cat analisi/esiti.csv"}), {})
+        senza = self.dir / "analisi" / "nuovo_originale.csv"                # nessun segnaposto
+        senza.write_text("Paziente\nROSSI MARIO\n")
+        os.utime(senza, (later, later))
+        self.assertEqual(self.pre("Bash", {"command": "cat analisi/nuovo_originale.csv"})
+                         ["hookSpecificOutput"]["permissionDecision"], "deny")
+
+    def test_bash_permesso(self):
+        for cmd in ("ls -la *.csv", "wc -l coorte.csv", "cat Clin_anonimizzati/*.csv",
+                    "python3 analisi.py", f"python3 {ROOT / 'clin.py'} copie .",
+                    "pip install -r requirements.txt", "cat LICENSE.txt"):
+            self.assertEqual(self.pre("Bash", {"command": cmd}), {}, cmd)
+
+    def test_grep(self):
+        self.assertEqual(self.pre("Grep", {"pattern": "ROSSI"})["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertEqual(self.pre("Grep", {"pattern": "x", "glob": "*.py"}), {})
+
+    def test_output_ripulito(self):
+        out = run({"hook_event_name": "PostToolUse", "tool_name": "Bash", "cwd": str(self.dir),
+                   "tool_response": {"stdout": "Paziente: ROSSI MARIO tel 333 1234567", "stderr": "",
+                                     "interrupted": False, "isImage": False}})
+        new = out["hookSpecificOutput"]["updatedToolOutput"]
+        self.assertNotIn("ROSSI", new["stdout"])
+        self.assertEqual(set(new), {"stdout", "stderr", "interrupted", "isImage"})
+
+    def test_prompt(self):
+        blocked = run({"hook_event_name": "UserPromptSubmit", "cwd": str(self.dir),
+                       "prompt": "il paziente RSSMRA85T10A562S"})
+        self.assertEqual(blocked["decision"], "block")
+        for ok in ("manda il report via Slack e chiudi il ticket 4521 entro il 12/03",
+                   "il paziente RSSMRA85T10A562S [clin:ok]"):
+            self.assertEqual(run({"hook_event_name": "UserPromptSubmit", "cwd": str(self.dir), "prompt": ok}), {}, ok)
+
+    def test_antigravity(self):
+        out = run({"toolCall": {"name": "view_file", "args": {"AbsolutePath": str(self.dir / "coorte.csv")}},
+                   "workspacePaths": [str(self.dir)]})
+        self.assertEqual(out["decision"], "allow")
+        self.assertNotIn("ROSSI", Path(out["overwrite"]["AbsolutePath"]).read_text(encoding="utf-8"))
+        out = run({"toolCall": {"name": "run_command", "args": {"CommandLine": "cat coorte.csv",
+                                                               "Cwd": str(self.dir)}},
+                   "workspacePaths": [str(self.dir)]})
+        self.assertEqual(out["decision"], "deny")
+
+    def test_dormiente_fuori_dalle_cartelle_attivate(self):
+        (self.dir / ".clin-protetto").unlink()
+        self.assertEqual(self.pre("Bash", {"command": "cat coorte.csv"}), {})
+        self.assertEqual(run({"hook_event_name": "UserPromptSubmit", "cwd": str(self.dir),
+                              "prompt": "il paziente RSSMRA85T10A562S"}), {})
+
+    def test_risultati_ricondotti_e_invisibili(self):
+        import clin_settings
+        from openpyxl import Workbook, load_workbook
+        import clin
+        clin.save_mapping({"[PAZIENTE_1]": "ROSSI MARIO"})
+        (Path(self.home) / "pseudonimi.json").write_text(json.dumps(
+            {"codici": {"PAZ": {"mario rossi": "PAZ-0001"}}, "originali": {"PAZ-0001": "Rossi Mario"}}))
+        (self.dir / "analisi").mkdir()
+        (self.dir / "analisi" / "relazione.md").write_text("[PAZIENTE_1] stabile, codice PAZ-0001.\n")
+        wb = Workbook()
+        wb.active.append(["paziente", "esito"])
+        wb.active.append(["PAZ-0001", "vivo"])
+        wb.save(self.dir / "analisi" / "esiti.xlsx")
+        out = run({"hook_event_name": "Stop", "cwd": str(self.dir)})
+        self.assertIn("2 file", out["systemMessage"])
+        res = self.dir / "Clin_risultati" / "analisi"
+        self.assertEqual((res / "relazione.md").read_text(), "ROSSI MARIO stabile, codice Rossi Mario.\n")
+        self.assertEqual(load_workbook(res / "esiti.xlsx").active["A2"].value, "Rossi Mario")
+        self.assertEqual(oct((res / "relazione.md").stat().st_mode & 0o777), "0o600")
+        # gli originali e le copie anonime non vengono toccati
+        self.assertFalse((self.dir / "Clin_risultati" / "coorte.csv").exists())
+        self.assertFalse((self.dir / "Clin_risultati" / "Clin_anonimizzati").exists())
+        # l'agente non vede i risultati
+        for tool, ti in (("Read", {"file_path": "Clin_risultati/analisi/relazione.md"}),
+                         ("Bash", {"command": "cat Clin_risultati/analisi/relazione.md"}),
+                         ("Grep", {"pattern": "Rossi", "glob": "*.md"})):
+            self.assertEqual(self.pre(tool, ti)["hookSpecificOutput"]["permissionDecision"], "deny", tool)
+        # un dato reale stampato da uno script torna segnaposto
+        out = run({"hook_event_name": "PostToolUse", "tool_name": "Bash", "cwd": str(self.dir),
+                   "tool_response": {"stdout": "Rossi Mario: vivo", "stderr": "", "interrupted": False,
+                                     "isImage": False}})
+        self.assertNotIn("Rossi", out["hookSpecificOutput"]["updatedToolOutput"]["stdout"])
+        # ripristino disattivato dalle impostazioni
+        clin_settings.save({"ripristino_automatico": False})
+        (self.dir / "analisi" / "nuovo.md").write_text("[PAZIENTE_1]\n")
+        self.assertEqual(run({"hook_event_name": "Stop", "cwd": str(self.dir)}), {})
+
+    def test_codex_exec_command(self):
+        out = self.pre("exec_command", {"cmd": ["bash", "-lc", "sed -n 1,5p coorte.csv"]})
+        self.assertEqual(out["hookSpecificOutput"]["permissionDecision"], "deny")
+
+
+if __name__ == "__main__":
+    unittest.main()

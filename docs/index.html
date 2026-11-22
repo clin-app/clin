@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Clin — Anonimizzazione in locale di documenti sanitari per l’IA</title>
+  <meta name="description" content="Clin rimuove in locale nomi, codici fiscali, recapiti, indirizzi, date e codici di documento da referti, cartelle cliniche, Excel e immagini, prima che arrivino a Claude Code, Codex o Antigravity. Si installa con un comando e si richiama con /clin.">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css?v=20261122">
+  <link rel="stylesheet" href="clin.css?v=20261122">
+</head>
+<body>
+
+<nav class="topnav" aria-label="Principale">
+  <a class="brand" href="#"><span class="brand-mark"><img src="logo.svg" alt="" width="34" height="34"></span><span class="clin">/Clin</span></a>
+  <div class="nav-links">
+    <a href="#valore">Perché</a>
+    <a href="#come">Come funziona</a>
+    <a href="#casi">Casi d’uso</a>
+    <a href="#database">Excel e database</a>
+    <a href="#risultati">Risultati</a>
+    <a href="#installazione">Installazione</a>
+    <a href="#rimosso">Cosa viene rimosso</a>
+    <a href="#sicurezza">Sicurezza</a>
+    <a href="#domande">Domande</a>
+    <a href="#sostieni">Sostieni</a>
+  </div>
+  <div class="nav-actions">
+    <a class="nav-btn" href="https://github.com/clin-app/clin">Codice</a>
+    <a class="nav-btn nav-accent" href="#installazione">Installazione</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <canvas class="hero-ascii" aria-hidden="true"></canvas>
+  <div class="hero-grid">
+    <div>
+      <h1>Anonimizzazione in locale dei documenti sanitari, prima dell’uso con l’IA</h1>
+      <p class="hero-copy"><span class="clin">/Clin</span> individua e rimuove i dati personali da referti, cartelle cliniche, database di ricerca e immagini. L’elaborazione avviene interamente in locale: Claude Code, Codex e Google Antigravity ricevono soltanto copie anonimizzate.</p>
+      <div class="actions">
+        <a class="btn btn-white" href="#installazione">Installazione</a>
+        <a class="btn btn-ghost" href="#valore">Come si usa</a>
+      </div>
+      <p class="hero-agents">Si richiama con <span class="clin">/Clin</span> in Claude Code · Codex · Google Antigravity</p>
+    </div>
+    <div class="hero-stage" role="img" aria-label="Animazione: una lettera di dimissione e un registro Excel vengono anonimizzati; i dati personali diventano segnaposto, i contenuti clinici restano."></div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ------------------------------------------------ valore -->
+  <section class="section soft" id="valore">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Perché <span class="clin">/Clin</span></span>
+          <h2>Si richiama dentro l’agente di coding, <span>dove i documenti vengono già analizzati.</span></h2>
+        </div>
+        <div>
+          <p class="lede">Claude Code, Codex e Antigravity leggono file, eseguono codice e producono analisi su intere cartelle. <span class="clin">/Clin</span> rende possibile farlo anche con documenti clinici.</p>
+          <p class="sub">I documenti si copiano nella cartella del progetto, come qualsiasi altro file. Nella sessione dell’agente si scrive <span class="clin">/Clin</span>: da quel momento l’agente lavora solo su copie anonimizzate, senza copia e incolla, senza un’applicazione separata e senza cambiare strumento.</p>
+        </div>
+      </div>
+
+      <div class="value">
+        <div class="demo" aria-label="Anteprima: una sessione reale di Claude Code con /Clin">
+          <div class="demo-tabs" role="tablist" aria-label="Interfaccia">
+            <button type="button" role="tab" data-view="desktop" aria-selected="true">App desktop</button>
+            <button type="button" role="tab" data-view="terminal" aria-selected="false">Terminale</button>
+          </div>
+          <div class="demo-window">
+            <div class="demo-stage" aria-live="off"></div>
+          </div>
+          <div class="demo-controls">
+            <button class="demo-play" type="button">Riproduci</button>
+            <button class="demo-again" type="button">Dall’inizio</button>
+            <div class="demo-progress"><i></i></div>
+          </div>
+          <p class="demo-meta"></p>
+        </div>
+        <ul class="checks value-list">
+          <li><span><b>Nessun copia e incolla</b>I file si trascinano nella cartella del progetto. L’agente li apre direttamente; <span class="clin">/Clin</span> gli passa soltanto la copia anonimizzata.</span></li>
+          <li><span><b>Un comando, tre agenti</b><span class="clin">/Clin</span> nella barra dei comandi di Claude Code, Codex o Antigravity. Nessuna configurazione per progetto.</span></li>
+          <li><span><b>Analisi vere, non solo chat</b>L’agente scrive ed esegue codice su cartelle intere: join tra fogli, statistiche, grafici, relazioni.</span></li>
+          <li><span><b>Risultati con i nomi reali</b>Tabelle e relazioni tornano con i dati originali in una cartella locale che l’agente non vede.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ come funziona -->
+  <section class="section" id="come">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Come funziona</span>
+          <h2>Installazione una tantum, <span>attivazione per singola cartella.</span></h2>
+        </div>
+        <div>
+          <p class="lede"><span class="clin">/Clin</span> viene installato una sola volta e rimane inattivo finché non è richiamato.</p>
+          <p class="sub">Nella cartella di lavoro si invoca <code>/clin</code>. Da quel momento l’agente non può leggere, cercare né stampare i file originali e opera sulle copie anonimizzate in <code>Clin_anonimizzati/</code>. Gli altri progetti non sono interessati.</p>
+        </div>
+      </div>
+      <div class="features four">
+        <div class="feature"><span class="n">01</span><h3>Installazione</h3><p>Un comando nel Terminale scarica <span class="clin">/Clin</span>, configura un ambiente Python dedicato e lo collega agli agenti presenti.</p></div>
+        <div class="feature"><span class="n">02</span><h3>Attivazione</h3><p>Nella sessione dell’agente, aperta sulla cartella con documenti, fogli di calcolo o immagini, si invoca <code>/clin</code>.</p></div>
+        <div class="feature"><span class="n">03</span><h3>Anonimizzazione</h3><p><span class="clin">/Clin</span> genera le copie in locale: oscuramento irreversibile nei PDF, pseudonimi nei fogli di calcolo, segnaposto nel testo.</p></div>
+        <div class="feature"><span class="n">04</span><h3>Risultati</h3><p>L’agente opera sulle copie; a fine risposta <span class="clin">/Clin</span> riconduce i risultati ai dati reali in una cartella che l’agente non vede.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ casi d'uso -->
+  <section class="section soft" id="casi">
+    <div class="wrap">
+      <span class="eyebrow">Casi d’uso</span>
+      <h2>Documentazione clinica, registri e immagini, <span>trattati con gli stessi controlli.</span></h2>
+
+      <div class="usecases">
+        <article class="card usecase">
+          <h3>Lettere di dimissione e referti</h3>
+          <p class="muted">PDF, Word e testo. Nei PDF il testo identificativo viene rimosso dal file, non soltanto coperto; metadati, allegati e livelli di testo nascosti vengono eliminati.</p>
+          <div class="mini">
+            <div class="ui-head"><span>Audit sulla terapia antiaggregante · 40 lettere</span><span>Dati di esempio</span></div>
+            <p class="mini-q">«Per ciascuna lettera, riportare diagnosi, procedura e terapia antiaggregante alla dimissione.»</p>
+            <div class="table-card mini-table">
+              <table class="lb">
+                <thead><tr><th>Paziente</th><th>Diagnosi</th><th>Terapia</th></tr></thead>
+                <tbody>
+                  <tr><td>[PAZIENTE_1]</td><td>NSTEMI, PTCA + DES</td><td>ASA + ticagrelor</td></tr>
+                  <tr><td>[PAZIENTE_2]</td><td>STEMI inferiore</td><td>ASA + prasugrel</td></tr>
+                  <tr><td>[PAZIENTE_3]</td><td>Angina instabile</td><td>ASA + clopidogrel</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <article class="card usecase">
+          <h3>Registri e database di ricerca</h3>
+          <p class="muted">Fogli Excel e file CSV vengono pseudonimizzati colonna per colonna. Ogni paziente riceve un codice stabile in tutti i file e in tutte le sessioni, quindi registro, follow-up ed esami restano collegabili; le variabili cliniche restano intatte.</p>
+          <div class="mini">
+            <div class="ui-head"><span>Studio retrospettivo TAVI · 3 file</span><span>Dati di esempio</span></div>
+            <p class="mini-q">«Unire registro e follow-up per paziente e calcolare la mortalità a 12 mesi per classe NYHA.»</p>
+            <p class="mini-a">Join su PAZ-xxxx, 148 pazienti: NYHA II 6,9% · NYHA III 12,7% · NYHA IV 26,3%.</p>
+          </div>
+          <a class="link-in more" href="#database">Approfondimento su Excel e database</a>
+        </article>
+
+        <article class="card usecase">
+          <h3>Immagini e schermate</h3>
+          <p class="muted">Schermate del gestionale ospedaliero, fotografie di referti e prescrizioni, radiografie esportate in JPG o PNG con i dati anagrafici impressi. Il testo viene letto con OCR in locale e i dati vengono coperti direttamente sui pixel; i metadati della foto (posizione, dispositivo) non vengono conservati.</p>
+          <div class="mini">
+            <div class="ui-head"><span>schermata_gestionale.png · OCR in locale</span><span>Dati di esempio</span></div>
+            <div class="screen">
+              <div class="screen-row head"><span>Letto</span><span>Paziente</span><span>Età</span><span>Diagnosi</span></div>
+              <div class="screen-row"><span>12</span><span><i></i></span><span>78</span><span>Scompenso cardiaco</span></div>
+              <div class="screen-row"><span>14</span><span><i></i></span><span>64</span><span>NSTEMI</span></div>
+              <div class="screen-row"><span>15</span><span><i class="short"></i></span><span>81</span><span>BPCO riacutizzata</span></div>
+            </div>
+            <p class="mini-note">Nominativi coperti sui pixel; il resto della schermata resta leggibile. I file DICOM non sono ancora supportati e vanno esportati in JPG o PNG.</p>
+</div>
+        </article>
+
+        <article class="card usecase">
+          <h3>Diari clinici, trascrizioni e messaggi</h3>
+          <p class="muted">Diari di reparto, verbali di colloquio, comunicazioni. I nominativi privi di etichetta vengono riconosciuti dal contesto e, se disponibile, da un modello linguistico eseguito in locale.</p>
+          <div class="mini">
+            <div class="ui-head"><span>Colloquio con i familiari · Cure palliative</span><span>Dati di esempio</span></div>
+            <p class="mini-q">Presenti la figlia <s>Giulia Ferri</s> e il genero <s>Andrei Popescu</s>. La paziente desidera il rientro a domicilio, in <s>Via Garibaldi 12</s>; controllo il <s>28/11/2026</s> con la Dott.ssa <s>Elena Conti</s>.</p>
+            <p class="mini-a">Presenti la figlia [PERSONA_1] e il genero [PERSONA_2]. La paziente desidera il rientro a domicilio, in [CONTATTO_1]; controllo il [DATA_1] con la Dott.ssa [MEDICO_1].</p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ excel e database -->
+  <section class="section" id="database">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Excel e database</span>
+          <h2>Registri di ricerca pseudonimizzati, <span>senza perdere i collegamenti tra i file.</span></h2>
+        </div>
+        <div>
+          <p class="lede"><span class="clin">/Clin</span> tratta i fogli Excel e i file CSV colonna per colonna e restituisce una copia con la stessa struttura: stessi fogli, stesse colonne, formule e formattazione conservate.</p>
+          <p class="sub">Le colonne identificative vengono riconosciute dall’intestazione e sostituite per intero; le variabili cliniche non vengono modificate; le celle di testo libero vengono analizzate come un referto.</p>
+        </div>
+      </div>
+
+      <div class="sheet-pair">
+        <div class="table-card scroll sheet">
+          <p class="sheet-title"><b>registro_TAVI.xlsx</b> · foglio «Arruolati» · originale</p>
+          <table class="lb sheet-table">
+            <thead><tr><th>ID studio</th><th>Cognome</th><th>Nome</th><th>Codice fiscale</th><th>Data di nascita</th><th>Età</th><th>Comune di residenza</th><th>Classe NYHA</th><th>EuroSCORE II</th><th>Note</th></tr></thead>
+            <tbody>
+              <tr><td>TAVI-001</td><td>Rossi</td><td>Mario</td><td>RSSMRA85T10A562S</td><td>10/12/1985</td><td>39</td><td>Ancona</td><td>III</td><td>4,2</td><td>riferisce la moglie Anna</td></tr>
+              <tr><td>TAVI-002</td><td>Popescu</td><td>Ionuț</td><td>PPSNTI70A01Z129X</td><td>01/01/1970</td><td>54</td><td>Ancona</td><td>II</td><td>2,8</td><td>accompagnato dal figlio Andrei</td></tr>
+              <tr><td>TAVI-003</td><td>Bianchi</td><td>Anna</td><td>BNCNNA32A41H501X</td><td>01/01/1932</td><td>92</td><td>Senigallia</td><td>IV</td><td>8,9</td><td>tel. 333 1234567</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-card scroll sheet">
+          <p class="sheet-title"><b>Clin_anonimizzati/registro_TAVI_ANONIMIZZATO.xlsx</b> · copia ricevuta dall’agente</p>
+          <table class="lb sheet-table">
+            <thead><tr><th>ID studio</th><th>Cognome</th><th>Nome</th><th>Codice fiscale</th><th>Data di nascita</th><th>Età</th><th>Comune di residenza</th><th>Classe NYHA</th><th>EuroSCORE II</th><th>Note</th></tr></thead>
+            <tbody>
+              <tr><td>TAVI-001</td><td><b>PAZ-0001</b></td><td><b>PAZ-0001</b></td><td><b>ID-0001</b></td><td>███</td><td>39</td><td>███</td><td>III</td><td>4,2</td><td>riferisce la moglie ███</td></tr>
+              <tr><td>TAVI-002</td><td><b>PAZ-0002</b></td><td><b>PAZ-0002</b></td><td><b>ID-0002</b></td><td>███</td><td>54</td><td>███</td><td>II</td><td>2,8</td><td>accompagnato dal figlio ███</td></tr>
+              <tr><td>TAVI-003</td><td><b>PAZ-0003</b></td><td><b>PAZ-0003</b></td><td><b>ID-0003</b></td><td>███</td><td>90+</td><td>███</td><td>IV</td><td>8,9</td><td>tel. ███</td></tr>
+            </tbody>
+          </table>
+          <p class="table-foot">Dati di esempio, elaborati con <span class="clin">/Clin</span>. Nel foglio «Follow-up» dello stesso file e in follow_up_12m.csv, «ROSSI MARIO» e «Anna Bianchi» diventano PAZ-0001 e PAZ-0003.</p>
+        </div>
+      </div>
+
+      <div class="features four">
+        <div class="feature"><span class="n">01</span><h3>Colonne riconosciute</h3><p>Nominativo (Cognome, Nome, Paziente, Assistito), identificativi (codice fiscale, tessera, nosologico, cartella), nascita, recapiti e residenza (telefono, email, indirizzo, comune).</p></div>
+        <div class="feature"><span class="n">02</span><h3>Pseudonimi stabili</h3><p>Un codice per tipo di dato: PAZ per il paziente, ID per il codice fiscale, IDC per gli identificativi clinici. «Rossi | Mario», «ROSSI MARIO» e «Mario Rossi» ricevono lo stesso codice.</p></div>
+        <div class="feature"><span class="n">03</span><h3>Variabili cliniche intatte</h3><p>Valori numerici, classi, punteggi, codici ICD ed esiti restano invariati. L’età resta disponibile per l’analisi; i valori dai 90 anni in su diventano «90+».</p></div>
+        <div class="feature"><span class="n">04</span><h3>Testo libero</h3><p>Le celle di note vengono analizzate come un referto: familiari, medici, telefoni e indirizzi citati nel testo vengono oscurati.</p></div>
+      </div>
+
+      <div class="analysis">
+        <div class="card analysis-steps">
+          <h3>Un’analisi completa con l’agente</h3>
+          <ol class="steps-list">
+            <li><span class="n">01</span><p>Cartella <code>studio_TAVI/</code> con <code>registro_TAVI.xlsx</code>, <code>follow_up_12m.csv</code> ed <code>esami_lab.csv</code>. Nella sessione dell’agente si invoca <code>/clin</code>.</p></li>
+            <li><span class="n">02</span><p><span class="clin">/Clin</span> crea le tre copie in <code>Clin_anonimizzati/</code>, con gli stessi pseudonimi in tutti i file.</p></li>
+            <li><span class="n">03</span><p>Quesito: «Unire registro e follow-up per paziente e calcolare la mortalità a 12 mesi per classe NYHA.»</p></li>
+            <li><span class="n">04</span><p>L’agente scrive ed esegue il codice sulle copie; gli originali non vengono aperti. Comandi che tentano di leggerli vengono negati.</p></li>
+          </ol>
+        </div>
+        <div class="table-card result">
+          <table class="lb">
+            <thead><tr><th>Classe NYHA</th><th>Pazienti</th><th>Decessi a 12 mesi</th><th>Mortalità</th></tr></thead>
+            <tbody>
+              <tr><td>II</td><td>58</td><td>4</td><td>6,9%</td></tr>
+              <tr><td>III</td><td>71</td><td>9</td><td>12,7%</td></tr>
+              <tr><td>IV</td><td>19</td><td>5</td><td>26,3%</td></tr>
+            </tbody>
+          </table>
+          <p class="table-foot">Risposta dell’agente su 148 pazienti · dati di esempio</p>
+        </div>
+      </div>
+
+      <div class="install-foot">
+        <div class="card">
+          <h3>Ritorno al dato originale</h3>
+          <p class="muted">La corrispondenza tra pseudonimi e valori originali resta in <code>~/.clin/pseudonimi.json</code>, leggibile solo dall’utente. Per ricontattare un paziente o verificare un dato: <code>clin.py originale PAZ-0147</code>, in locale. La tabella non viene mai trasmessa all’agente.</p>
+        </div>
+        <div class="card">
+          <h3>Formati e limiti</h3>
+          <p class="muted">Excel (.xlsx, .xlsm), CSV e TSV, con più fogli. I file .xls e .ods vanno salvati in .xlsx. Le date vengono rimosse: per analisi di sopravvivenza o tempi di degenza, gli intervalli in giorni vanno calcolati in una colonna numerica prima di <code>/clin</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ risultati e impostazioni -->
+  <section class="section soft" id="risultati">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Risultati</span>
+          <h2>L’agente lavora sugli pseudonimi, <span>i risultati tornano con i nomi reali.</span></h2>
+        </div>
+        <div>
+          <p class="lede">Al termine di ogni risposta dell’agente, <span class="clin">/Clin</span> riconduce ai dati reali i file prodotti con segnaposto e pseudonimi.</p>
+          <p class="sub">Tabelle, fogli Excel e relazioni vengono copiati in <code>Clin_risultati/</code>, o in una cartella scelta anche fuori dal progetto, con i nominativi originali. L’agente non può leggere, cercare né elencare quella cartella; le tabelle di corrispondenza restano in locale.</p>
+        </div>
+      </div>
+
+      <div class="flow">
+        <div class="flow-step"><span class="n">01</span><p class="flow-path">registro_TAVI.xlsx</p><p>Originale con i nominativi. Non accessibile all’agente.</p></div>
+        <div class="flow-step"><span class="n">02</span><p class="flow-path">Clin_anonimizzati/</p><p>Copia con pseudonimi, creata da <code>/clin</code>. L’agente lavora qui.</p></div>
+        <div class="flow-step"><span class="n">03</span><p class="flow-path">analisi/esiti.csv</p><p>Risultato dell’agente: <b>PAZ-0001</b>, NYHA III, vivo.</p></div>
+        <div class="flow-step on"><span class="n">04</span><p class="flow-path">Clin_risultati/analisi/esiti.csv</p><p>Copia con i dati reali: <b>Rossi Mario</b>, NYHA III, vivo. Invisibile all’agente.</p></div>
+      </div>
+
+      <div class="split split-top settings-split">
+        <div>
+          <h3 class="h3">Impostazioni</h3>
+          <p class="sub">Il comportamento di <code>/clin</code> in Claude Code, Codex e Antigravity si imposta una volta, nell’applicazione <span class="clin">/Clin</span> (menu IA › Agenti IA) oppure con <code>clin.py impostazioni</code>. Il ripristino manuale è disponibile con <code>/clin ripristina</code>.</p>
+        </div>
+        <div class="ui settings-ui" aria-label="Esempio: finestra delle impostazioni per gli agenti">
+          <div class="ui-head"><span>Agenti IA · impostazioni di /clin</span><span>Esempio</span></div>
+          <div class="ui-rows">
+            <div class="ui-row"><span>Risultati con i dati reali</span><b>Automatico, a fine risposta</b></div>
+            <div class="ui-row"><span>Cartella dei risultati</span><b>~/Ricerca/Risultati_TAVI</b></div>
+            <div class="ui-row"><span>Messaggi con dati personali</span><b>Fermati prima dell’invio</b></div>
+            <div class="ui-row"><span>Output dei comandi</span><b>Ripulito</b></div>
+            <div class="ui-row"><span>Riconoscimento dei nomi</span><b>GLiNER, in locale</b></div>
+            <div class="ui-row"><span>OCR di scansioni e immagini</span><b>Attivo</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ installazione -->
+  <section class="section" id="installazione">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Installazione</span>
+          <h2>Un comando nel Terminale, <span>poi /clin nell’agente.</span></h2>
+          <p class="sub">Requisiti: macOS o Linux, Python 3.10 o successivo, almeno uno tra Claude Code, Codex e Google Antigravity. Su Windows si usa WSL. Non sono richiesti permessi di amministratore: l’installazione avviene nella cartella dell’utente.</p>
+        </div>
+        <div class="install">
+          <div class="card card-lime install-card">
+            <p class="install-step"><span class="n">01</span> Copiare il comando e incollarlo nel Terminale</p>
+            <div class="cmd"><code id="cmd">curl -fsSL https://clin-app.github.io/clin/install.sh | bash</code><button class="copy" type="button" data-copy="cmd">Copia</button></div>
+            <p class="install-step"><span class="n">02</span> Aprire l’agente nella cartella dei dati e scrivere</p>
+            <div class="cmd"><code>/clin</code></div>
+          </div>
+          <details class="alt">
+            <summary>In alternativa: chiedere all’agente di installarlo</summary>
+            <p>Incollare in Claude Code, Codex o Antigravity, che eseguirà il comando dopo l’approvazione:</p>
+            <div class="cmd light"><code id="prompt">Installa Clin eseguendo nel terminale: curl -fsSL https://clin-app.github.io/clin/install.sh | bash</code><button class="copy" type="button" data-copy="prompt">Copia</button></div>
+          </details>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Agente">
+        <button role="tab" aria-selected="true" aria-controls="t-claude" id="b-claude">Claude Code</button>
+        <button role="tab" aria-selected="false" aria-controls="t-codex" id="b-codex">Codex</button>
+        <button role="tab" aria-selected="false" aria-controls="t-ag" id="b-ag">Antigravity</button>
+        <button role="tab" aria-selected="false" aria-controls="t-mcp" id="b-mcp">Altri strumenti</button>
+      </div>
+
+      <div class="tabpanel" role="tabpanel" id="t-claude" aria-labelledby="b-claude">
+        <ul class="checks">
+          <li><span><b>Richiamo</b>Nel terminale, nell’estensione per VS Code o JetBrains, o nella scheda Code di Claude Desktop: aprire una nuova sessione nella cartella e scrivere <code>/clin</code>. <code>/clin off</code> disattiva la protezione.</span></li>
+          <li><span><b>Letture</b>Quando Claude apre un documento della cartella, legge la copia con segnaposto. Se l’anonimizzazione non riesce, la lettura viene negata.</span></li>
+          <li><span><b>Comandi e messaggi</b><code>cat</code>, <code>head</code> o pandas sugli originali vengono negati; l’output dei comandi viene ripulito; un messaggio con codice fiscale o telefono viene fermato prima dell’invio.</span></li>
+        </ul>
+        <p class="note">Verificato con Claude Code 2.1.326. Nella chat di Claude Desktop (fuori dalla scheda Code) <code>/clin</code> non è disponibile: <span class="clin">/Clin</span> si usa come server MCP, collegato con <code>clin.py collega claude-desktop</code>.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="t-codex" aria-labelledby="b-codex" hidden>
+        <ul class="checks">
+          <li><span><b>Richiamo</b>Nella sessione aperta sulla cartella, chiedere «usa clin su questa cartella»: Codex attiva la skill <code>clin</code> installata in <code>~/.agents/skills</code>.</span></li>
+          <li><span><b>Approvazione</b>Al primo avvio dopo l’installazione, aprire <code>/hooks</code> e approvare l’hook di <span class="clin">/Clin</span>: Codex non esegue hook non approvati.</span></li>
+          <li><span><b>Comandi e messaggi</b>I comandi che aprono gli originali vengono negati; i messaggi con dati personali vengono fermati. Gli hook di Codex non permettono di riscrivere l’output dei comandi.</span></li>
+        </ul>
+        <p class="note">Configurazione secondo la documentazione ufficiale degli hook di Codex (novembre 2026), verificata con dati simulati.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="t-ag" aria-labelledby="b-ag" hidden>
+        <ul class="checks">
+          <li><span><b>Richiamo</b>Nell’app Antigravity, aperta sulla cartella dei dati, scrivere <code>/clin</code>. La skill viene installata in <code>~/.gemini/config/skills</code>.</span></li>
+          <li><span><b>Controllo</b>In Customizations › Hooks deve comparire l’hook «clin» attivo.</span></li>
+          <li><span><b>Letture e comandi</b>I file aperti con <code>view_file</code> vengono sostituiti dalla copia anonimizzata; comandi e ricerche sugli originali vengono negati. Antigravity non offre un controllo sui messaggi prima dell’invio.</span></li>
+        </ul>
+        <p class="note">Configurazione secondo la documentazione ufficiale degli hook di Antigravity (novembre 2026), verificata con dati simulati.</p>
+      </div>
+      <div class="tabpanel" role="tabpanel" id="t-mcp" aria-labelledby="b-mcp" hidden>
+        <p class="sub">Cursor, Windsurf, Claude Desktop e ogni client che supporta server MCP locali possono usare gli strumenti <code>anonimizza_documento</code> e <code>crea_copie_anonime</code>. Dopo l’installazione:</p>
+        <div class="cmd light wide"><code>{ "mcpServers": { "clin": { "command": "~/.clin/app/.venv/bin/python", "args": ["~/.clin/app/clin.py", "mcp"] } } }</code></div>
+        <p class="note">Per le chat nel browser (ChatGPT, Gemini) c’è la modalità appunti: <code>clin.py appunti</code> anonimizza il testo copiato prima dell’incolla.</p>
+      </div>
+
+      <div class="install-foot">
+        <div class="card">
+          <h3>Riconoscimento dei nomi senza etichetta</h3>
+          <p class="muted">Facoltativo e consigliato. Con <a class="link-in" href="https://github.com/urchade/GLiNER">GLiNER</a>, un modello multilingue specializzato in dati personali (circa 2,4 GB, in un ambiente separato), <span class="clin">/Clin</span> riconosce anche i nomi citati senza alcun contesto. L’installer lo propone; in seguito: <code>clin.py ner installa</code>. In alternativa si può usare <a class="link-in" href="https://ollama.com">Ollama</a> con <code>gemma4:e4b</code>. Il modello viene sempre eseguito in locale.</p>
+        </div>
+        <div class="card">
+          <h3>Aggiornamento e disinstallazione</h3>
+          <p class="muted">Per aggiornare si ripete il comando di installazione. Per disinstallare: <code>~/.clin/app/.venv/bin/python ~/.clin/app/clin.py disinstalla</code> (con <code>--tutto</code> vengono cancellate anche le tabelle dei segnaposto).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ cosa viene rimosso -->
+  <section class="section soft" id="rimosso">
+    <div class="wrap">
+      <span class="eyebrow">Cosa viene rimosso</span>
+      <h2>Tutti i dati personali, sempre, <span>senza livelli da impostare.</span></h2>
+      <div class="split split-top removed">
+        <ul class="checks">
+          <li><span><b>Persone, in qualsiasi lingua</b>Pazienti, familiari, medici, operatori e firmatari, anche senza etichetta.</span></li>
+          <li><span><b>Identificativi</b>Codice fiscale (anche omocodico), tessera sanitaria, STP/ENI, carta d’identità, patente, passaporto, permesso di soggiorno.</span></li>
+          <li><span><b>Codici clinici e amministrativi</b>Nosologico, nosografico, ricovero, episodio, verbale di Pronto Soccorso, impegnativa, ricetta, referto, protocollo.</span></li>
+          <li><span><b>Recapiti e indirizzi</b>Telefoni in ogni formato, email e PEC, indirizzi con o senza etichetta, CAP e comune.</span></li>
+          <li><span><b>Firme digitali, date, età, IBAN, strutture</b>Inclusi i campi dei certificati di firma (CN, SERIALNUMBER).</span></li>
+        </ul>
+        <div class="card keep">
+          <h3>Resta leggibile</h3>
+          <ul class="plainlist">
+            <li>Termini clinici ed eponimi: «manovra di Giordano», «morbo di Parkinson»</li>
+            <li>Farmaci, posologie e vie di somministrazione: «per via orale»</li>
+            <li>Valori di laboratorio e parametri: «Hb 12,4 g/dL», «PA 135/80 mmHg»</li>
+            <li>Durate: «storia di 10 anni di diabete»</li>
+            <li>Codici ICD e DRG, schemi terapeutici: «FOLFOX-4»</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ sicurezza -->
+  <section class="section" id="sicurezza">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Sicurezza</span>
+          <h2>Elaborazione locale, <span>controlli applicati dall’agente stesso.</span></h2>
+          <p class="sub">La protezione non dipende dal fatto che il modello segua le istruzioni: gli hook degli agenti intercettano letture, comandi e messaggi prima che il contenuto venga inviato.</p>
+        </div>
+        <ul class="checks">
+          <li><span><b>Nessuna connessione verso l’esterno</b>I documenti vengono elaborati in locale. La connessione di rete serve soltanto per l’installazione.</span></li>
+          <li><span><b>Modello solo locale</b>GLiNER gira come servizio su un socket accessibile solo all’utente, senza porte di rete; con Ollama è ammesso soltanto 127.0.0.1.</span></li>
+          <li><span><b>Oscuramento irreversibile</b>Nei PDF il testo viene rimosso dal file; il PDF prodotto viene riletto per verificare l’assenza di residui.</span></li>
+          <li><span><b>Tabelle di corrispondenza in locale</b>Le corrispondenze tra segnaposto e dati originali restano in <code>~/.clin</code>, leggibili solo dall’utente, e non vengono mai restituite all’IA.</span></li>
+        </ul>
+      </div>
+      <div class="limits">
+        <h3>Limiti</h3>
+        <ul class="plainlist">
+          <li>Un nominativo manoscritto o poco leggibile su una scansione può sfuggire all’OCR: le pagine lette con OCR richiedono una verifica visiva.</li>
+          <li>Un nominativo presente nel nome di un file originale resta visibile negli elenchi della cartella; le copie hanno nomi già ripuliti.</li>
+          <li>Strumenti MCP di terze parti che leggono file non passano dalla guardia.</li>
+          <li><span class="clin">/Clin</span> riduce il rischio; non sostituisce la verifica dell’operatore né le valutazioni previste dal GDPR per il trattamento di dati sanitari.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ domande -->
+  <section class="section soft" id="domande">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Domande frequenti</span>
+          <h2>Uso, dati <span>e compatibilità.</span></h2>
+        </div>
+        <div class="faq">
+          <details><summary>Che cosa riceve l’agente?</summary><p>Testo con segnaposto stabili ([PAZIENTE_1], [ID_1], [DATA_1]…) oppure fogli di calcolo con pseudonimi (PAZ-0001). A ogni persona corrisponde sempre lo stesso segnaposto, quindi l’analisi resta coerente.</p></details>
+          <details><summary>Come si ripristinano i dati originali nella risposta?</summary><p>Con <code>clin.py ripristina</code> la risposta copiata viene ricondotta ai dati originali, in locale. Un segnaposto inesistente resta visibile invece di essere attribuito a un’altra persona.</p></details>
+          <details><summary>È possibile collegare più fogli dello stesso studio?</summary><p>Sì. Gli pseudonimi sono assegnati per tipo di dato e restano invariati in tutti i file e in tutte le sessioni: lo stesso codice fiscale corrisponde sempre allo stesso ID, lo stesso paziente allo stesso PAZ.</p></details>
+          <details><summary>È necessaria una connessione di rete?</summary><p>Soltanto per l’installazione. Anonimizzazione, OCR e modello linguistico funzionano in locale, anche senza rete.</p></details>
+          <details><summary>Funziona con le immagini DICOM?</summary><p>Non ancora. Le radiografie vanno esportate in JPG o PNG: il testo stampato sull’immagine viene letto con l’OCR e coperto. I metadati DICOM non vengono trattati.</p></details>
+          <details><summary>È disponibile per Windows?</summary><p>Tramite WSL (Windows Subsystem for Linux), con lo stesso comando. Un installer nativo per Windows non è ancora disponibile.</p></details>
+          <details><summary>È disponibile una versione per smartphone?</summary><p>Sì, come app web installabile su iPhone e Android; l’elaborazione avviene nel browser del dispositivo: <a class="link-in" href="https://enricoarmiento.github.io/clin-app/">enricoarmiento.github.io/clin-app</a>.</p></details>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------ sostieni -->
+  <section class="section" id="sostieni">
+    <div class="wrap">
+      <div class="card card-lime donate">
+        <div>
+          <span class="eyebrow">Sostieni il progetto</span>
+          <h2><span class="clin">/Clin</span> è gratuito. <span>Un contributo volontario ne sostiene lo sviluppo.</span></h2>
+          <p class="sub">Nessun abbonamento e nessuna funzione a pagamento: si installa e si usa liberamente. Chi lo trova utile può fare una donazione libera, una tantum, con PayPal o con carta.</p>
+        </div>
+        <div class="donate-act">
+          <a class="btn btn-dark" id="dona" href="#" hidden rel="noopener">Sostieni su Ko-fi</a>
+          <p class="note">Il contributo si versa su Ko-fi, con PayPal o carta; questo sito non riceve né conserva dati di pagamento.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
+      <h2><span class="clin">/Clin</span> si installa con un comando <span>e si richiama dall’agente.</span></h2>
+      <div class="actions"><a class="btn btn-white" href="#installazione">Installazione</a></div>
+    </div>
+    <div class="foot-cols">
+      <div><p>Progetto</p><a href="https://github.com/clin-app/clin">Codice sorgente</a><a href="https://enricoarmiento.github.io/clin-app/">App per telefono</a><a href="#domande">Domande frequenti</a></div>
+      <div><p>Agenti</p><a href="#installazione">Claude Code</a><a href="#installazione">Codex</a><a href="#installazione">Google Antigravity</a></div>
+      <div><p>Note</p><span>Le copie prodotte vanno sempre verificate. <span class="clin">/Clin</span> riduce il rischio di esposizione dei dati e non sostituisce le valutazioni previste dal GDPR.</span><span class="credits">Carattere: Albert Sans (SIL Open Font License).</span></div>
+    </div>
+  </div>
+  <span class="wordmark" aria-hidden="true">/Clin</span>
+</footer>
+
+<script src="hero-stage.js?v=20261122" defer></script>
+<script>
+  /* Pagina Ko-fi per i contributi volontari: finche' e' vuota il pulsante non compare. */
+  const KOFI = '';
+  if (KOFI) { const d = document.getElementById('dona'); d.href = 'https://ko-fi.com/' + encodeURIComponent(KOFI); d.hidden = false; }
+</script>
+<script src="hero-ascii.js?v=20261122" defer></script>
+<script src="demo.js?v=20261122" defer></script>
+<script>
+  // indirizzo dell'installer: lo stesso sito che serve questa pagina
+  (function () {
+    var here = location.protocol.indexOf("http") === 0 ? new URL("install.sh", location.href).href : null;
+    if (here && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+      document.querySelectorAll("#cmd, #prompt").forEach(function (el) {
+        el.textContent = el.textContent.replace(/https:\/\/\S+install\.sh/, here);
+      });
+    }
+    document.querySelectorAll("[data-copy]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var text = document.getElementById(b.dataset.copy).textContent;
+        navigator.clipboard.writeText(text).then(function () {
+          b.textContent = "Copiato";
+          setTimeout(function () { b.textContent = "Copia"; }, 1800);
+        });
+      });
+    });
+    // solo le schede con un pannello (la demo ha il proprio selettore)
+    var tabs = document.querySelectorAll('[role="tab"][aria-controls]');
+    tabs.forEach(function (t) {
+      t.addEventListener("click", function () {
+        tabs.forEach(function (o) {
+          var on = o === t;
+          o.setAttribute("aria-selected", on);
+          document.getElementById(o.getAttribute("aria-controls")).hidden = !on;
+        });
+      });
+    });
+  })();
+</script>
+</body>
+</html>

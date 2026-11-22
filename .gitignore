@@ -1,0 +1,25 @@
+# Dati: mai nel repository
+PDF_Anonimizzati/
+*_ANONIMIZZATO.*
+Clin_anonimizzati/
+*.pdf
+*.xlsx
+*.xlsm
+*.csv
+*.docx
+
+# Python / sistema
+__pycache__/
+*.pyc
+.DS_Store
+*.app/
+
+# Worktree e impostazioni locali di Claude Code
+.claude/
+
+# App web: file generati
+web/dist/
+web/.vendor-cache/
+
+# Modello OCR (scaricato con scripts/fetch_ocr_model.py)
+models/

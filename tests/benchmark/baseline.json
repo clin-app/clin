@@ -1,0 +1,1038 @@
+{
+ "originale_livello8": {
+  "documenti": 150,
+  "secondi_per_documento": 0.002,
+  "complessivo": {
+   "precisione": 0.97,
+   "recall": 0.556,
+   "f1": 0.707,
+   "falsi_positivi_per_documento": 0.193
+  },
+  "per_etichetta": {
+   "CONTATTO": {
+    "n": 305,
+    "precisione": 1.0,
+    "recall": 0.659,
+    "f1": 0.794,
+    "recall_parziale": 0.761,
+    "falsi_positivi": 0
+   },
+   "DATA": {
+    "n": 167,
+    "precisione": 1.0,
+    "recall": 0.102,
+    "f1": 0.185,
+    "recall_parziale": 0.102,
+    "falsi_positivi": 0
+   },
+   "IBAN": {
+    "n": 13,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "ID_CLINICO": {
+    "n": 178,
+    "precisione": 1.0,
+    "recall": 0.23,
+    "f1": 0.374,
+    "recall_parziale": 0.23,
+    "falsi_positivi": 0
+   },
+   "ID_UFFICIALE": {
+    "n": 164,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "NASCITA_ETA": {
+    "n": 200,
+    "precisione": 0.873,
+    "recall": 1.0,
+    "f1": 0.932,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 29
+   },
+   "PERSONA": {
+    "n": 533,
+    "precisione": 1.0,
+    "recall": 0.538,
+    "f1": 0.7,
+    "recall_parziale": 0.546,
+    "falsi_positivi": 0
+   },
+   "STRUTTURA": {
+    "n": 100,
+    "precisione": 1.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "recall_parziale": 0.0,
+    "falsi_positivi": 0
+   }
+  },
+  "recall_per_sottotipo": {
+   "CONTATTO/email": 1.0,
+   "CONTATTO/indirizzo": 0.817,
+   "CONTATTO/telefono": 0.471,
+   "DATA/controllo": 0.0,
+   "DATA/esame": 0.0,
+   "DATA/firma": 1.0,
+   "DATA/ricovero": 0.0,
+   "IBAN/iban": 1.0,
+   "ID_CLINICO/documento": 0.0,
+   "ID_CLINICO/nosologico": 0.3,
+   "ID_CLINICO/protocollo": 0.0,
+   "ID_CLINICO/referto": 1.0,
+   "ID_UFFICIALE/cf": 1.0,
+   "ID_UFFICIALE/team": 1.0,
+   "NASCITA_ETA/data_nascita": 1.0,
+   "NASCITA_ETA/eta": 1.0,
+   "PERSONA/collega_libero": 0.0,
+   "PERSONA/etichettata": 0.95,
+   "PERSONA/familiare": 0.0,
+   "PERSONA/familiare_ripetuto": 0.0,
+   "PERSONA/firma": 0.333,
+   "PERSONA/libero": 0.0,
+   "PERSONA/libero_ripetuto": 0.227,
+   "PERSONA/medico": 1.0,
+   "PERSONA/titolo": 1.0,
+   "STRUTTURA/intestazione": 0.0
+  },
+  "falsi_positivi_su_hard_negative": {
+   "durata": "29/178",
+   "eponimo": "0/143",
+   "icd": "0/83",
+   "laboratorio": "0/150",
+   "maiuscola": "0/169",
+   "parametri": "0/66",
+   "posologia": "0/200",
+   "protocollo": "0/11"
+  },
+  "esempi_mancati": {
+   "STRUTTURA/intestazione": [
+    "Azienda Ospedaliera Sant'Andrea",
+    "Azienda Ospedaliera Sant'Andrea",
+    "Ospedale San Camillo",
+    "Policlinico Umberto I",
+    "Ospedale Maggiore"
+   ],
+   "PERSONA/etichettata": [
+    "LO IACONO SALVATORE",
+    "LO IACONO SALVATORE",
+    "Ionuț Popescu",
+    "Salvatore Lo Iacono",
+    "WIŚNIEWSKA KATARZYNA"
+   ],
+   "ID_CLINICO/nosologico": [
+    "2023327960",
+    "2023-690405",
+    "2025/160517",
+    "2024-160487",
+    "2024-514624"
+   ],
+   "ID_CLINICO/documento": [
+    "CB44465EF",
+    "AY58556AB",
+    "CA22655AB",
+    "CB68160CD",
+    "CD12928EF"
+   ],
+   "DATA/ricovero": [
+    "27 dicembre 2024",
+    "17/11/2024",
+    "17/06/2024",
+    "21/06/2024",
+    "12/02/2024"
+   ],
+   "PERSONA/familiare": [
+    "Ngozi",
+    "Oleksandr Kovalenko",
+    "Jie",
+    "Francesca",
+    "Francesca"
+   ],
+   "CONTATTO/telefono": [
+    "375 371 9504",
+    "354.997.6130",
+    "040 8694868",
+    "+39 362.728.2831",
+    "0116856682"
+   ],
+   "DATA/controllo": [
+    "26 giugno 2025",
+    "16/09/2025",
+    "20/08/2025",
+    "07/11/2025",
+    "15 novembre 2025"
+   ],
+   "PERSONA/firma": [
+    "ASIF MUHAMMAD",
+    "MARINO CHIARA",
+    "Oleksandr Kovalenko",
+    "DIOP MAMADOU",
+    "Assunta Pirozzi"
+   ],
+   "ID_CLINICO/protocollo": [
+    "2024/0190536",
+    "2024/0940067",
+    "2024/0509507",
+    "2024/0610024",
+    "2024/0360947"
+   ],
+   "DATA/esame": [
+    "24/08/2024",
+    "16 marzo 2024",
+    "21/05/2024",
+    "20/07/2024",
+    "11/05/2024"
+   ],
+   "PERSONA/libero": [
+    "Elira Shehu",
+    "Ionuț Popescu",
+    "Siddharth Iyer",
+    "Assunta Pirozzi",
+    "Luca Romano"
+   ],
+   "PERSONA/familiare_ripetuto": [
+    "Jie",
+    "Jürgen",
+    "Dilani",
+    "Jose",
+    "Besnik"
+   ],
+   "PERSONA/collega_libero": [
+    "Laura Giordano",
+    "Elira Shehu",
+    "Dilani Fernando",
+    "Laura Giordano",
+    "Alessandro Moretti"
+   ],
+   "PERSONA/libero_ripetuto": [
+    "Popescu",
+    "Iyer",
+    "Pirozzi",
+    "Romano",
+    "Dela Cruz"
+   ],
+   "CONTATTO/indirizzo": [
+    "Via dei Mille 8, 00185 Roma",
+    "Via dei Mille 106, 60121 Ancona",
+    "Via dei Mille 196, 40121 Bologna",
+    "Via dei Mille 147, 40121 Bologna",
+    "Largo Augusto 68, 00185 Roma"
+   ]
+  },
+  "esempi_falsi_positivi": [
+   {
+    "doc": "dim-000",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-001",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-009",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-010",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-011",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-013",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-015",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-021",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-036",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-042",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-055",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-057",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-089",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-090",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-092",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-096",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-100",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-106",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-108",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-111",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-116",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-116",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-122",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-124",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-132",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-134",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-136",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-138",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-143",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   }
+  ],
+  "motore": "solo regole (versione senza modello)"
+ },
+ "originale_livello10": {
+  "documenti": 150,
+  "secondi_per_documento": 0.001,
+  "complessivo": {
+   "precisione": 0.959,
+   "recall": 0.745,
+   "f1": 0.838,
+   "falsi_positivi_per_documento": 0.36
+  },
+  "per_etichetta": {
+   "CONTATTO": {
+    "n": 305,
+    "precisione": 1.0,
+    "recall": 0.866,
+    "f1": 0.928,
+    "recall_parziale": 0.98,
+    "falsi_positivi": 0
+   },
+   "DATA": {
+    "n": 167,
+    "precisione": 0.861,
+    "recall": 1.0,
+    "f1": 0.925,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 25
+   },
+   "IBAN": {
+    "n": 13,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "ID_CLINICO": {
+    "n": 178,
+    "precisione": 1.0,
+    "recall": 0.23,
+    "f1": 0.374,
+    "recall_parziale": 0.23,
+    "falsi_positivi": 0
+   },
+   "ID_UFFICIALE": {
+    "n": 164,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "NASCITA_ETA": {
+    "n": 200,
+    "precisione": 0.873,
+    "recall": 1.0,
+    "f1": 0.932,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 29
+   },
+   "PERSONA": {
+    "n": 533,
+    "precisione": 1.0,
+    "recall": 0.538,
+    "f1": 0.7,
+    "recall_parziale": 0.546,
+    "falsi_positivi": 0
+   },
+   "STRUTTURA": {
+    "n": 100,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   }
+  },
+  "recall_per_sottotipo": {
+   "CONTATTO/email": 1.0,
+   "CONTATTO/indirizzo": 0.817,
+   "CONTATTO/telefono": 0.882,
+   "DATA/controllo": 1.0,
+   "DATA/esame": 1.0,
+   "DATA/firma": 1.0,
+   "DATA/ricovero": 1.0,
+   "IBAN/iban": 1.0,
+   "ID_CLINICO/documento": 0.0,
+   "ID_CLINICO/nosologico": 0.3,
+   "ID_CLINICO/protocollo": 0.0,
+   "ID_CLINICO/referto": 1.0,
+   "ID_UFFICIALE/cf": 1.0,
+   "ID_UFFICIALE/team": 1.0,
+   "NASCITA_ETA/data_nascita": 1.0,
+   "NASCITA_ETA/eta": 1.0,
+   "PERSONA/collega_libero": 0.0,
+   "PERSONA/etichettata": 0.95,
+   "PERSONA/familiare": 0.0,
+   "PERSONA/familiare_ripetuto": 0.0,
+   "PERSONA/firma": 0.333,
+   "PERSONA/libero": 0.0,
+   "PERSONA/libero_ripetuto": 0.227,
+   "PERSONA/medico": 1.0,
+   "PERSONA/titolo": 1.0,
+   "STRUTTURA/intestazione": 1.0
+  },
+  "falsi_positivi_su_hard_negative": {
+   "durata": "29/178",
+   "eponimo": "0/143",
+   "icd": "0/83",
+   "laboratorio": "25/150",
+   "maiuscola": "0/169",
+   "parametri": "0/66",
+   "posologia": "0/200",
+   "protocollo": "0/11"
+  },
+  "esempi_mancati": {
+   "PERSONA/etichettata": [
+    "LO IACONO SALVATORE",
+    "LO IACONO SALVATORE",
+    "Ionuț Popescu",
+    "Salvatore Lo Iacono",
+    "WIŚNIEWSKA KATARZYNA"
+   ],
+   "ID_CLINICO/nosologico": [
+    "2023327960",
+    "2023-690405",
+    "2025/160517",
+    "2024-160487",
+    "2024-514624"
+   ],
+   "ID_CLINICO/documento": [
+    "CB44465EF",
+    "AY58556AB",
+    "CA22655AB",
+    "CB68160CD",
+    "CD12928EF"
+   ],
+   "PERSONA/familiare": [
+    "Ngozi",
+    "Oleksandr Kovalenko",
+    "Jie",
+    "Francesca",
+    "Francesca"
+   ],
+   "PERSONA/firma": [
+    "ASIF MUHAMMAD",
+    "MARINO CHIARA",
+    "Oleksandr Kovalenko",
+    "DIOP MAMADOU",
+    "Assunta Pirozzi"
+   ],
+   "ID_CLINICO/protocollo": [
+    "2024/0190536",
+    "2024/0940067",
+    "2024/0509507",
+    "2024/0610024",
+    "2024/0360947"
+   ],
+   "PERSONA/libero": [
+    "Elira Shehu",
+    "Ionuț Popescu",
+    "Siddharth Iyer",
+    "Assunta Pirozzi",
+    "Luca Romano"
+   ],
+   "PERSONA/familiare_ripetuto": [
+    "Jie",
+    "Jürgen",
+    "Dilani",
+    "Jose",
+    "Besnik"
+   ],
+   "PERSONA/collega_libero": [
+    "Laura Giordano",
+    "Elira Shehu",
+    "Dilani Fernando",
+    "Laura Giordano",
+    "Alessandro Moretti"
+   ],
+   "PERSONA/libero_ripetuto": [
+    "Popescu",
+    "Iyer",
+    "Pirozzi",
+    "Romano",
+    "Dela Cruz"
+   ],
+   "CONTATTO/telefono": [
+    "+39 362.728.2831",
+    "0116856682",
+    "0497094925",
+    "0694168928",
+    "0039 3262358054"
+   ],
+   "CONTATTO/indirizzo": [
+    "Via dei Mille 8, 00185 Roma",
+    "Via dei Mille 106, 60121 Ancona",
+    "Via dei Mille 196, 40121 Bologna",
+    "Via dei Mille 147, 40121 Bologna",
+    "Largo Augusto 68, 00185 Roma"
+   ]
+  },
+  "esempi_falsi_positivi": [
+   {
+    "doc": "dim-000",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ref-001",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-003",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-009",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-009",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ref-010",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "ana-011",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-012",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ref-013",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-015",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-015",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-018",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-021",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-021",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-024",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-030",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-033",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-036",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-036",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-042",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-048",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ref-055",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-057",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-057",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-060",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-063",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-066",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-075",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "dim-078",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ana-089",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-090",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-090",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ana-092",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-096",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-099",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ref-100",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-105",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   },
+   {
+    "doc": "ref-106",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-108",
+    "categoria": "Data di nascita",
+    "testo": "10 anni"
+   },
+   {
+    "doc": "dim-108",
+    "categoria": "Scansione profonda",
+    "testo": "4.0-10"
+   }
+  ],
+  "motore": "solo regole (versione senza modello)"
+ },
+ "regole": {
+  "documenti": 150,
+  "secondi_per_documento": 0.002,
+  "complessivo": {
+   "precisione": 1.0,
+   "recall": 0.972,
+   "f1": 0.986,
+   "falsi_positivi_per_documento": 0.0
+  },
+  "per_etichetta": {
+   "CONTATTO": {
+    "n": 305,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "DATA": {
+    "n": 167,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "IBAN": {
+    "n": 13,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "ID_CLINICO": {
+    "n": 178,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "ID_UFFICIALE": {
+    "n": 164,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "NASCITA_ETA": {
+    "n": 200,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "PERSONA": {
+    "n": 533,
+    "precisione": 1.0,
+    "recall": 0.912,
+    "f1": 0.954,
+    "recall_parziale": 0.914,
+    "falsi_positivi": 0
+   },
+   "STRUTTURA": {
+    "n": 100,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   }
+  },
+  "recall_per_sottotipo": {
+   "CONTATTO/email": 1.0,
+   "CONTATTO/indirizzo": 1.0,
+   "CONTATTO/telefono": 1.0,
+   "DATA/controllo": 1.0,
+   "DATA/esame": 1.0,
+   "DATA/firma": 1.0,
+   "DATA/ricovero": 1.0,
+   "IBAN/iban": 1.0,
+   "ID_CLINICO/documento": 1.0,
+   "ID_CLINICO/nosologico": 1.0,
+   "ID_CLINICO/protocollo": 1.0,
+   "ID_CLINICO/referto": 1.0,
+   "ID_UFFICIALE/cf": 1.0,
+   "ID_UFFICIALE/team": 1.0,
+   "NASCITA_ETA/data_nascita": 1.0,
+   "NASCITA_ETA/eta": 1.0,
+   "PERSONA/collega_libero": 1.0,
+   "PERSONA/etichettata": 1.0,
+   "PERSONA/familiare": 1.0,
+   "PERSONA/familiare_ripetuto": 1.0,
+   "PERSONA/firma": 1.0,
+   "PERSONA/libero": 0.0,
+   "PERSONA/libero_ripetuto": 0.227,
+   "PERSONA/medico": 1.0,
+   "PERSONA/titolo": 1.0,
+   "STRUTTURA/intestazione": 1.0
+  },
+  "falsi_positivi_su_hard_negative": {
+   "durata": "0/178",
+   "eponimo": "0/143",
+   "icd": "0/83",
+   "laboratorio": "0/150",
+   "maiuscola": "0/169",
+   "parametri": "0/66",
+   "posologia": "0/200",
+   "protocollo": "0/11"
+  },
+  "esempi_mancati": {
+   "PERSONA/libero": [
+    "Elira Shehu",
+    "Ionuț Popescu",
+    "Siddharth Iyer",
+    "Assunta Pirozzi",
+    "Luca Romano"
+   ],
+   "PERSONA/libero_ripetuto": [
+    "Popescu",
+    "Iyer",
+    "Pirozzi",
+    "Romano",
+    "Dela Cruz"
+   ]
+  },
+  "esempi_falsi_positivi": [],
+  "motore": "solo regole: disattivato"
+ },
+ "regole+modello": {
+  "documenti": 150,
+  "secondi_per_documento": 4.933,
+  "complessivo": {
+   "precisione": 1.0,
+   "recall": 0.998,
+   "f1": 0.999,
+   "falsi_positivi_per_documento": 0.0
+  },
+  "per_etichetta": {
+   "CONTATTO": {
+    "n": 305,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "DATA": {
+    "n": 167,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "IBAN": {
+    "n": 13,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "ID_CLINICO": {
+    "n": 178,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "ID_UFFICIALE": {
+    "n": 164,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "NASCITA_ETA": {
+    "n": 200,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   },
+   "PERSONA": {
+    "n": 533,
+    "precisione": 1.0,
+    "recall": 0.994,
+    "f1": 0.997,
+    "recall_parziale": 0.996,
+    "falsi_positivi": 0
+   },
+   "STRUTTURA": {
+    "n": 100,
+    "precisione": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "recall_parziale": 1.0,
+    "falsi_positivi": 0
+   }
+  },
+  "recall_per_sottotipo": {
+   "CONTATTO/email": 1.0,
+   "CONTATTO/indirizzo": 1.0,
+   "CONTATTO/telefono": 1.0,
+   "DATA/controllo": 1.0,
+   "DATA/esame": 1.0,
+   "DATA/firma": 1.0,
+   "DATA/ricovero": 1.0,
+   "IBAN/iban": 1.0,
+   "ID_CLINICO/documento": 1.0,
+   "ID_CLINICO/nosologico": 1.0,
+   "ID_CLINICO/protocollo": 1.0,
+   "ID_CLINICO/referto": 1.0,
+   "ID_UFFICIALE/cf": 1.0,
+   "ID_UFFICIALE/team": 1.0,
+   "NASCITA_ETA/data_nascita": 1.0,
+   "NASCITA_ETA/eta": 1.0,
+   "PERSONA/collega_libero": 1.0,
+   "PERSONA/etichettata": 1.0,
+   "PERSONA/familiare": 1.0,
+   "PERSONA/familiare_ripetuto": 1.0,
+   "PERSONA/firma": 1.0,
+   "PERSONA/libero": 0.967,
+   "PERSONA/libero_ripetuto": 0.909,
+   "PERSONA/medico": 1.0,
+   "PERSONA/titolo": 1.0,
+   "STRUTTURA/intestazione": 1.0
+  },
+  "falsi_positivi_su_hard_negative": {
+   "durata": "0/178",
+   "eponimo": "0/143",
+   "icd": "0/83",
+   "laboratorio": "0/150",
+   "maiuscola": "0/169",
+   "parametri": "0/66",
+   "posologia": "0/200",
+   "protocollo": "0/11"
+  },
+  "esempi_mancati": {
+   "PERSONA/libero_ripetuto": [
+    "De Luca",
+    "Giordano"
+   ],
+   "PERSONA/libero": [
+    "Laura Giordano"
+   ]
+  },
+  "esempi_falsi_positivi": [],
+  "motore": "modello locale gemma4:e4b"
+ }
+}
