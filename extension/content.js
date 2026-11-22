@@ -16,7 +16,7 @@
   ];
   const ANSWERS = [
     "[data-message-author-role='assistant']", "[data-testid='assistant-message']",
-    ".font-claude-response", ".font-claude-message", "model-response", "message-content",
+    ".font-claude-response", ".font-claude-message", "message-content", "model-response",
   ];
   let active = true, noteSent = false, busy = false;
 
@@ -113,7 +113,8 @@
   function lastAnswer() {
     for (const sel of ANSWERS) {
       const all = document.querySelectorAll(sel);
-      if (all.length) return all[all.length - 1].innerText;
+      // senza l'etichetta per lettori di schermo ("Gemini ha detto", "ChatGPT said")
+      if (all.length) return all[all.length - 1].innerText.replace(/^\s*\S+ (ha detto|said):?\s*\n/i, "");
     }
     return "";
   }
