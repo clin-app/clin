@@ -9,7 +9,7 @@ async function boot() {
   if (!booting) booting = (async () => {
     const { loadPyodide } = await import("./vendor/pyodide/pyodide.mjs");
     const pyodide = await loadPyodide({ indexURL: new URL("vendor/pyodide/", location.href).href });
-    for (const f of ["anonymize_engine.py", "clin_text.py", "tabular_engine.py", "clin_ocr.py", "clin_llm.py", "clin_web.py"]) {
+    for (const f of ["anonymize_engine.py", "clin_text.py", "tabular_engine.py", "clin_ocr.py", "clin_llm.py", "clin_lingue.py", "clin_web.py"]) {
       pyodide.FS.writeFile(f, await (await fetch(`py/${f}`)).text());
     }
     pyodide.runPython("import sys; sys.path.insert(0, '.')");

@@ -55,5 +55,33 @@ class TestLingue(unittest.TestCase):
             self.assertEqual(found(t), "", t)
 
 
+class TestDatasetEuropeo(unittest.TestCase):
+    """Casi emersi dal Pan-European Synthetic PII Benchmark (40 lingue)."""
+
+    def test_codici_nosologici(self):
+        for code in ["KH-23-869672-G", "SDO/2023/176329", "N.2023/298603-A", "NOS24/531196", "MRN-2023-90385A",
+                     "CAS.2025.653977", "DOSS-2025-13661-SB", "NHC-31629720", "HOSP/25/220709"]:
+            self.assertIn(code, found(f"Pratica {code} (codice C18.9)."), code)
+
+    def test_icd_resta(self):
+        for t in ["D.N.: 10.08.1997 | Serviço: Cirurgia | CID-10: I25.1", "nacido/a el 08/11/1965 — código I50.9",
+                  "Diagnosi C18.9, controllo G20."]:
+            self.assertFalse(any(c in found(t) for c in ["I25.1", "I50.9", "C18.9", "G20"]), t)
+
+    def test_alfabeti_e_cognomi(self):
+        self.assertIn("Попов-Петров", found("лечащий врач д-р Сергей Попов-Петров."))
+        self.assertIn("Γεώργιος Παπαδόπουλος", found("Ασθενής: Γεώργιος Παπαδόπουλος | ημερομηνία γέννησης 01/02/1950"))
+        self.assertIn("Riera i Oller", found("Metge responsable: Dr. Albert Riera i Oller."))
+        self.assertIn("GALLI, Roberta", found("controllo per GALLI, Roberta, nata il 13/06/2006"))
+        self.assertIn("Marco Rossi", found("Contatto segnalato (familiare di riferimento): Marco Rossi."))
+
+    def test_date_con_anno_davanti(self):
+        for t in ["2023. március 5.", "2023 m. kovo 5 d.", "2023. gada 5. marta", "2023ko martxoaren 5"]:
+            self.assertRegex(found(t), r"2023", t)
+
+    def test_niente_dosaggi_come_titoli(self):
+        self.assertEqual(found("Amoxicillina 1 g. Hb 12,4 g/dL. Morbus Parkinson."), "")
+
+
 if __name__ == "__main__":
     unittest.main()

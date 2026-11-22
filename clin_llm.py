@@ -197,7 +197,8 @@ def is_eponym_at(text: str, start: int) -> bool:
 
 
 _PARTICLES = {"de", "di", "da", "del", "della", "van", "von", "el", "al", "bin", "ben", "dos", "das", "le", "la",
-              "lo", "der", "den", "ter", "ten", "zu", "du", "des", "do", "y", "e", "het"}
+              "lo", "der", "den", "ter", "ten", "zu", "du", "des", "do", "y", "e", "het", "i", "ó", "ní", "nic",
+              "uí", "mac", "mc", "an"}
 
 
 def plausible_person(value: str) -> Optional[str]:
@@ -206,7 +207,8 @@ def plausible_person(value: str) -> Optional[str]:
     tokens = value.split()
     if not tokens or len(value) < 2 or len(tokens) > 6 or re.search(r"\d", value):
         return None
-    if not all(t[0].isupper() or t.lower() in _PARTICLES
+    if not all(t[0].isupper() or t.lower() in _PARTICLES or re.match(r"(?:h|n|t|bh|mb|gc|nd|ng|bp|dt)-?[^\W\d_]", t)
+               and t.lstrip("hntbmgcdp-")[:1].isupper()
                for t in tokens):
         return None
     if all(t.casefold() in _CLINICAL_WORDS or t.casefold() in _PARTICLES for t in tokens):
@@ -233,6 +235,9 @@ def entities(text: str) -> List[Tuple[str, str]]:
     if eng == "gliner":
         import clin_ner
         items = clin_ner.entities(text)
+        norm = case_normalized(text)
+        if items is not None and norm != text:  # seconda lettura per i nomi in minuscolo o maiuscolo
+            items = items + original_case(clin_ner.entities(norm) or [], text)
         if items is not None:
             result = _verified(items, text)
             _cache[key] = result
@@ -257,13 +262,50 @@ def entities(text: str) -> List[Tuple[str, str]]:
     return result
 
 
+_WORD = re.compile(r"[^\W\d_]+(?:['’\-][^\W\d_]+)*")
+
+
+def case_normalized(text: str) -> str:
+    """Parole tutte minuscole o tutte maiuscole con l'iniziale maiuscola ("paola de santis",
+    "ГЛЕБ ЗАЙЦЕВ"): GLiNER le riconosce come nomi solo cosi'. Stessa lunghezza del testo."""
+    def fix(m):
+        w = m.group(0)
+        c = w.capitalize() if len(w) > 1 and (w.islower() or w.isupper()) else w
+        return c if len(c) == len(w) else w
+    return _WORD.sub(fix, text)
+
+
+def original_case(items, text: str) -> List[Tuple[str, str]]:
+    """Riporta i valori trovati nel testo normalizzato alla forma con cui compaiono nel testo."""
+    norm = case_normalized(text)
+    out = []
+    for value, kind in items:
+        i = norm.find(value)
+        if i >= 0:
+            out.append((text[i:i + len(value)], kind))
+    return out
+
+
+def _role_words(value: str) -> bool:
+    """"la nuora", "the patient": parentela, ruoli e articoli non sono nomi scritti in minuscolo."""
+    import anonymize_engine as ae
+    rx = re.compile(r"(?i)(?:" + ae._KIN + "|" + ae._KIN_EU + r"|il|lo|la|le|gli|the|der|die|das|el|los|las|"
+                    r"un|una|uno|a|an|paziente|patient|pacient\w*|paciente|medico|doctor|dott\w*)")
+    toks = [t for t in value.split() if t.casefold() not in _PARTICLES or t.casefold() == "la"]
+    return any(rx.fullmatch(t) for t in toks) or (len(toks) >= 1 and toks[0].casefold() in {"la", "le", "il", "lo"})
+
+
 def _verified(items, text: str) -> List[Tuple[str, str]]:
     """Le proposte del modello passano gli stessi controlli, qualunque sia il motore."""
     out = []
     for value, kind in items:
         value = value.strip()
         if kind == "PERSONA":
-            value = plausible_person(value) or ""
+            if (value.islower() or value.isupper()) and plausible_person(case_normalized(value)) \
+                    and not _role_words(value):
+                pass  # "paola de santis", "ГЛЕБ ЗАЙЦЕВ": controllato nella forma con le maiuscole
+            else:
+                value = plausible_person(value) or ""
         elif kind == "INDIRIZZO":
             value = value.strip(" .,;:") if re.search(r"\d", value) and len(value) >= 5 else ""
         if value and value in text:

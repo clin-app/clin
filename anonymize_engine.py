@@ -75,12 +75,14 @@ MAX_LEVEL = 10
 # Da 1 a 4 parole con iniziale maiuscola (nomi propri), anche con particelle
 # tipo "De", "Di", "D'". `_CAP_NAME_CS` forza la sensibilita' alle maiuscole
 # anche dentro un pattern con (?i).
-_UP = "A-ZÀ-ÖØ-ÞĀĂĄĆĈĊČĎĐĒĔĖĘĚĜĞĠĢĤĦĨĪĬĮİĴĶĹĻĽĿŁŃŅŇŊŌŎŐŒŔŖŘŚŜŞŠŢŤŦŨŪŬŮŰŲŴŶŸŹŻŽȘȚ"
-_LETTER = "A-Za-zÀ-ÖØ-öø-ɏȘșȚțḀ-ỿ"
-_CAP_WORD = r"[" + _UP + r"][" + _LETTER + r"'’]+"
+_UP = "A-ZÀ-ÖØ-ÞĀĂĄĆĈĊČĎĐĒĔĖĘĚĜĞĠĢĤĦĨĪĬĮİĴĶĹĻĽĿŁŃŅŇŊŌŎŐŒŔŖŘŚŜŞŠŢŤŦŨŪŬŮŰŲŴŶŸŹŻŽȘȚЀ-ЯѢѲѴҐΆΈ-ΏΑ-Ϋ"  # anche cirillico e greco
+_LETTER = "A-Za-zÀ-ÖØ-öø-ɏȘșȚțḀ-ỿͰ-ϿЀ-ӿ"
+# anche "Popov-Petrov" e le iniziali mutate irlandesi e gaeliche ("Ó hAodha", "Mac an t-Saoir")
+_CAP_WORD = (r"(?:(?:h|n|t|bh|mb|gc|nd|ng|bp|dt)-?(?=[" + _UP + r"]))?[" + _UP + r"][" + _LETTER + r"'’]+"
+             r"(?:-[" + _UP + r"][" + _LETTER + r"'’]+)?")
 # particelle dei cognomi ("Lo Iacono", "De Luca", "Dela Cruz", "El Amrani", "van der Berg")
 _PARTICLE = (r"(?:[Dd][aeiu]|[Dd]e[ilns]|[Dd]ell[ao']|[Dd]ela|[Ll][aeio]|[Vv][ao]n|[Dd]e[rn]|[Tt]e[rn]|[Zz]u|[Ee]l|[Aa]l|"
-             r"[Bb]in|[Bb]en|[Dd]os|[Dd]as|[Dd]o|[Yy]|[Ee])")
+             r"[Bb]in|[Bb]en|[Dd]os|[Dd]as|[Dd]o|[Yy]|[Ee]|i|Ó|Ní|Nic|Uí|Mac|Mc|[Aa]n|[Ff]itz)")  # catalano "i", irlandese
 _CAP_NAME = _CAP_WORD + r"(?:[ \t]+(?:" + _PARTICLE + r"[ \t]+){0,2}" + _CAP_WORD + r"){0,3}"
 _CAP_NAME_CS = r"(?-i:" + _CAP_NAME + r")"
 
@@ -174,8 +176,8 @@ PERSON_CONTEXT_PATTERNS = [
 
 # 3. Date di nascita e dati anagrafici
 DOB_PATTERNS = [
-    r'(?i)\b(?:Data\s*(?:di)?\s*Nascita|Data\s*Nasc\.?|D\.?N\.?|Nascita|Luogo\s*e\s*Data\s*di\s*Nascita|Date\s*of\s*Birth|DOB|D\.O\.B\.?|Birth\s*Date|Date\s*de\s*naissance|Fecha\s*de\s*nacimiento|Geburtsdatum|Geb\.-?Datum|Data\s*de\s*nascimento|Geboortedatum|Data\s*urodzenia|Data\s*na[șs]terii)[:\s]+(?P<v>[^\n\r,;\t]{2,})',
-    r'(?i)\b(?:Nato\/a|Nato|Nata|Né\(e\)|Né|Née|Nacido\/a|Nacida|Nacido|Geboren|geb\.|Born|Nascid[oa]|Geboren\s*op|Urodzon[ya]|N[ăa]scut[ăa]?)(?:\s*il|\s*le|\s*el|\s*am|\s*on|\s*em|\s*a|\s*la|\s*dnia)?[:\s]+(?P<v>[^\n\r,;\t]{2,})',
+    r'(?i)\b(?:Data\s*(?:di)?\s*Nascita|Data\s*Nasc\.?|D\.?N\.?|Nascita|Luogo\s*e\s*Data\s*di\s*Nascita|Date\s*of\s*Birth|DOB|D\.O\.B\.?|Birth\s*Date|Date\s*de\s*naissance|Fecha\s*de\s*nacimiento|Geburtsdatum|Geb\.-?Datum|Data\s*de\s*nascimento|Geboortedatum|Data\s*urodzenia|Data\s*na[șs]terii)[:\s]+(?P<v>[^\n\r,;\t|—()\[\]]{2,40}?)(?=\s*(?:[|—()\[\],;\n]|\.(?:\s|$)|\s\s|$))',
+    r'(?i)\b(?:Nato\/a|Nato|Nata|Né\(e\)|Né|Née|Nacido\/a|Nacida|Nacido|Geboren|geb\.|Born|Nascid[oa]|Geboren\s*op|Urodzon[ya]|N[ăa]scut[ăa]?)(?:\s*il|\s*le|\s*el|\s*am|\s*on|\s*em|\s*a|\s*la|\s*dnia)?[:\s]+(?P<v>[^\n\r,;\t|—()\[\]]{2,40}?)(?=\s*(?:[|—()\[\],;\n]|\.(?:\s|$)|\s\s|$))',
     r'(?i)\b(?:Et[àa]|Age|Anni)[:\s]+(?P<v>\d{1,3}(?![.,]\d)\s*(?:anni|aa|mesi|y|yrs)?)\b',
     # eta' in prosa ("di 45 anni", "di 5 mesi"); le durate ("da 3 giorni") restano visibili
     r'(?i)\bdi\s+(?P<v>\d{1,3}\s+(?:anni|mesi))\b(?!\s+(?:di|da|fa|prima|dopo|dal|dalla|dall)\b|\s+(?:terapia|trattamento|follow|distanza|durata))',
@@ -418,6 +420,65 @@ def excluded_categories() -> frozenset:
     except Exception:
         return frozenset()
     return _excl_cache["value"]  # type: ignore[return-value]
+
+
+# --------------------------------------------------------------------------
+# Regole costruite sui vocaboli di 40 lingue europee (clin_lingue.py)
+# --------------------------------------------------------------------------
+def _alt(words, cs=False):
+    """Alternativa regex di parole (dalla piu' lunga), con confini di parola Unicode."""
+    ws = sorted({w.strip() for w in words if w and w.strip()}, key=len, reverse=True)
+    body = "|".join(re.escape(w).replace(r"\ ", r"\s+") for w in ws)
+    return (r"(?-i:(?:" + body + r"))") if cs else (r"(?i:(?:" + body + r"))")
+
+
+def _multilingual_rules() -> None:
+    try:
+        from clin_lingue import LINGUE
+    except ImportError:  # pragma: no cover - modulo facoltativo
+        return
+    get = lambda key: [w for d in LINGUE.values() for w in d.get(key, [])]
+    months = _alt(get("mesi"))
+    name = r"(?-i:" + _CAP_NAME + r")"
+    # nome dopo un'etichetta con i due punti: anche tutto maiuscolo, "COGNOME, Nome" o in minuscolo
+    any_name = (r"(?P<v>[" + _LETTER + r"][" + _LETTER + r"'’\-]+(?:,?[ \t]+(?:" + _PARTICLE + r"[ \t]+){0,2}"
+                r"[" + _LETTER + r"][" + _LETTER + r"'’\-]+){0,3})")
+    DATE_PATTERNS.extend([
+        r'(?<![\w])\d{1,2}\.?\s+(?:de\s+|d[\'’]\s*|of\s+)?' + months + r'\s+(?:de\s+)?(?:19|20)\d{2}(?:\s*(?:г\.|р\.|m\.|\.))?',
+        r'(?<![\w])(?:19|20)\d{2}\.?\s+(?:m\.\s+|gada\s+)?(?:\d{1,2}\.\s+)?' + months + r'(?:\s+\d{1,2}\.?(?:\s*d\.)?)?',
+        # basco: il mese si declina ("martxoak", "martxoaren"): si cerca la radice
+        r'(?<![\w])(?:19|20)\d{2}(?:ko|\.)?\s+' + _alt([m[:-2] if m.endswith("ak") else m.rstrip("k")
+                                                         for m in LINGUE.get("eu", {}).get("mesi", [])]) + r'\w{0,5}\s+\d{1,2}',
+    ])
+    DOCTOR_PATTERNS.append(r'(?<![\w.])(?<!\d\s)' + _alt(get("titoli_medico"), cs=True) + r'\s+(?P<v>' + name + r')')
+    PATIENT_LABEL_PATTERNS.extend([
+        r'(?<![\w])' + _alt(get("etichette_paziente")) + r'(?:\s*/\s*\w{1,4})?\s*:\s*(?:' + _alt(get("titoli_paziente"), cs=True) + r'\s+)?' + any_name,
+        # mai dopo un numero: "1 g. Hb" e' un dosaggio, non "signor Hb"
+        r'(?<![\w.])(?<!\d\s)' + _alt(get("titoli_paziente"), cs=True) + r'\s+(?P<v>' + name + r')',
+    ])
+    DOB_PATTERNS.append(r'(?<![\w])' + _alt(get("etichette_nascita")) + r'\s*[:]?\s*(?P<v>\d{1,4}[./\-]\d{1,2}[./\-]\d{2,4}|\d{1,2}\.?\s+\S+\s+\d{4})')
+    # contatti: "Contatto (figlio/a): Nome", "Persona de contacto (cónyuge): Nombre", "(tutore legale): Nome"
+    rel = _alt(get("parentela") + get("contatto"))
+    PERSON_CONTEXT_PATTERNS.extend([
+        r'(?<![\w])' + _alt(get("contatto")) + r'[^\n:()]{0,25}\([^)\n]{1,40}\)\s*:\s*' + any_name,
+        r'\(\s*' + rel + r'\s*\)\s*:\s*' + any_name,
+        r'(?<![\w])(?i:CC|Cc|c\.c\.)\s*:\s*(?P<v>' + name + r')',
+    ])
+
+
+_multilingual_rules()
+
+# Identificativi in forma di codice: lettere, separatori e almeno 5 cifre di seguito
+# ("KH-23-869672-G", "SDO/2023/176329", "N.2023/298603-A", "NOS24/531196", "MRN-2023-90385A").
+# I codici ICD ("C18.9", "G20") e i dosaggi non hanno 5 cifre consecutive.
+RECORD_PATTERNS.append(
+    r'(?<![\w./\-])[A-Z]{1,5}(?:[.\-/]|(?=\d))(?:\d{2,4}[.\-/])?\d{5,8}[A-Z]?(?:[.\-/][A-Z0-9]{1,2})?(?![\w/])'
+)
+# "COGNOME, Nome": cognome tutto maiuscolo, virgola, nome con l'iniziale maiuscola
+_ACRONYMS = r"(?!(?:ECG|EKG|TAC|TC|RM|RMN|MRI|CT|NYHA|BMI|BPCO|COPD|HIV|HCV|HBV|PCR|VES|INR|ICD|DRG|ASA|PA|FC|SAT|EGA|ECO|RX|ICU|PS|UO|UOC|SOR|OR|ER|AIDS|COVID)\b)"
+PATIENT_LABEL_PATTERNS.append(
+    r'(?<![\w])(?P<v>' + _ACRONYMS + r'[' + _UP + r']{3,}(?:[ \-\'’][' + _UP + r']{2,}){0,2},[ \t]+[' + _UP + r'][' + _LETTER + r'\'’\-]+(?:[ \t]+[' + _UP + r'][' + _LETTER + r'\'’\-]+)?)'
+)
 
 
 _PATTERN_GROUPS: List[Tuple[str, List[str], int]] = [

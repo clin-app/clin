@@ -61,7 +61,7 @@ VENDOR = {
 }
 
 APP_FILES = ["index.html", "app.js", "style.css", "sw.js", "manifest.webmanifest", "clin_web.py"]
-ENGINE_FILES = ["anonymize_engine.py", "clin_text.py", "tabular_engine.py", "clin_ocr.py", "clin_llm.py"]
+ENGINE_FILES = ["anonymize_engine.py", "clin_text.py", "tabular_engine.py", "clin_ocr.py", "clin_llm.py", "clin_lingue.py"]
 
 
 def fetch(url: str, sha: str) -> bytes:

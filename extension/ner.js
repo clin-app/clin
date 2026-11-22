@@ -54,19 +54,45 @@ function chunks(text) {
   return out;
 }
 
+// parole tutte minuscole o tutte maiuscole con l'iniziale maiuscola ("paola de santis", "ГЛЕБ ЗАЙЦЕВ"):
+// GLiNER le riconosce come nomi solo cosi'. Stessa lunghezza del testo, come clin_llm.case_normalized
+const WORD = /[\p{L}]+(?:['’\-][\p{L}]+)*/gu;
+function caseNormalized(text) {
+  return text.replace(WORD, (w) => {
+    if (w.length < 2 || !(w === w.toLowerCase() || w === w.toUpperCase())) return w;
+    const c = w[0].toUpperCase() + w.slice(1).toLowerCase();
+    return c.length === w.length ? c : w;
+  });
+}
+
+async function run(g, parts, found, original) {
+  for (let i = 0; i < parts.length; i += 4) {
+    const batch = parts.slice(i, i + 4);
+    const res = await g.inference({ texts: batch, entities: LABELS, flatNer: true, threshold: 0.5 });
+    res.forEach((list, k) => {
+      for (const e of list) {
+        let value = (e.spanText || "").trim();
+        if (original) {  // dal testo normalizzato si torna alla forma scritta nel documento
+          const src = original[i + k], at = batch[k].indexOf(value);
+          if (at < 0) continue;
+          value = src.slice(at, at + value.length);
+        }
+        if (value) found.set(value + "|" + e.label, [value, e.label === "person" ? "PERSONA" : "INDIRIZZO"]);
+      }
+    });
+  }
+}
+
 // [(valore, "PERSONA" | "INDIRIZZO")] per tutti i testi; null se il modello non c'e'
 export async function entities(texts) {
   if (!(await available())) return null;
   const g = await load();
   const found = new Map();
   const parts = texts.flatMap((t) => chunks(t)).filter((t) => t.trim().length >= 8);
-  for (let i = 0; i < parts.length; i += 4) {
-    const res = await g.inference({ texts: parts.slice(i, i + 4), entities: LABELS, flatNer: true, threshold: 0.5 });
-    for (const list of res) for (const e of list) {
-      const value = (e.spanText || "").trim();
-      if (value) found.set(value + "|" + e.label, [value, e.label === "person" ? "PERSONA" : "INDIRIZZO"]);
-    }
-  }
+  await run(g, parts, found, null);
+  const norm = parts.map(caseNormalized);
+  const changed = norm.map((t, i) => (t !== parts[i] ? i : -1)).filter((i) => i >= 0);
+  if (changed.length) await run(g, changed.map((i) => norm[i]), found, changed.map((i) => parts[i]));
   return [...found.values()];
 }
 

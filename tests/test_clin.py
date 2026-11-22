@@ -343,7 +343,7 @@ class TestServerMcp(unittest.TestCase):
             [sys.executable, str(ROOT / "clin.py"), "mcp"],
             input="\n".join(json.dumps(m) for m in msgs) + "\n",
             capture_output=True, text=True, timeout=60,
-            env={"CLIN_CARTELLE": str(d), "PATH": "/usr/bin:/bin", "HOME": str(d)},
+            env={"CLIN_CARTELLE": str(d), "PATH": "/usr/bin:/bin", "HOME": str(d), "CLIN_LLM": "0"},
         )
         replies = {r["id"]: r for r in map(json.loads, proc.stdout.splitlines())}
         self.assertEqual(replies[1]["result"]["serverInfo"]["name"], "clin")
