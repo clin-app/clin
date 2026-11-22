@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Informativa sulla Privacy — Clin</title>
+  <meta name="description" content="Informativa sulla privacy per l'estensione Clin per browser Chrome ed Edge. Elaborazione 100% in locale, nessuna trasmissione di dati personali.">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="clin.css">
+  <style>
+    .privacy-container {
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 24px 80px;
+      line-height: 1.7;
+      color: #24292f;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    .privacy-container h1 { font-size: 2.2rem; margin-bottom: 8px; color: #0d1117; }
+    .privacy-container .updated { color: #57606a; margin-bottom: 32px; font-size: 0.95rem; }
+    .privacy-container h2 { font-size: 1.4rem; margin-top: 32px; margin-bottom: 12px; border-bottom: 1px solid #d0d7de; padding-bottom: 6px; }
+    .privacy-container p, .privacy-container ul { margin-bottom: 16px; }
+    .privacy-container li { margin-bottom: 8px; }
+    .privacy-box { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 16px 20px; margin: 24px 0; }
+    .privacy-box strong { color: #0969da; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav" aria-label="Principale">
+  <a class="brand" href="index.html"><span class="brand-mark"><img src="logo.svg" alt="" width="34" height="34"></span><span class="clin">/Clin</span></a>
+</nav>
+
+<div class="privacy-container">
+  <h1>Informativa sulla Privacy di Clin</h1>
+  <div class="updated">Ultimo aggiornamento: 22 novembre 2026</div>
+
+  <div class="privacy-box">
+    <strong>In sintesi:</strong> Clin è progettata secondo il principio della <em>Privacy by Design</em>. Non raccoglie, non memorizza su server e non trasmette a terzi alcun dato personale, clinico o di navigazione. Ogni elaborazione avviene al 100% in locale sul tuo dispositivo.
+  </div>
+
+  <h2>1. Chi siamo</h2>
+  <p>Clin è un'estensione open-source sviluppata per proteggere la privacy durante l'interazione con strumenti di intelligenza artificiale (ChatGPT, Claude, Gemini, Microsoft Copilot, Mistral). Il codice sorgente è pubblicamente consultabile e verificabile su GitHub: <a href="https://github.com/clin-app/clin" target="_blank" rel="noopener">https://github.com/clin-app/clin</a>.</p>
+
+  <h2>2. Dati trattati e Architettura Offline</h2>
+  <p>L'estensione analizza i testi incollati o digitati e i documenti trascinati nei moduli di input dei siti supportati per individuare e oscurare dati identificativi (nomi, codici fiscali, recapiti, date, codici sanitari):</p>
+  <ul>
+    <li><strong>Nessun server esterno:</strong> Tutti gli algoritmi di anonimizzazione, il motore Python (WebAssembly / Pyodide) e i modelli linguistici operano esclusivamente nella memoria locale del tuo browser.</li>
+    <li><strong>Nessuna telemetria o tracciamento:</strong> L'estensione non include cookie, tracker analitici, pixel o strumenti di monitoraggio comportamentale.</li>
+    <li><strong>Nessun invio di dati:</strong> I testi originali e i documenti anonimizzati non lasciano mai il tuo computer.</li>
+  </ul>
+
+  <h2>3. Permessi del browser e giustificazione</h2>
+  <p>Per operare in modo sicuro e trasparente, l'estensione richiede i seguenti permessi nel <code>manifest.json</code>:</p>
+  <ul>
+    <li><strong>offscreen:</strong> Consente l'esecuzione del motore di elaborazione WebAssembly e dell'eventuale OCR in un thread separato e isolato, garantendo prestazioni ottimali senza rallentare la navigazione.</li>
+    <li><strong>storage:</strong> Utilizzato esclusivamente per salvare in locale nel browser le impostazioni dell'utente (ad esempio lo stato di attivazione dell'anonimizzazione e la configurazione dei dizionari).</li>
+    <li><strong>host_permissions (chatgpt.com, claude.ai, gemini.google.com, copilot.microsoft.com, chat.mistral.ai):</strong> Necessari esclusivamente per intercettare l'evento di incolla (paste) o inserimento nei campi chat dei soli servizi IA supportati e sostituire i dati sensibili prima che vengano inviati dall'utente al server del fornitore di IA.</li>
+  </ul>
+
+  <h2>4. Conservazione dei dati</h2>
+  <p>Nessun dato relativo ai testi analizzati viene salvato su disco o mantenuto in memorie permanenti. Una volta completata la sessione di lavoro o ricaricata la scheda, la memoria volatile viene rilasciata.</p>
+
+  <h2>5. Modifiche a questa informativa</h2>
+  <p>Eventuali aggiornamenti di questa informativa saranno pubblicati su questo indirizzo e notificati nel registro delle modifiche (changelog) delle nuove versioni dell'estensione.</p>
+
+  <h2>6. Contatti</h2>
+  <p>Per domande, segnalazioni o verifiche sul trattamento dei dati, puoi aprire una issue o contattare il team su GitHub: <a href="https://github.com/clin-app/clin" target="_blank" rel="noopener">https://github.com/clin-app/clin</a>.</p>
+</div>
+
+</body>
+</html>
