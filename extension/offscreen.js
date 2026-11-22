@@ -28,7 +28,16 @@ async function withNer(texts) {
     const ner = await import("./ner.js");
     const found = await ner.entities(texts.filter(Boolean));
     py.set_ner(found ? JSON.stringify(found) : "");
-    nerNote = found ? "" : "Modello GLiNER assente: nomi senza etichetta riconosciuti solo dal contesto.";
+    if (found) {
+      nerNote = "";
+    } else {
+      const st = ner.status ? ner.status() : { state: "missing", progress: 0 };
+      if (st.state === "downloading") {
+        nerNote = `Download una tantum del modello GLiNER in corso (${st.progress}%): intanto anonimizzazione attiva con le regole locali.`;
+      } else {
+        nerNote = "Modello GLiNER non ancora pronto: nomi senza etichetta riconosciuti solo dal contesto.";
+      }
+    }
   } catch (err) {
     console.error(err);
     py.set_ner("");

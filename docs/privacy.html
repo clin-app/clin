@@ -46,17 +46,19 @@
   <h2>2. Dati trattati e Architettura Offline</h2>
   <p>L'estensione analizza i testi incollati o digitati e i documenti trascinati nei moduli di input dei siti supportati per individuare e oscurare dati identificativi (nomi, codici fiscali, recapiti, date, codici sanitari):</p>
   <ul>
-    <li><strong>Nessun server esterno:</strong> Tutti gli algoritmi di anonimizzazione, il motore Python (WebAssembly / Pyodide) e i modelli linguistici operano esclusivamente nella memoria locale del tuo browser.</li>
+    <li><strong>Elaborazione 100% locale:</strong> Tutti gli algoritmi di anonimizzazione, il motore Python (WebAssembly / Pyodide) e il modello neurale GLiNER ONNX operano esclusivamente nella memoria locale del tuo browser.</li>
+    <li><strong>Download una tantum del modello neurale:</strong> Nella versione distribuita tramite Chrome Web Store, al primo avvio l'estensione scarica una sola volta i pesi statici del modello <code>model.onnx</code> dalle GitHub Releases ufficiali del progetto, ne verifica l'integrità crittografica (SHA-256) e li salva nella cache locale del browser. Nessun testo, documento o dato dell'utente viene mai inviato durante o dopo questo download.</li>
     <li><strong>Nessuna telemetria o tracciamento:</strong> L'estensione non include cookie, tracker analitici, pixel o strumenti di monitoraggio comportamentale.</li>
-    <li><strong>Nessun invio di dati:</strong> I testi originali e i documenti anonimizzati non lasciano mai il tuo computer.</li>
+    <li><strong>Nessun invio di dati:</strong> I testi originali e i documenti anonimizzati non lasciano mai il tuo computer verso server di Clin o di terze parti.</li>
   </ul>
 
   <h2>3. Permessi del browser e giustificazione</h2>
   <p>Per operare in modo sicuro e trasparente, l'estensione richiede i seguenti permessi nel <code>manifest.json</code>:</p>
   <ul>
-    <li><strong>offscreen:</strong> Consente l'esecuzione del motore di elaborazione WebAssembly e dell'eventuale OCR in un thread separato e isolato, garantendo prestazioni ottimali senza rallentare la navigazione.</li>
-    <li><strong>storage:</strong> Utilizzato esclusivamente per salvare in locale nel browser le impostazioni dell'utente (ad esempio lo stato di attivazione dell'anonimizzazione e la configurazione dei dizionari).</li>
+    <li><strong>offscreen:</strong> Consente l'esecuzione del motore di elaborazione WebAssembly (Pyodide e ONNX Runtime) e dell'OCR in un thread separato e isolato, garantendo prestazioni ottimali senza rallentare la navigazione.</li>
+    <li><strong>storage e unlimitedStorage:</strong> Utilizzati esclusivamente per salvare in locale nel browser le impostazioni dell'utente e conservare nella Cache API locale il file dei pesi del modello neurale GLiNER scaricato al primo avvio.</li>
     <li><strong>host_permissions (chatgpt.com, claude.ai, gemini.google.com, copilot.microsoft.com, chat.mistral.ai):</strong> Necessari esclusivamente per intercettare l'evento di incolla (paste) o inserimento nei campi chat dei soli servizi IA supportati e sostituire i dati sensibili prima che vengano inviati dall'utente al server del fornitore di IA.</li>
+    <li><strong>host_permissions (github.com/clin-app/clin/releases/*, release-assets.githubusercontent.com, objects.githubusercontent.com):</strong> Utilizzati esclusivamente per scaricare una sola volta il file binario verificato (SHA-256) dei pesi del modello locale <code>model.onnx</code>.</li>
   </ul>
 
   <h2>4. Conservazione dei dati</h2>

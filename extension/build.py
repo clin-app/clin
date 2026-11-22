@@ -71,8 +71,17 @@ g = g.replace("this.whitespacePattern = /\\w+(?:[-_]\\w+)*|\\S/g;",
 assert "\\p{L}" in g, "schema delle parole di gliner.js cambiato"
 assert "onnxruntime-web'" not in g and "@xenova" not in g
 (ner / "gliner.mjs").write_text(g, encoding="utf-8")
+STORE_BUILD = "--store" in sys.argv[1:]
 if (MODEL / "model.onnx").exists():
-    shutil.copytree(MODEL, ner / "model")
+    if STORE_BUILD:
+        # Chrome Web Store: max 128 MB per lo zip. Includiamo tokenizer e config (~5 MB compressi);
+        # model.onnx viene scaricato una sola volta da GitHub Releases con verifica SHA-256 nella Cache API.
+        (ner / "model").mkdir(parents=True, exist_ok=True)
+        for p in MODEL.iterdir():
+            if p.is_file() and p.name != "model.onnx":
+                shutil.copy2(p, ner / "model" / p.name)
+    else:
+        shutil.copytree(MODEL, ner / "model")
 else:
     print(f"ATTENZIONE: modello GLiNER assente in {MODEL}: l'estensione usera' solo le regole. "
           "Esportarlo con tools/export_gliner_onnx.py")
@@ -97,8 +106,9 @@ for size in (16, 48, 128):  # icone dal logo dell'app (sips su macOS, PySide6 al
             img.save(str(out))
         except Exception:
             shutil.copy2(WEB / "icon-192.png", out)
-zip_path = EXT / "clin-estensione.zip"
+zip_path = EXT / ("clin-webstore.zip" if STORE_BUILD else "clin-estensione.zip")
 zip_path.unlink(missing_ok=True)
 shutil.make_archive(str(zip_path.with_suffix("")), "zip", DIST)
 size = sum(p.stat().st_size for p in DIST.rglob("*") if p.is_file()) / 1e6
-print(f"Estensione in {DIST} ({size:.1f} MB), pacchetto: {zip_path.name}")
+zsize = zip_path.stat().st_size / 1e6
+print(f"Estensione in {DIST} ({size:.1f} MB), pacchetto: {zip_path.name} ({zsize:.1f} MB)")

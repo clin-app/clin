@@ -1,22 +1,130 @@
 // Clin - GLiNER nel browser: lo stesso modello del servizio locale su computer
 // (urchade/gliner_multi_pii-v1, esportato in ONNX), eseguito con onnxruntime-web in WebAssembly.
 // Trova i nomi e gli indirizzi senza etichetta ("Elira Shehu, 45enne, giunge in PS").
-// Nessuna rete: modello, tokenizer e runtime sono dentro l'estensione.
+// Se model.onnx e' incluso nell'estensione (build locale/GitHub) non fa alcuna richiesta di rete;
+// nella build per il Chrome Web Store lo scarica una sola volta da GitHub Releases, ne verifica
+// l'impronta SHA-256 e lo salva nella Cache API del browser per funzionare poi 100% offline.
 
 const BASE = new URL("vendor/gliner/", location.href).href;
+const CACHE_NAME = "clin-gliner-v1";
+const REMOTE_URL = "https://github.com/clin-app/clin/releases/download/modello-gliner-v1/model.onnx";
+const REMOTE_SHA256 = "559ae3e5c5303b008796a4543b315a66812c9458f4c8196bc91de291c2db716e";
 const LABELS = ["person", "address"];
 const CHUNK = 1200, OVERLAP = 120;   // caratteri: il modello legge al massimo 384 token per volta
-let model = null, loading = null, missing = false;
 
-export async function available() {
-  if (missing) return false;
-  try { return (await fetch(BASE + "model/model.onnx", { method: "HEAD" })).ok; }
-  catch (_) { missing = true; return false; }
+let model = null, loading = null, localOk = null, tokenizerOk = null;
+let downloading = null, downloadProgress = 0, downloadError = "";
+
+async function hasLocalModel() {
+  if (localOk !== null) return localOk;
+  try { localOk = (await fetch(BASE + "model/model.onnx", { method: "HEAD" })).ok; }
+  catch (_) { localOk = false; }
+  return localOk;
 }
 
-async function load() {
+async function hasTokenizer() {
+  if (tokenizerOk !== null) return tokenizerOk;
+  try { tokenizerOk = (await fetch(BASE + "model/tokenizer.json", { method: "HEAD" })).ok; }
+  catch (_) { tokenizerOk = false; }
+  return tokenizerOk;
+}
+
+async function getCachedResponse() {
+  if (typeof caches === "undefined") return null;
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    return (await cache.match(REMOTE_URL)) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function sha256Hex(buffer) {
+  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function startDownload() {
+  if (downloading) return downloading;
+  downloadProgress = 0;
+  downloadError = "";
+  downloading = (async () => {
+    try {
+      const resp = await fetch(REMOTE_URL, { credentials: "omit", cache: "no-store" });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} scaricando model.onnx`);
+      const total = Number(resp.headers.get("content-length")) || 0;
+      let bytes;
+      if (resp.body && total > 0) {
+        bytes = new Uint8Array(total);
+        const reader = resp.body.getReader();
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (received + value.length > bytes.length) {
+            const grown = new Uint8Array(received + value.length);
+            grown.set(bytes.subarray(0, received));
+            bytes = grown;
+          }
+          bytes.set(value, received);
+          received += value.length;
+          downloadProgress = Math.min(99, Math.round((received / total) * 100));
+        }
+        if (received < bytes.length) bytes = bytes.subarray(0, received);
+      } else {
+        bytes = new Uint8Array(await resp.arrayBuffer());
+        downloadProgress = 99;
+      }
+      const actual = await sha256Hex(bytes);
+      if (actual !== REMOTE_SHA256) {
+        throw new Error(`Impronta SHA-256 non valida per model.onnx (${actual})`);
+      }
+      if (typeof caches !== "undefined") {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put(REMOTE_URL, new Response(bytes, {
+          headers: { "Content-Type": "application/octet-stream", "Content-Length": String(bytes.byteLength) },
+        }));
+      }
+      downloadProgress = 100;
+      return bytes;
+    } catch (err) {
+      downloadError = String(err.message || err);
+      console.error("[Clin GLiNER download]", err);
+      throw err;
+    } finally {
+      downloading = null;
+    }
+  })();
+  return downloading;
+}
+
+export function status() {
+  if (model) return { state: "ready", progress: 100 };
+  if (downloading) return { state: "downloading", progress: downloadProgress };
+  if (downloadError) return { state: "error", progress: 0, error: downloadError };
+  return { state: "missing", progress: 0 };
+}
+
+export async function available() {
+  if (model) return true;
+  if (await hasLocalModel()) return true;
+  if (!(await hasTokenizer())) return false;
+  return Boolean(await getCachedResponse());
+}
+
+async function resolveModelSource(preloadedBytes = null) {
+  if (await hasLocalModel()) return BASE + "model/model.onnx";
+  if (preloadedBytes) return preloadedBytes;
+  const cached = await getCachedResponse();
+  if (cached) return new Uint8Array(await cached.arrayBuffer());
+  return null;
+}
+
+async function load(preloadedBytes = null) {
   if (model) return model;
   if (!loading) loading = (async () => {
+    const modelSource = await resolveModelSource(preloadedBytes);
+    if (!modelSource) throw new Error("model.onnx non disponibile");
     const { Gliner } = await import("./vendor/gliner/gliner.mjs");
     const { env } = await import("./vendor/gliner/transformers.min.js");
     env.allowRemoteModels = false;      // il tokenizer si legge solo dall'estensione
@@ -28,7 +136,7 @@ async function load() {
     ort.env.wasm.proxy = false;
     const g = new Gliner({
       tokenizerPath: "model",
-      onnxSettings: { modelPath: BASE + "model/model.onnx", executionProvider: "wasm", wasmPaths: BASE, multiThread: false },
+      onnxSettings: { modelPath: modelSource, executionProvider: "wasm", wasmPaths: BASE, multiThread: false },
       transformersSettings: { allowLocalModels: true, useBrowserCache: false },
       maxWidth: 12,
     });
@@ -92,9 +200,14 @@ async function run(g, parts, found, original) {
   }
 }
 
-// [(valore, "PERSONA" | "INDIRIZZO")] per tutti i testi; null se il modello non c'e'
+// [(valore, "PERSONA" | "INDIRIZZO")] per tutti i testi; null se il modello non e' ancora pronto
 export async function entities(texts) {
-  if (!(await available())) return null;
+  if (!(await available())) {
+    if (await hasTokenizer()) {
+      startDownload().then((bytes) => load(bytes)).catch(() => {});
+    }
+    return null;
+  }
   const g = await load();
   const found = new Map();
   const parts = texts.flatMap((t) => chunks(t)).filter((t) => t.trim().length >= 8);
@@ -105,4 +218,15 @@ export async function entities(texts) {
   return [...found.values()];
 }
 
-export const ready = () => available().then((ok) => (ok ? load().then(() => true) : false));
+export async function ready() {
+  if (await available()) {
+    await load();
+    return true;
+  }
+  if (await hasTokenizer()) {
+    const bytes = await startDownload();
+    await load(bytes);
+    return true;
+  }
+  return false;
+}
