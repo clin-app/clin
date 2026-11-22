@@ -1,6 +1,8 @@
 // Clin - app web. Tutto avviene nel browser: motore Python (Pyodide),
 // OCR (Tesseract.js) e lettura PDF (pdf.js) sono ospitati insieme all'app.
 
+import { chiediDonazione } from "./dona.js";
+
 const $ = (id) => document.getElementById(id);
 const MAP_KEY = "clin.map";
 const MAP_TTL_MS = 12 * 60 * 60 * 1000; // la tabella segnaposto scade dopo 12 ore
@@ -358,6 +360,7 @@ $("share-img").addEventListener("click", async () => {
   if (!(await share({ files: [file] }))) status("Condivisione non disponibile: usare «Salva immagine».", true);
 });
 $("save-img").addEventListener("click", async () => {
+  await chiediDonazione("Salvataggio dell'immagine");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(await imageBlob());
   a.download = "clin-anonimizzata.jpg";

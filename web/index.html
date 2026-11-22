@@ -20,44 +20,50 @@
 </head>
 <body>
 <header class="top">
-  <img src="logo.svg" alt="" width="36" height="36">
-  <div>
-    <h1>Clin</h1>
-    <p class="sub">Clinical Data Anonymizer for AI</p>
+  <div class="top-in">
+    <a class="brand" href="./" aria-label="Clin">
+      <img src="logo.svg" alt="" width="34" height="34">
+      <span class="brand-txt"><b>Clin</b><span class="sub">Clinical Data Anonymizer for AI</span></span>
+    </a>
+    <nav class="seg" role="tablist" aria-label="Passaggi">
+      <button role="tab" aria-selected="true" data-tab="anon"><span class="n">1</span> Anonimizza</button>
+      <button role="tab" aria-selected="false" data-tab="restore"><span class="n">2</span> Ripristina</button>
+    </nav>
+    <p class="privacy" id="privacy"><span class="dot" aria-hidden="true"></span><span>Elaborazione su questo dispositivo. Il browser blocca ogni connessione verso altri siti.</span></p>
   </div>
 </header>
 
 <main>
-  <p class="privacy" id="privacy">Elaborazione su questo dispositivo. Il browser blocca ogni connessione verso altri siti.</p>
-
-  <nav class="seg" role="tablist">
-    <button role="tab" aria-selected="true" data-tab="anon"><span class="n">1</span> Anonimizza</button>
-    <button role="tab" aria-selected="false" data-tab="restore"><span class="n">2</span> Ripristina</button>
-  </nav>
-
   <section id="tab-anon" class="tab">
-    <div class="card" id="in">
-      <p class="eyebrow">Documenti del paziente</p>
+    <div class="card card-in" id="in">
+      <div class="card-head">
+        <p class="eyebrow">Documenti del paziente</p>
+      </div>
       <label class="pick" for="file" id="drop">
+        <span class="pick-ico" aria-hidden="true"></span>
         <span class="pick-title">Trascinare qui PDF, Word, foto o testi</span>
-        <span class="pick-hint">oppure fare clic per sceglierli · anche più file insieme</span>
+        <span class="pick-hint">oppure <u>sceglierli dal dispositivo</u> · anche più file insieme</span>
       </label>
       <input id="file" type="file" multiple accept="image/*,application/pdf,.pdf,.docx,.txt,.md,.csv,.tsv" hidden>
       <ul class="files" id="files" hidden></ul>
 
       <p class="or">Testo copiato da cartella clinica, diario, esami (anche più parti)</p>
       <textarea id="input" rows="7" placeholder="Incollare qui il testo da anonimizzare"></textarea>
-      <div class="row">
+      <div class="row row-tools">
         <button class="btn" id="paste" type="button">Incolla dagli appunti</button>
         <button class="btn" id="clear" type="button">Svuota</button>
       </div>
-      <button class="btn-accent" id="run" type="button" disabled>Anonimizza</button>
-      <p class="status" id="status" aria-live="polite">Preparazione del motore…</p>
+      <div class="run-bar">
+        <button class="btn-accent" id="run" type="button" disabled>Anonimizza</button>
+        <p class="status" id="status" aria-live="polite">Preparazione del motore…</p>
+      </div>
     </div>
 
-    <div class="card" id="out" hidden>
-      <p class="eyebrow">Per la chat dell'IA</p>
-      <p class="summary" id="summary"></p>
+    <div class="card card-out" id="out" hidden>
+      <div class="card-head">
+        <p class="eyebrow">Per la chat dell'IA</p>
+        <p class="summary" id="summary"></p>
+      </div>
       <div id="image-wrap" hidden>
         <canvas id="canvas"></canvas>
         <p class="hint">Toccare una parola per oscurarla o scoprirla.</p>
@@ -68,44 +74,70 @@
       </div>
       <pre id="result"></pre>
       <label class="check"><input type="checkbox" id="with-note" checked> Aggiungere all'inizio la nota per l'IA sui segnaposto</label>
-      <div class="row">
+      <div class="row row-main">
         <button class="btn-dark" id="copy" type="button">Copia per la chat</button>
         <button class="btn" id="share" type="button">Condividi</button>
       </div>
       <p class="notes" id="notes"></p>
-      <p class="next">Poi: incollare nella chat (Claude, ChatGPT, Gemini…) e chiedere, per esempio, la lettera di dimissione. Copiare la risposta e passare a <b>2 · Ripristina la risposta</b>.</p>
+      <p class="next">Poi: incollare nella chat (Claude, ChatGPT, Gemini…) e chiedere, per esempio, la lettera di dimissione. Copiare la risposta e passare a <b>2 · Ripristina</b>.</p>
+    </div>
+
+    <div class="card card-empty" aria-hidden="true">
+      <p class="eyebrow">Per la chat dell'IA</p>
+      <div class="empty-body">
+        <div class="empty-ph"><span>[PAZIENTE_1]</span><span>[DATA_1]</span><span>[MEDICO_1]</span></div>
+        <p class="empty-title">Qui comparirà il testo anonimizzato</p>
+        <p class="empty-sub">pronto da copiare nella chat dell'IA.</p>
+      </div>
+      <ol class="flow">
+        <li><b>Anonimizzare</b><span>Trascinare i documenti o incollare il testo, poi «Anonimizza».</span></li>
+        <li><b>Chiedere all'IA</b><span>«Copia per la chat» e incollare in Claude, ChatGPT o Gemini.</span></li>
+        <li><b>Ripristinare</b><span>Incollare la risposta in «2 · Ripristina»: tornano i nomi veri.</span></li>
+      </ol>
     </div>
   </section>
 
   <section id="tab-restore" class="tab" hidden>
-    <div class="card">
-      <p class="eyebrow">Risposta dell'IA</p>
-      <p class="text-2">Incollare la risposta: i segnaposto ([PAZIENTE_1]…) tornano ai dati originali, solo su questo dispositivo.</p>
+    <div class="card card-in">
+      <div class="card-head">
+        <p class="eyebrow">Risposta dell'IA</p>
+        <p class="text-2">Incollare la risposta: i segnaposto ([PAZIENTE_1]…) tornano ai dati originali, solo su questo dispositivo.</p>
+      </div>
       <textarea id="reply" rows="8" placeholder="Incollare qui la risposta dell'IA"></textarea>
-      <div class="row">
+      <div class="row row-main">
         <button class="btn" id="paste-reply" type="button">Incolla dagli appunti</button>
         <button class="btn-dark" id="do-restore" type="button">Ripristina</button>
       </div>
-      <pre id="restored" hidden></pre>
-      <button class="btn-dark" id="copy-restored" type="button" hidden>Copia con i dati reali</button>
     </div>
-    <div class="card">
-      <p class="eyebrow">Tabella dei segnaposto</p>
-      <p class="text-2" id="map-info"></p>
-      <button class="btn-danger" id="forget" type="button">Dimentica</button>
+    <div class="side">
+      <div class="card card-out">
+        <p class="eyebrow">Con i dati reali</p>
+        <pre id="restored" hidden></pre>
+        <p class="empty-inline">La risposta con i nomi veri comparirà qui. Resta su questo dispositivo.</p>
+        <button class="btn-dark btn-wide" id="copy-restored" type="button" hidden>Copia con i dati reali</button>
+      </div>
+      <div class="card card-map">
+        <p class="eyebrow">Tabella dei segnaposto</p>
+        <p class="text-2" id="map-info"></p>
+        <button class="btn-danger" id="forget" type="button">Dimentica</button>
+      </div>
     </div>
   </section>
 
   <details class="card help">
     <summary>Come si usa con Claude, ChatGPT, Gemini</summary>
-    <ol>
-      <li>Trascinare qui i PDF della cartella e incollare i testi copiati, poi «Anonimizza».</li>
-      <li>«Copia per la chat» e incollare nella chat dell'IA, chiedendo ciò che serve (lettera di dimissione, riassunto, consulenza).</li>
-      <li>Copiare la risposta, aprire «Ripristina la risposta», incollarla: i nomi veri tornano al loro posto.</li>
-    </ol>
-    <p><b>Sul computer dell'ospedale.</b> Nessuna installazione: basta questa pagina, anche dai preferiti. La tabella dei segnaposto resta solo in questa scheda e si cancella chiudendola.</p>
-    <p><b>Sul telefono.</b> «Aggiungi a schermata Home» la rende un'app che funziona anche offline; le foto dei referti vengono lette con l'OCR. Audio: trascrivere la registrazione con il telefono e incollare il testo.</p>
-    <p><b>Limiti.</b> Il riconoscimento è automatico: controllare sempre il risultato prima dell'invio. I file caricati direttamente nella chat dell'IA, senza passare da Clin, raggiungono i server del fornitore. Excel: salvarlo come CSV.</p>
+    <div class="help-grid">
+      <ol>
+        <li>Trascinare qui i PDF della cartella e incollare i testi copiati, poi «Anonimizza».</li>
+        <li>«Copia per la chat» e incollare nella chat dell'IA, chiedendo ciò che serve (lettera di dimissione, riassunto, consulenza).</li>
+        <li>Copiare la risposta, aprire «Ripristina», incollarla: i nomi veri tornano al loro posto.</li>
+      </ol>
+      <div>
+        <p><b>Sul computer dell'ospedale.</b> Nessuna installazione: basta questa pagina, anche dai preferiti. La tabella dei segnaposto resta solo in questa scheda e si cancella chiudendola.</p>
+        <p><b>Sul telefono.</b> «Aggiungi a schermata Home» la rende un'app che funziona anche offline; le foto dei referti vengono lette con l'OCR. Audio: trascrivere la registrazione con il telefono e incollare il testo.</p>
+        <p><b>Limiti.</b> Il riconoscimento è automatico: controllare sempre il risultato prima dell'invio. I file caricati direttamente nella chat dell'IA, senza passare da Clin, raggiungono i server del fornitore. Excel: salvarlo come CSV.</p>
+      </div>
+    </div>
   </details>
 </main>
 </body>

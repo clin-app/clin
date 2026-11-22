@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Clin — Anonimizzazione in locale di documenti sanitari per l’IA</title>
+  <title>Clin — Usa l’IA sui documenti dei pazienti, senza far uscire i loro dati</title>
   <meta name="description" content="Clin rimuove in locale nomi, codici fiscali, recapiti, indirizzi, date e codici di documento da referti, cartelle cliniche, Excel e immagini, prima che arrivino a Claude Code, Codex o Antigravity. Si installa con un comando e si richiama con /clin.">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261122f">
-  <link rel="stylesheet" href="clin.css?v=20261122f">
+  <link rel="stylesheet" href="style.css?v=20261123a">
+  <link rel="stylesheet" href="clin.css?v=20261123a">
 </head>
 <body>
 
@@ -17,18 +17,32 @@
   <div class="nav-links">
     <a href="#valore">Perché</a>
     <a href="#reparto">In reparto</a>
+    <a href="#estensione">Estensione</a>
     <a href="#come">Come funziona</a>
-    <a href="#casi">Casi d’uso</a>
-    <a href="#database">Excel e database</a>
-    <a href="#risultati">Risultati</a>
-    <a href="#installazione">Installazione</a>
-    <a href="#rimosso">Cosa viene rimosso</a>
     <a href="#sicurezza">Sicurezza</a>
     <a href="#domande">Domande</a>
-    <a href="#sostieni">Sostieni</a>
   </div>
   <div class="nav-actions">
-    <a class="nav-btn" href="https://github.com/clin-app/clin">Codice</a>
+    <details class="nav-more">
+      <summary class="nav-btn" aria-label="Tutte le sezioni"><span class="nav-more-ico" aria-hidden="true"></span><span class="nav-more-txt">Menu</span></summary>
+      <div class="nav-menu">
+        <a href="#valore">Perché</a>
+        <a href="#reparto">In reparto</a>
+        <a href="#estensione">Estensione per Chrome ed Edge</a>
+        <a href="app/">App nel browser e sul telefono</a>
+        <a href="#come">Come funziona</a>
+        <a href="#casi">Casi d’uso</a>
+        <a href="#database">Excel e database</a>
+        <a href="#risultati">Risultati</a>
+        <a href="#installazione">Installazione</a>
+        <a href="#rimosso">Cosa viene rimosso</a>
+        <a href="#sicurezza">Sicurezza</a>
+        <a href="#domande">Domande</a>
+        <a href="#sostieni">Sostieni</a>
+        <a href="https://github.com/clin-app/clin">Codice sorgente</a>
+      </div>
+    </details>
+    <a class="nav-btn nav-code" href="https://github.com/clin-app/clin">Codice</a>
     <a class="nav-btn nav-accent" href="#installazione">Installazione</a>
   </div>
 </nav>
@@ -37,13 +51,13 @@
   <canvas class="hero-ascii" aria-hidden="true"></canvas>
   <div class="hero-grid">
     <div>
-      <h1>Anonimizzazione in locale dei documenti sanitari, prima dell’uso con l’IA</h1>
-      <p class="hero-copy"><span class="clin">/Clin</span> individua e rimuove i dati personali da referti, cartelle cliniche, database di ricerca e immagini. L’elaborazione avviene interamente in locale: Claude Code, Codex e Google Antigravity ricevono soltanto copie anonimizzate.</p>
+      <h1>Usa l’IA sui documenti dei pazienti, senza far uscire i loro dati</h1>
+      <p class="hero-copy"><span class="clin">/Clin</span> cancella nomi, codici fiscali, date di nascita e recapiti da referti e cartelle cliniche <b>prima</b> che arrivino a ChatGPT, Claude o Gemini, direttamente sul tuo computer. L’IA lavora solo sul contenuto clinico; nella risposta i nomi veri tornano al loro posto.</p>
       <div class="actions">
         <a class="btn btn-white" href="#installazione">Installazione</a>
-        <a class="btn btn-ghost" href="#valore">Come si usa</a>
+        <a class="btn btn-ghost" href="app/">Provalo subito nel browser</a>
       </div>
-      <p class="hero-agents">Si richiama con <span class="clin">/Clin</span> in Claude Code · Codex · Google Antigravity</p>
+      <p class="hero-agents">Nel browser · come estensione per Chrome ed Edge · con <span class="clin">/Clin</span> in Claude Code, Codex e Antigravity</p>
     </div>
     <div class="hero-stage" role="img" aria-label="Animazione: una lettera di dimissione e un registro Excel vengono anonimizzati; i dati personali diventano segnaposto, i contenuti clinici restano."></div>
   </div>
@@ -116,7 +130,7 @@
         <h3>Ancora più semplice: l’estensione per Chrome ed Edge</h3>
         <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude e Gemini: i documenti si trascinano direttamente nella chat e l’IA riceve gli stessi file con i dati personali coperti dai segnaposto. Il riconoscimento dei nomi usa lo stesso modello locale della versione per agenti, dentro il browser. Una pillola «/Clin attivo» mostra la risposta con i nomi veri, visibili solo a chi la usa.</p>
         <div class="actions ext-actions">
-          <a class="btn btn-dark" href="https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip">Scarica l’estensione completa (.zip, circa 500 MB)</a>
+          <a class="btn btn-dark" href="https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip" data-dona>Scarica l’estensione completa (.zip, circa 500 MB)</a>
           <a class="link-in" href="https://github.com/clin-app/clin/releases/latest">Note di versione</a>
         </div>
         <ol class="ext-steps">
@@ -352,14 +366,14 @@
         <div class="install">
           <div class="card card-lime install-card">
             <p class="install-step"><span class="n">01</span> Copiare il comando e incollarlo nel Terminale</p>
-            <div class="cmd"><code id="cmd">curl -fsSL https://clin-app.github.io/clin/install.sh | bash</code><button class="copy" type="button" data-copy="cmd">Copia</button></div>
+            <div class="cmd"><code id="cmd">curl -fsSL https://clin-app.github.io/clin/install.sh | bash</code><button class="copy" type="button" data-copy="cmd" data-dona="dopo">Copia</button></div>
             <p class="install-step"><span class="n">02</span> Aprire l’agente nella cartella dei dati e scrivere</p>
             <div class="cmd"><code>/clin</code></div>
           </div>
           <details class="alt">
             <summary>In alternativa: chiedere all’agente di installarlo</summary>
             <p>Incollare in Claude Code, Codex o Antigravity, che eseguirà il comando dopo l’approvazione:</p>
-            <div class="cmd light"><code id="prompt">Installa Clin eseguendo nel terminale: curl -fsSL https://clin-app.github.io/clin/install.sh | bash</code><button class="copy" type="button" data-copy="prompt">Copia</button></div>
+            <div class="cmd light"><code id="prompt">Installa Clin eseguendo nel terminale: curl -fsSL https://clin-app.github.io/clin/install.sh | bash</code><button class="copy" type="button" data-copy="prompt" data-dona="dopo">Copia</button></div>
           </details>
         </div>
       </div>
@@ -529,11 +543,8 @@
 </footer>
 
 <script src="hero-stage.js?v=20261122f" defer></script>
-<script>
-  /* Pagina Ko-fi per i contributi volontari: finche' e' vuota il pulsante non compare. */
-  const KOFI = '';
-  if (KOFI) { const d = document.getElementById('dona'); d.href = 'https://ko-fi.com/' + encodeURIComponent(KOFI); d.hidden = false; }
-</script>
+<!-- Ko-fi e richiesta di donazione a ogni download: configurati in web/dona.js -->
+<script type="module" src="app/dona.js"></script>
 <script src="hero-ascii.js?v=20261122f" defer></script>
 <script src="demo.js?v=20261122f" defer></script>
 <script>
@@ -567,5 +578,6 @@
     });
   })();
 </script>
+<script src="nav.js" defer></script>
 </body>
 </html>

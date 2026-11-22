@@ -60,7 +60,7 @@ VENDOR = {
         "f702fcfad297ce028ede3626d1467b67939f23ff23595f9badd54681cf25a4d3"),
 }
 
-APP_FILES = ["index.html", "app.js", "style.css", "sw.js", "manifest.webmanifest", "clin_web.py"]
+APP_FILES = ["index.html", "app.js", "style.css", "sw.js", "manifest.webmanifest", "clin_web.py", "dona.js", "dona.css"]
 ENGINE_FILES = ["anonymize_engine.py", "clin_text.py", "tabular_engine.py", "clin_ocr.py", "clin_llm.py", "clin_lingue.py"]
 
 
