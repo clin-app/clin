@@ -102,3 +102,114 @@ def run_bundle(items_json, level, previous_json):
     res.notes = [f"{it['titolo']}: nessun testo (scansione). Caricarla come foto per l'OCR."
                  for it in items if not any(t.strip() for t in it["pagine"])]
     return _out(res)
+
+
+# --------------------------------------------------------------------------
+# File con i dati coperti (estensione): l'IA riceve il documento, non una trascrizione
+# --------------------------------------------------------------------------
+_TITLE_RX = None
+
+
+def _plan_texts(texts, previous):
+    """Per ogni testo: [(inizio, fine, segnaposto)], con un solo registro per tutti i testi."""
+    import re
+    from anonymize_engine import collect_names as _collect
+    from clin_text import _PLACEHOLDER, _without_relatives, find_spans
+    global _TITLE_RX
+    _TITLE_RX = _TITLE_RX or re.compile(r"(?i)^(dott\.ssa|dott\.?|dr\.ssa|dr\.?|prof\.ssa|prof\.?|sig\.ra|sig\.?|inf\.)\s+")
+    joined = "\n\n".join(texts)
+    names = list(_prev(json.dumps(previous))[1]) + _collect(joined)
+    registry = _Registry.from_mapping(previous) if previous else _Registry([])
+    registry.add_names(_without_relatives(joined, names, 10, None, None))
+    plans = []
+    for t in texts:
+        spans = []
+        for s, e, cat in find_spans(t, 10, None, None, names):
+            original = " ".join(t[s:e].split())
+            m = _TITLE_RX.match(original)
+            if m:  # "Dott. Neri": il titolo resta leggibile
+                skip = len(m.group(0))
+                s += skip
+                original = original[skip:]
+                while s < e and t[s].isspace():
+                    s += 1
+            ph = registry.get(_PLACEHOLDER.get(cat, "DATO"), original, link=cat != "Persone")
+            spans.append([s, e, ph])
+        plans.append(spans)
+    return plans, dict(registry.mapping)
+
+
+def plan_pages(pages_json, previous_json):
+    """Testi delle pagine (PDF o OCR) -> intervalli da coprire con il loro segnaposto."""
+    plans, mapping = _plan_texts(json.loads(pages_json), json.loads(previous_json or "{}"))
+    return json.dumps({"spans": plans, "mapping": mapping}, ensure_ascii=False)
+
+
+def redact_docx(in_path, out_path, previous_json):
+    """Word: il testo di ogni paragrafo con dati personali viene riscritto con i segnaposto
+    (formattazione del paragrafo conservata; stili interni al paragrafo uniformati).
+    Ripulisce anche intestazioni, piè di pagina, note, commenti e proprieta' del documento."""
+    import re
+    import zipfile
+    from xml.sax.saxutils import escape, unescape
+    previous = json.loads(previous_json or "{}")
+    zin = zipfile.ZipFile(in_path)
+    parts = [n for n in zin.namelist() if n.startswith("word/") and n.endswith(".xml")]
+    para_rx = re.compile(r"<w:p[ >].*?</w:p>", re.S)
+    t_rx = re.compile(r"(<w:t(?: [^>]*)?>)(.*?)(</w:t>)", re.S)
+    xml = {n: zin.read(n).decode("utf-8") for n in parts}
+    paras = []  # (parte, testo del paragrafo)
+    for n in parts:
+        for p in para_rx.findall(xml[n]):
+            paras.append((n, "".join(unescape(m.group(2)) for m in t_rx.finditer(p))))
+    plans, mapping = _plan_texts([t for _, t in paras], previous)
+    it = iter(plans)
+
+    def rewrite(part):
+        def one(pm):
+            p = pm.group(0)
+            spans = next(it)
+            if not spans:
+                return p
+            text = "".join(unescape(m.group(2)) for m in t_rx.finditer(p))
+            for s, e, ph in sorted(spans, reverse=True):
+                text = text[:s] + ph + text[e:]
+            first = [True]
+
+            def t_sub(m):
+                if first[0]:
+                    first[0] = False
+                    return '<w:t xml:space="preserve">' + escape(text) + "</w:t>"
+                return m.group(1) + m.group(3)
+            return t_rx.sub(t_sub, p)
+        return one
+
+    out = zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED)
+    for item in zin.infolist():
+        data = zin.read(item.filename)
+        if item.filename in xml:
+            data = para_rx.sub(rewrite(item.filename), xml[item.filename]).encode("utf-8")
+        elif item.filename == "docProps/core.xml":  # autore, ultima modifica
+            data = re.sub(rb"(<dc:creator>|<cp:lastModifiedBy>)[^<]*", rb"\1", data)
+        out.writestr(item, data)
+    out.close()
+    return json.dumps({"mapping": mapping}, ensure_ascii=False)
+
+
+def redact_table(in_path, out_path, book_json):
+    """CSV, TSV, Excel: stessa struttura, pseudonimi per colonna (PAZ-0001...) e celle libere coperte."""
+    from tabular_engine import TableSettings, _PseudonymBook, anonymize_table
+    book = json.loads(book_json or "{}")
+    pb = _PseudonymBook(book.get("codici"), book.get("originali"))
+    res = anonymize_table(Path(in_path), Path(out_path), TableSettings(level=10, pseudonyms=pb, keep_labels=True))
+    if res.error:
+        raise ValueError(res.error)
+    return json.dumps({"book": {"codici": pb._maps, "originali": pb.originals},
+                       "mapping": dict(pb.originals), "names": res.detected_names[:200]}, ensure_ascii=False)
+
+
+def safe_name(stem, mapping_json):
+    """Nome del file prodotto senza i nominativi ("dimissione_ferrari" -> "dimissione_ANON")."""
+    from anonymize_engine import safe_output_stem
+    names = [v for k, v in json.loads(mapping_json or "{}").items() if " " in str(v)]
+    return safe_output_stem(stem, 10, names)

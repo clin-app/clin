@@ -2,7 +2,7 @@
 // eseguito con Pyodide. Riceve testi e file dalla pagina della chat tramite il service worker
 // e restituisce il testo con i segnaposto. Nessuna connessione di rete.
 
-let py = null, fs = null, pdfjs = null, tess = null, booting = null;
+let py = null, fs = null, pdfjs = null, tess = null, booting = null, step = "";
 
 async function boot() {
   if (py) return;
@@ -15,6 +15,7 @@ async function boot() {
     pyodide.runPython("import sys; sys.path.insert(0, '.')");
     py = pyodide.pyimport("clin_web");
     fs = pyodide.FS;
+    self.__pyodide = pyodide;
   })();
   await booting;
 }
@@ -50,7 +51,7 @@ function loadScript(src) {
   });
 }
 
-async function ocr(data, type) {
+async function ocr(data, type, prepareOnly = false) {
   if (!tess) {
     await loadScript("vendor/tess/tesseract.min.js");
     const base = new URL("vendor/tess/", location.href).href;
@@ -59,6 +60,7 @@ async function ocr(data, type) {
       workerBlobURL: false, gzip: true, cacheMethod: "none",
     });
   }
+  if (prepareOnly) return "";
   const bitmap = await createImageBitmap(new Blob([data], { type }), { imageOrientation: "from-image" });
   const scale = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
   const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
@@ -96,11 +98,254 @@ async function anonymize(items, previous) {
   return { text, mapping, notes };
 }
 
+// ------------------------------------------------------------------ file con i dati coperti
+// L'IA riceve il documento stesso (PDF, foto, Word, Excel, CSV), con ogni dato personale coperto
+// da un riquadro che riporta il segnaposto. I PDF hanno anche un livello di testo invisibile,
+// gia' anonimizzato, che i modelli leggono come il testo di un PDF qualsiasi.
+
+const SCALE = 2;  // risoluzione delle pagine ridisegnate (144 dpi)
+let wheels = false;
+
+async function excelReady() {
+  if (wheels) return;
+  const base = new URL("vendor/wheels/", location.href).href;
+  await self.__pyodide.loadPackage([base + "et_xmlfile-2.0.0-py3-none-any.whl", base + "openpyxl-3.1.5-py2.py3-none-any.whl"]);
+  wheels = true;
+}
+
+// segmenti di testo di una pagina: { str, box: [x0, y0, x1, y1] in pixel della tela }
+async function pdfSegments(page, viewport) {
+  const content = await page.getTextContent();
+  const segs = [];
+  for (const it of content.items) {
+    if (!it.str) { if (it.hasEOL && segs.length) segs[segs.length - 1].eol = true; continue; }
+    const [, , c, d, e, f] = it.transform;
+    const h = it.height || Math.hypot(c, d);
+    const r = viewport.convertToViewportRectangle([e, f - h * 0.22, e + it.width, f + h * 0.9]);
+    segs.push({ str: it.str, box: [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])], eol: it.hasEOL });
+  }
+  return segs;
+}
+
+async function ocrSegments(canvas) {
+  await ocr(new Uint8Array(), "", true);  // prepara il worker
+  const { data } = await tess.recognize(canvas);
+  const segs = [];
+  for (const block of data.blocks || []) for (const para of block.paragraphs || []) for (const line of para.lines || []) {
+    line.words.forEach((w, i) => segs.push({ str: w.text, box: [w.bbox.x0, w.bbox.y0, w.bbox.x1, w.bbox.y1], eol: i === line.words.length - 1 }));
+  }
+  return segs;
+}
+
+function joinSegs(segs) {
+  let text = "";
+  for (const sg of segs) { sg.start = text.length; text += sg.str; sg.end = text.length; text += sg.eol ? "\n" : " "; }
+  return text;
+}
+
+// copre gli intervalli sulla tela e calcola il testo anonimizzato di ogni segmento
+function cover(ctx, segs, spans) {
+  // posizione di un carattere nel segmento: larghezze misurate, non stimate dal numero di caratteri
+  const xAt = (sg, k) => {
+    const w = sg.box[2] - sg.box[0];
+    if (k <= 0) return sg.box[0];
+    if (k >= sg.str.length) return sg.box[2];
+    ctx.font = `${Math.max(8, sg.box[3] - sg.box[1])}px Helvetica, Arial, sans-serif`;
+    const full = ctx.measureText(sg.str).width || 1;
+    return sg.box[0] + w * ctx.measureText(sg.str.slice(0, k)).width / full;
+  };
+  for (const [s, e, ph] of spans) {
+    // rettangoli del dato, uniti riga per riga
+    const lines = [];
+    for (const sg of segs) {
+      if (sg.end <= s || sg.start >= e) continue;
+      const a = Math.max(s, sg.start) - sg.start, b = Math.min(e, sg.end) - sg.start;
+      const h = sg.box[3] - sg.box[1], slack = h * 0.18;  // margine: nessuna lettera deve restare visibile
+      const r = [xAt(sg, a) - slack, sg.box[1] - 2, xAt(sg, b) + slack, sg.box[3] + 2];
+      const line = lines.find((l) => Math.abs((l[1] + l[3]) / 2 - (r[1] + r[3]) / 2) < h * 0.6);
+      if (line) { line[0] = Math.min(line[0], r[0]); line[1] = Math.min(line[1], r[1]); line[2] = Math.max(line[2], r[2]); line[3] = Math.max(line[3], r[3]); }
+      else lines.push(r);
+      sg.out = sg.out ?? sg.str.split("");
+      for (let k = a; k < b; k++) sg.out[k] = "";
+      if (s >= sg.start) sg.out[a] = ph;  // testo del livello invisibile: il segnaposto al posto del dato
+    }
+    lines.forEach((r, i) => {
+      const [x0, y0, x1, y1] = r, h = y1 - y0;
+      let size = Math.min(h * 0.72, 30);
+      ctx.font = `700 ${size}px Helvetica, Arial, sans-serif`;
+      let tw = ctx.measureText(ph).width;
+      if (i === 0 && tw > x1 - x0 - 4) {  // si riduce fino a 9 px, poi il riquadro si allarga quanto serve
+        size = Math.max(9, size * (x1 - x0 - 4) / tw);
+        ctx.font = `700 ${size}px Helvetica, Arial, sans-serif`;
+        tw = ctx.measureText(ph).width;
+      }
+      const right = i === 0 ? Math.max(x1, x0 + tw + 6) : x1;
+      ctx.fillStyle = "#101411";
+      ctx.fillRect(x0, y0, right - x0, h);
+      if (i === 0) {  // il segnaposto, leggibile anche dai modelli che guardano l'immagine
+        ctx.fillStyle = "#d4f06b";
+        ctx.textBaseline = "middle";
+        ctx.fillText(ph, x0 + 3, (y0 + y1) / 2);
+      }
+    });
+  }
+  for (const sg of segs) sg.anon = sg.out ? sg.out.join("") : sg.str;
+}
+
+// ---- PDF minimo: pagine come immagini JPEG + testo invisibile (Helvetica, WinAnsi)
+const CP1252 = { 0x20AC: 0x80, 0x201A: 0x82, 0x201E: 0x84, 0x2026: 0x85, 0x2018: 0x91, 0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97 };
+function pdfString(str) {
+  let out = "";
+  for (const ch of str) {
+    let c = ch.codePointAt(0);
+    c = CP1252[c] ?? (c < 256 ? c : 0x3F);
+    out += c === 0x28 || c === 0x29 || c === 0x5C ? "\\" + String.fromCharCode(c) : c < 32 || c > 126 ? "\\" + c.toString(8).padStart(3, "0") : String.fromCharCode(c);
+  }
+  return "(" + out + ")";
+}
+function buildPdf(pages) {
+  const enc = new TextEncoder(), chunks = [], offsets = [];
+  let pos = 0;
+  const push = (x) => { const b = typeof x === "string" ? enc.encode(x) : x; chunks.push(b); pos += b.length; };
+  const obj = (n, body, stream) => {
+    offsets[n] = pos;
+    push(`${n} 0 obj\n${body}\n`);
+    if (stream) { push("stream\n"); push(stream); push("\nendstream\n"); }
+    push("endobj\n");
+  };
+  push("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+  const n = pages.length, kids = pages.map((_, i) => `${4 + i * 3} 0 R`).join(" ");
+  obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${n} >>`);
+  obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  pages.forEach((p, i) => {
+    const pn = 4 + i * 3;
+    let text = "BT 3 Tr\n";
+    for (const t of p.texts) {
+      if (!t.str.trim()) continue;
+      text += `/F1 ${t.size.toFixed(2)} Tf 1 0 0 1 ${t.x.toFixed(2)} ${t.y.toFixed(2)} Tm ${pdfString(t.str)} Tj\n`;
+    }
+    text += "ET\n";
+    const content = enc.encode(`q ${p.w.toFixed(2)} 0 0 ${p.h.toFixed(2)} 0 0 cm /Im0 Do Q\n` + text);
+    obj(pn, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${p.w.toFixed(2)} ${p.h.toFixed(2)}] /Resources << /Font << /F1 3 0 R >> /XObject << /Im0 ${pn + 1} 0 R >> >> /Contents ${pn + 2} 0 R >>`);
+    obj(pn + 1, `<< /Type /XObject /Subtype /Image /Width ${p.iw} /Height ${p.ih} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.jpeg.length} >>`, p.jpeg);
+    obj(pn + 2, `<< /Length ${content.length} >>`, content);
+  });
+  const xref = pos, total = 4 + n * 3;
+  let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+  for (let i = 1; i < total; i++) x += String(offsets[i]).padStart(10, "0") + " 00000 n \n";
+  push(x + `trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(pos);
+  let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+
+const jpegOf = async (canvas) => new Uint8Array(await (await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", 0.88))).arrayBuffer());
+
+async function redactPdf(data, state) {
+  if (!pdfjs) {
+    pdfjs = await import("./vendor/pdfjs/pdf.min.mjs");
+    pdfjs.GlobalWorkerOptions.workerSrc = "vendor/pdfjs/pdf.worker.min.mjs";
+  }
+  const doc = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+  const pages = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    step = "pagina " + i;
+    const page = await doc.getPage(i);
+    const vp1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: SCALE });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(vp.width); canvas.height = Math.ceil(vp.height);
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    step = "render " + i;
+    // "print": niente requestAnimationFrame, che nei documenti nascosti non scatta mai
+    await page.render({ canvasContext: ctx, viewport: vp, intent: "print" }).promise;
+    step = "testo " + i;
+    let segs = await pdfSegments(page, vp), ocrUsed = false;
+    if (!segs.some((s) => s.str.trim())) { segs = await ocrSegments(canvas); ocrUsed = true; }  // scansione
+    pages.push({ canvas, ctx, segs, text: joinSegs(segs), w: vp1.width, h: vp1.height, ocrUsed });
+  }
+  await doc.destroy();
+  step = "segnaposto";
+  const plan = JSON.parse(py.plan_pages(JSON.stringify(pages.map((p) => p.text)), JSON.stringify(state.map)));
+  state.map = { ...state.map, ...plan.mapping };
+  const out = [];
+  pages.forEach((p, i) => {
+    cover(p.ctx, p.segs, plan.spans[i]);
+    p.texts = p.segs.map((sg) => {
+      const hpx = sg.box[3] - sg.box[1];
+      return { str: sg.anon, x: sg.box[0] / SCALE, y: p.h - sg.box[3] / SCALE + hpx * 0.2 / SCALE, size: Math.max(4, hpx * 0.8 / SCALE) };
+    });
+  });
+  step = "jpeg";
+  for (const p of pages) out.push({ w: p.w, h: p.h, iw: p.canvas.width, ih: p.canvas.height, jpeg: await jpegOf(p.canvas), texts: p.texts });
+  return { bytes: buildPdf(out), ocr: pages.some((p) => p.ocrUsed) };
+}
+
+async function redactImage(data, type, state) {
+  const bitmap = await createImageBitmap(new Blob([data], { type }), { imageOrientation: "from-image" });
+  const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);  // ridisegnata: niente EXIF (posizione, data, dispositivo)
+  const segs = await ocrSegments(canvas);
+  const plan = JSON.parse(py.plan_pages(JSON.stringify([joinSegs(segs)]), JSON.stringify(state.map)));
+  state.map = { ...state.map, ...plan.mapping };
+  cover(ctx, segs, plan.spans[0]);
+  return await jpegOf(canvas);
+}
+
+function viaFSout(data, ext, fn) {
+  const inp = "/tmp/in" + ext, out = "/tmp/out" + ext;
+  fs.writeFile(inp, data);
+  try { const r = fn(inp, out); return { r, bytes: fs.readFile(out) }; }
+  finally { for (const f of [inp, out]) try { fs.unlink(f); } catch (_) {} }
+}
+
+const b64of = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+
+async function redact(items, state) {
+  await boot();
+  const files = [], notes = [];
+  for (const it of items) {
+    const data = bytes(it.data);
+    const dot = it.name.lastIndexOf(".");
+    const stem = dot > 0 ? it.name.slice(0, dot) : it.name, ext = dot > 0 ? it.name.slice(dot).toLowerCase() : "";
+    let out, type = it.type || "application/octet-stream", outExt = ext;
+    if (it.kind === "PDF") {
+      const r = await redactPdf(data, state);
+      out = r.bytes; type = "application/pdf";
+      if (r.ocr) notes.push(`${it.name}: pagine scansionate lette con OCR, verificare.`);
+    } else if (it.kind === "foto") {
+      out = await redactImage(data, it.type, state); type = "image/jpeg"; outExt = ".jpg";
+      notes.push(`${it.name}: letta con OCR, verificare.`);
+    } else if (it.kind === "Word") {
+      const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_docx(i, o, JSON.stringify(state.map)));
+      state.map = { ...state.map, ...JSON.parse(r).mapping }; out = b;
+    } else if (it.kind === "tabella" || it.kind === "Excel") {
+      if (it.kind === "Excel") await excelReady();
+      const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {})));
+      const res = JSON.parse(r);
+      state.book = res.book; state.map = { ...state.map, ...res.mapping }; out = b;
+    } else {  // testo semplice: stesso file, con i segnaposto
+      const res = JSON.parse(py.run_bundle(JSON.stringify([{ titolo: "", pagine: [new TextDecoder().decode(data)] }]), 10, JSON.stringify(state.map)));
+      state.map = { ...state.map, ...res.mapping }; out = new TextEncoder().encode(res.text);
+    }
+    const name = py.safe_name(stem, JSON.stringify(state.map)) + outExt;
+    files.push({ name, type, data: b64of(out) });
+  }
+  return { files, mapping: state.map, book: state.book || {}, notes };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.target !== "offscreen") return false;
   (async () => {
     try {
       if (msg.op === "anonymize") reply(await anonymize(msg.items, msg.previous || {}));
+      else if (msg.op === "redact") reply(await redact(msg.items, { map: msg.previous || {}, book: msg.book || {} }));
+      else if (msg.op === "debug") reply({ step });
       else if (msg.op === "restore") { await boot(); reply({ text: py.restore(msg.text, JSON.stringify(msg.mapping || {})) }); }
       else reply({ error: "operazione sconosciuta" });
     } catch (err) {

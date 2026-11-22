@@ -42,6 +42,13 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         if (res.error) throw new Error(res.error);
         await chrome.storage.session.set({ [MAP_KEY]: { ...map, ...res.mapping } });
         reply({ ok: true, text: res.text, count: Object.keys(res.mapping || {}).length, notes: res.notes || [] });
+      } else if (msg.op === "redact") {
+        const map = await getMap();
+        const { book = {} } = await chrome.storage.session.get("book");
+        const res = await engine("redact", { items: msg.items, previous: map, book });
+        if (res.error) throw new Error(res.error);
+        await chrome.storage.session.set({ [MAP_KEY]: res.mapping, book: res.book });
+        reply({ ok: true, files: res.files, notes: res.notes || [] });
       } else if (msg.op === "restore") {
         const res = await engine("restore", { text: msg.text, mapping: await getMap() });
         reply({ ok: true, text: res.text });
@@ -52,7 +59,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         await chrome.storage.local.set({ attivo: !!msg.attivo });
         reply({ ok: true });
       } else if (msg.op === "forget") {
-        await chrome.storage.session.remove(MAP_KEY);
+        await chrome.storage.session.remove([MAP_KEY, "book"]);
         reply({ ok: true });
       } else if (msg.op === "warmup") {
         await ensureEngine();

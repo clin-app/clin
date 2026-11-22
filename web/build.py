@@ -26,6 +26,11 @@ CACHE = WEB / ".vendor-cache"
 
 VENDOR = {
     # destinazione in dist/vendor: (url, sha256)
+    # Excel nell'estensione: openpyxl (Python puro) caricato nel motore solo quando serve
+    "wheels/openpyxl-3.1.5-py2.py3-none-any.whl": ("https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl",
+                                                   "5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2"),
+    "wheels/et_xmlfile-2.0.0-py3-none-any.whl": ("https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl",
+                                                 "7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa"),
     "pyodide/pyodide.mjs": ("https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.mjs",
                             "04c052c815abb0bf2981fa38c2dfa58e3120ee5288c956df2b2a15e301782c5f"),
     "pyodide/pyodide.asm.js": ("https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.asm.js",
