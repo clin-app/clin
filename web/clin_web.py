@@ -212,16 +212,20 @@ def redact_docx(in_path, out_path, previous_json):
     return json.dumps({"mapping": mapping}, ensure_ascii=False)
 
 
-def redact_table(in_path, out_path, book_json):
-    """CSV, TSV, Excel: stessa struttura, pseudonimi per colonna (PAZ-0001...) e celle libere coperte."""
+def redact_table(in_path, out_path, book_json, previous_json="{}"):
+    """CSV, TSV, Excel: stessa struttura, pseudonimi per colonna (PAZ-0001...) e segnaposto
+    ripristinabili ([PERSONA_1], [CONTATTO_1]...) nelle note e nelle colonne di recapiti."""
     from tabular_engine import TableSettings, _PseudonymBook, anonymize_table
     book = json.loads(book_json or "{}")
+    previous = json.loads(previous_json or "{}")
     pb = _PseudonymBook(book.get("codici"), book.get("originali"))
-    res = anonymize_table(Path(in_path), Path(out_path), TableSettings(level=10, pseudonyms=pb, keep_labels=True))
+    reg = _Registry.from_mapping(previous) if previous else _Registry([])
+    res = anonymize_table(Path(in_path), Path(out_path),
+                          TableSettings(level=10, pseudonyms=pb, keep_labels=True, registry=reg))
     if res.error:
         raise ValueError(res.error)
     return json.dumps({"book": {"codici": pb._maps, "originali": pb.originals},
-                       "mapping": dict(pb.originals), "names": res.detected_names[:200]}, ensure_ascii=False)
+                       "mapping": {**reg.mapping, **pb.originals}, "names": res.detected_names[:200]}, ensure_ascii=False)
 
 
 def safe_name(stem, mapping_json):

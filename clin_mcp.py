@@ -121,10 +121,16 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     import clin_settings
     book_path = clin_settings.DATA_DIR / "pseudonimi.json"
     book = _PseudonymBook.load(book_path)
+    # note e recapiti nei fogli: segnaposto ripristinabili, nella stessa tabella dei testi
+    import clin
+    from clin_text import _Registry
+    registry = _Registry.from_mapping(clin.load_mapping())
     batch = BatchResult()
     process_batch_files(files, out_dir, sensitivity_level=level, batch_result=batch,
-                        table_settings=TableSettings(level=level, pseudonyms=book, keep_labels=True))
+                        table_settings=TableSettings(level=level, pseudonyms=book, keep_labels=True,
+                                                     registry=registry))
     book.save(book_path)
+    clin.save_mapping(registry.mapping)
     lines = [f"Copie anonimizzate create: {batch.processed} su {len(files)}.",
              f"Copie in: {out_dir}"]
     if batch.failed:

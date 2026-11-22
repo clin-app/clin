@@ -65,6 +65,10 @@ g = g.replace("from '@xenova/transformers'", "from './transformers.min.js'")
 g = g.replace("import ort_CPU from 'onnxruntime-web';", "import ort_CPU from './ort.wasm.min.mjs';")
 g = g.replace("import ort_WEBGPU from 'onnxruntime-web/webgpu';\n", "").replace("import ort_WEBGL from 'onnxruntime-web/webgl';\n", "")
 g = g.replace("// src/lib/model.ts", "const ort_WEBGPU = ort_CPU, ort_WEBGL = ort_CPU;\n// src/lib/model.ts", 1)
+# parole come in GLiNER (Python): \w Unicode, altrimenti "Inês" o "Zieliński" vengono spezzati
+g = g.replace("this.whitespacePattern = /\\w+(?:[-_]\\w+)*|\\S/g;",
+              "this.whitespacePattern = /[\\p{L}\\p{N}_]+(?:[-_][\\p{L}\\p{N}_]+)*|\\S/gu;")
+assert "\\p{L}" in g, "schema delle parole di gliner.js cambiato"
 assert "onnxruntime-web'" not in g and "@xenova" not in g
 (ner / "gliner.mjs").write_text(g, encoding="utf-8")
 if (MODEL / "model.onnx").exists():

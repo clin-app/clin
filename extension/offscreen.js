@@ -350,7 +350,7 @@ async function redact(items, state) {
     } else if (it.kind === "tabella" || it.kind === "Excel") {
       if (it.kind === "Excel") await excelReady();
       await withNer([viaFS(data, ext, (p) => py.table_text(p))]);
-      const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {})));
+      const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {}), JSON.stringify(state.map)));
       const res = JSON.parse(r);
       state.book = res.book; state.map = { ...state.map, ...res.mapping }; out = b;
     } else {  // testo semplice: stesso file, con i segnaposto

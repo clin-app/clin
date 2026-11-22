@@ -410,6 +410,20 @@ Restano leggibili termini clinici, eponimi («manovra di Giordano», «morbo di
 Parkinson»), farmaci, posologie, durate («storia di 10 anni di diabete»),
 valori di laboratorio, codici ICD/DRG e schemi terapeutici («FOLFOX-4»).
 
+**Lingue.** Oltre all'italiano, Clin riconosce documenti in inglese, francese,
+tedesco, spagnolo, portoghese, olandese, polacco e rumeno: etichette (Patient
+name, Nom du patient, Name des Patienten…), date per esteso («3 September 2023»,
+«14. März 2024», «12 de mayo de 2026»), identificativi nazionali (NHS number,
+numéro de sécurité sociale, Versichertennummer, DNI/NIE, número de utente, BSN,
+PESEL, CNP), numeri di cartella (Hospital number, n° de dossier, Fallnummer,
+historia clínica, processo, patiëntnummer…), telefoni e indirizzi nei formati
+nazionali, strutture sanitarie, titoli dei medici (Dr. med., lek. med., Dra.).
+I nomi senza etichetta li trova GLiNER, multilingue; le parole di parentela
+straniere servono solo a riconoscere un familiare già trovato, perché in tedesco
+ogni sostantivo ha la maiuscola. Benchmark multilingue (`tests/benchmark/run_multi.py`,
+160 referti in 8 lingue): con GLiNER 2080/2080 dati rimossi e 480/480 termini
+clinici intatti; con le sole regole 1600/2080, senza falsi positivi.
+
 **Riconoscimento contestuale.** Le regole coprono i dati con forma
 riconoscibile ed etichette. I nomi senza alcun contesto («Elira Shehu, 45enne,
 giunge…») li trova il modello locale; ogni sua proposta viene verificata: deve
@@ -439,7 +453,7 @@ formattazione.
 | Colonna di nomi con intestazione qualsiasi («Coordinatore») | Riconosciuta dal contenuto con il modello locale: pseudonimo `PER-0001` |
 | Data e luogo di nascita, telefono, email, indirizzo, comune di residenza | Oscurati |
 | Età | Conservata; dai 90 anni in su diventa «90+» |
-| Note e testo libero | Analizzati come un referto (familiari, medici, recapiti, date) |
+| Note e testo libero | Analizzati come un referto: familiari, medici, recapiti e date diventano segnaposto ripristinabili ([PERSONA_1], [CONTATTO_1]); il paziente della riga mantiene il suo PAZ |
 | Variabili cliniche: valori, classi, punteggi, codici ICD, esiti | Invariate |
 
 Gli pseudonimi sono gli stessi in tutti i file di un lotto e, con
