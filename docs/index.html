@@ -7,8 +7,8 @@
   <meta name="description" content="Clin rimuove in locale nomi, codici fiscali, recapiti, indirizzi, date e codici di documento da referti, cartelle cliniche, Excel e immagini, prima che arrivino a Claude Code, Codex o Antigravity. Si installa con un comando e si richiama con /clin.">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261122c">
-  <link rel="stylesheet" href="clin.css?v=20261122c">
+  <link rel="stylesheet" href="style.css?v=20261122d">
+  <link rel="stylesheet" href="clin.css?v=20261122d">
 </head>
 <body>
 
@@ -112,7 +112,11 @@
         <div class="feature"><span class="n">03</span><h3>Ripristinare</h3><p>Incollare la risposta in <span class="clin">/Clin</span>: segnaposto e codici tornano ai nomi e ai dati reali.</p></div>
         <div class="feature"><span class="n">04</span><h3>Riportare</h3><p>«Copia con i dati reali» e incollare la lettera nella cartella clinica. Nessun dato è uscito dal computer.</p></div>
       </div>
-      <p class="note">Non trascinare i documenti direttamente nella chat dell’IA: un file caricato lì raggiunge subito i server del fornitore, prima di qualsiasi anonimizzazione. Sul telefono la stessa pagina si aggiunge alla schermata Home e legge anche le foto dei fogli cartacei.</p>
+      <div class="card ext">
+        <h3>Ancora più semplice: l’estensione per Chrome ed Edge</h3>
+        <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude e Gemini: i documenti si trascinano direttamente nella chat e vengono fermati e anonimizzati prima di partire. Una pillola «/Clin attivo» mostra la risposta con i nomi veri, visibili solo a chi la usa. In arrivo sul Chrome Web Store.</p>
+      </div>
+      <p class="note">Senza estensione, non trascinare i documenti direttamente nella chat dell’IA: un file caricato lì raggiunge subito i server del fornitore, prima di qualsiasi anonimizzazione. Sul telefono la stessa pagina si aggiunge alla schermata Home e legge anche le foto dei fogli cartacei.</p>
     </div>
   </section>
 
@@ -514,14 +518,14 @@
   <span class="wordmark" aria-hidden="true">/Clin</span>
 </footer>
 
-<script src="hero-stage.js?v=20261122c" defer></script>
+<script src="hero-stage.js?v=20261122d" defer></script>
 <script>
   /* Pagina Ko-fi per i contributi volontari: finche' e' vuota il pulsante non compare. */
   const KOFI = '';
   if (KOFI) { const d = document.getElementById('dona'); d.href = 'https://ko-fi.com/' + encodeURIComponent(KOFI); d.hidden = false; }
 </script>
-<script src="hero-ascii.js?v=20261122c" defer></script>
-<script src="demo.js?v=20261122c" defer></script>
+<script src="hero-ascii.js?v=20261122d" defer></script>
+<script src="demo.js?v=20261122d" defer></script>
 <script>
   // indirizzo dell'installer: lo stesso sito che serve questa pagina
   (function () {

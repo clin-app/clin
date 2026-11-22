@@ -124,6 +124,34 @@ l'uso offline.
 
 ---
 
+## Estensione per ChatGPT, Claude e Gemini
+
+Per chi usa le chat IA nel browser (per esempio sul PC del reparto), l'estensione
+**Clin per Chrome ed Edge** lavora direttamente nella pagina della chat:
+
+- testo incollato, file trascinati e file scelti con la graffetta vengono fermati
+  **prima** che il sito li riceva, anonimizzati sul computer e inseriti nel campo
+  della chat come testo con segnaposto (PDF, Word, TXT, CSV e foto con OCR);
+- la pillola **/Clin attivo** in basso a destra apre il pannello: l'ultima risposta
+  dell'IA (o il testo selezionato) con i dati reali, e «Copia con i dati reali»;
+- il pannello è in uno shadow DOM chiuso: il sito della chat non può leggere i nomi
+  ripristinati. La tabella dei segnaposto sta in `chrome.storage.session` (solo in
+  memoria, cancellata alla chiusura del browser);
+- nessuna richiesta di rete: il motore (Pyodide, pdf.js, Tesseract) è dentro
+  l'estensione (`connect-src 'self'`).
+
+Siti: chatgpt.com, claude.ai, gemini.google.com, copilot.microsoft.com, chat.mistral.ai.
+
+```bash
+python3 web/build.py && python3 extension/build.py   # extension/dist e extension/clin-estensione.zip
+```
+
+Per provarla: Chrome › Estensioni › Modalità sviluppatore › «Carica estensione non
+pacchettizzata» › `extension/dist`. Per l'installazione con un clic va pubblicata sul
+Chrome Web Store (e sul sito dei componenti aggiuntivi di Edge) con
+`clin-estensione.zip`. Dove le estensioni non sono consentite si usa l'app nel
+browser: https://clin-app.github.io/app/
+
 ## Installazione
 
 Requisiti: Python 3.10 o successivo.

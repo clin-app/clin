@@ -344,3 +344,5 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .foot-cols span.clin { display: inline-block; max-width: none; color: var(--ink); line-height: 1.15; }
 #dona[hidden] { display: none; }
 .keep-h { margin-top: 22px; }
+.ext { margin-top: 18px; padding: 24px 26px; }
+.ext h3 { font-size: 20px; font-weight: 500; letter-spacing: -.01em; margin-bottom: 8px; }

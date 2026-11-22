@@ -23,3 +23,5 @@ web/.vendor-cache/
 
 # Modello OCR (scaricato con scripts/fetch_ocr_model.py)
 models/
+extension/dist/
+extension/*.zip
