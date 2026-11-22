@@ -7,8 +7,8 @@
   <meta name="description" content="Clin rimuove in locale nomi, codici fiscali, recapiti, indirizzi, date e codici di documento da referti, cartelle cliniche, Excel e immagini, prima che arrivino a Claude Code, Codex o Antigravity. Si installa con un comando e si richiama con /clin.">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261122b">
-  <link rel="stylesheet" href="clin.css?v=20261122b">
+  <link rel="stylesheet" href="style.css?v=20261122c">
+  <link rel="stylesheet" href="clin.css?v=20261122c">
 </head>
 <body>
 
@@ -16,6 +16,7 @@
   <a class="brand" href="#"><span class="brand-mark"><img src="logo.svg" alt="" width="34" height="34"></span><span class="clin">/Clin</span></a>
   <div class="nav-links">
     <a href="#valore">Perché</a>
+    <a href="#reparto">In reparto</a>
     <a href="#come">Come funziona</a>
     <a href="#casi">Casi d’uso</a>
     <a href="#database">Excel e database</a>
@@ -91,7 +92,31 @@
   </section>
 
   <!-- ------------------------------------------------ come funziona -->
-  <section class="section" id="come">
+  <!-- ------------------------------------------------ in reparto, senza installare nulla -->
+  <section class="section" id="reparto">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">In reparto, sul PC dell’ospedale</span>
+          <h2>Nessuna installazione: <span><span class="clin">/Clin</span> funziona anche nel browser.</span></h2>
+        </div>
+        <div>
+          <p class="lede">Per scrivere una lettera di dimissione con Claude, ChatGPT o Gemini su un computer dell’ospedale basta aprire una pagina.</p>
+          <p class="sub">Si trascinano i PDF della cartella clinica e si incollano diari ed esami: <span class="clin">/Clin</span> li anonimizza nel browser, tutti insieme e con gli stessi segnaposto, e la risposta dell’IA torna con i nomi veri. Il browser blocca ogni connessione verso altri siti; la tabella dei segnaposto resta solo nella scheda e si cancella chiudendola.</p>
+          <div class="actions"><a class="btn btn-dark" href="https://clin-app.github.io/app/">Apri Clin nel browser</a></div>
+        </div>
+      </div>
+      <div class="features four">
+        <div class="feature"><span class="n">01</span><h3>Trascinare</h3><p>PDF, Word, foto dei referti e testi copiati dalla cartella informatizzata, anche tutti insieme.</p></div>
+        <div class="feature"><span class="n">02</span><h3>Copiare</h3><p>«Copia per la chat» e incollare in Claude, ChatGPT o Gemini con la richiesta: «Scrivi la lettera di dimissione».</p></div>
+        <div class="feature"><span class="n">03</span><h3>Ripristinare</h3><p>Incollare la risposta in <span class="clin">/Clin</span>: segnaposto e codici tornano ai nomi e ai dati reali.</p></div>
+        <div class="feature"><span class="n">04</span><h3>Riportare</h3><p>«Copia con i dati reali» e incollare la lettera nella cartella clinica. Nessun dato è uscito dal computer.</p></div>
+      </div>
+      <p class="note">Non trascinare i documenti direttamente nella chat dell’IA: un file caricato lì raggiunge subito i server del fornitore, prima di qualsiasi anonimizzazione. Sul telefono la stessa pagina si aggiunge alla schermata Home e legge anche le foto dei fogli cartacei.</p>
+    </div>
+  </section>
+
+  <section class="section soft" id="come">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -113,7 +138,7 @@
   </section>
 
   <!-- ------------------------------------------------ casi d'uso -->
-  <section class="section soft" id="casi">
+  <section class="section" id="casi">
     <div class="wrap">
       <span class="eyebrow">Casi d’uso</span>
       <h2>Documentazione clinica, registri e immagini, <span>trattati con gli stessi controlli.</span></h2>
@@ -178,7 +203,7 @@
   </section>
 
   <!-- ------------------------------------------------ excel e database -->
-  <section class="section" id="database">
+  <section class="section soft" id="database">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -261,7 +286,7 @@
   </section>
 
   <!-- ------------------------------------------------ risultati e impostazioni -->
-  <section class="section soft" id="risultati">
+  <section class="section" id="risultati">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -302,7 +327,7 @@
   </section>
 
   <!-- ------------------------------------------------ installazione -->
-  <section class="section" id="installazione">
+  <section class="section soft" id="installazione">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -376,7 +401,7 @@
   </section>
 
   <!-- ------------------------------------------------ cosa viene rimosso -->
-  <section class="section soft" id="rimosso">
+  <section class="section" id="rimosso">
     <div class="wrap">
       <span class="eyebrow">Cosa viene rimosso</span>
       <h2>Tutti i dati personali, sempre, <span>con un controllo manuale per categoria.</span></h2>
@@ -407,7 +432,7 @@
   </section>
 
   <!-- ------------------------------------------------ sicurezza -->
-  <section class="section" id="sicurezza">
+  <section class="section soft" id="sicurezza">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -435,7 +460,7 @@
   </section>
 
   <!-- ------------------------------------------------ domande -->
-  <section class="section soft" id="domande">
+  <section class="section" id="domande">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -449,14 +474,14 @@
           <details><summary>È necessaria una connessione di rete?</summary><p>Soltanto per l’installazione. Anonimizzazione, OCR e modello linguistico funzionano in locale, anche senza rete.</p></details>
           <details><summary>Funziona con le immagini DICOM?</summary><p>Non ancora. Le radiografie vanno esportate in JPG o PNG: il testo stampato sull’immagine viene letto con l’OCR e coperto. I metadati DICOM non vengono trattati.</p></details>
           <details><summary>È disponibile per Windows?</summary><p>Tramite WSL (Windows Subsystem for Linux), con lo stesso comando. Un installer nativo per Windows non è ancora disponibile.</p></details>
-          <details><summary>È disponibile una versione per smartphone?</summary><p>Sì, come app web installabile su iPhone e Android; l’elaborazione avviene nel browser del dispositivo: <a class="link-in" href="https://enricoarmiento.github.io/clin-app/">enricoarmiento.github.io/clin-app</a>.</p></details>
+          <details><summary>È disponibile una versione per smartphone?</summary><p>Sì, come app web installabile su iPhone e Android; l’elaborazione avviene nel browser del dispositivo: <a class="link-in" href="https://clin-app.github.io/app/">clin-app.github.io/app</a>.</p></details>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ------------------------------------------------ sostieni -->
-  <section class="section" id="sostieni">
+  <section class="section soft" id="sostieni">
     <div class="wrap">
       <div class="card card-lime donate">
         <div>
@@ -481,7 +506,7 @@
       <div class="actions"><a class="btn btn-white" href="#installazione">Installazione</a></div>
     </div>
     <div class="foot-cols">
-      <div><p>Progetto</p><a href="https://github.com/clin-app/clin">Codice sorgente</a><a href="https://enricoarmiento.github.io/clin-app/">App per telefono</a><a href="#domande">Domande frequenti</a></div>
+      <div><p>Progetto</p><a href="https://github.com/clin-app/clin">Codice sorgente</a><a href="https://clin-app.github.io/app/">App per telefono</a><a href="#domande">Domande frequenti</a></div>
       <div><p>Agenti</p><a href="#installazione">Claude Code</a><a href="#installazione">Codex</a><a href="#installazione">Google Antigravity</a></div>
       <div><p>Note</p><span>Le copie prodotte vanno sempre verificate. <span class="clin">/Clin</span> riduce il rischio di esposizione dei dati e non sostituisce le valutazioni previste dal GDPR.</span><span class="credits">Carattere: Albert Sans (SIL Open Font License).</span></div>
     </div>
@@ -489,14 +514,14 @@
   <span class="wordmark" aria-hidden="true">/Clin</span>
 </footer>
 
-<script src="hero-stage.js?v=20261122b" defer></script>
+<script src="hero-stage.js?v=20261122c" defer></script>
 <script>
   /* Pagina Ko-fi per i contributi volontari: finche' e' vuota il pulsante non compare. */
   const KOFI = '';
   if (KOFI) { const d = document.getElementById('dona'); d.href = 'https://ko-fi.com/' + encodeURIComponent(KOFI); d.hidden = false; }
 </script>
-<script src="hero-ascii.js?v=20261122b" defer></script>
-<script src="demo.js?v=20261122b" defer></script>
+<script src="hero-ascii.js?v=20261122c" defer></script>
+<script src="demo.js?v=20261122c" defer></script>
 <script>
   // indirizzo dell'installer: lo stesso sito che serve questa pagina
   (function () {

@@ -75,7 +75,7 @@ telefono. Dopo il primo avvio l'app funziona anche senza rete.
 Ogni parola dell'immagine si può oscurare o scoprire con un tocco, prima di
 condividerla.
 
-**Indirizzo: https://enricoarmiento.github.io/clin-app/**
+**Indirizzo: https://clin-app.github.io/app/**
 
 ### Installazione sul telefono
 
@@ -109,12 +109,12 @@ Vercel, Netlify, server interno della struttura). L'hosting serve solo file
 statici: non riceve i documenti, che restano nel telefono.
 
 La versione pubblica è nel repository
-[enricoarmiento/clin-app](https://github.com/enricoarmiento/clin-app) (solo l'app
+[clin-app/app](https://github.com/clin-app/app) (solo l'app
 compilata, servita da GitHub Pages). Per aggiornarla dopo una modifica:
 
 ```bash
 python3 web/build.py
-git clone https://github.com/enricoarmiento/clin-app.git /tmp/clin-app
+git clone https://github.com/clin-app/app.git /tmp/clin-app
 rsync -a --delete --exclude .git --exclude README.md web/dist/ /tmp/clin-app/
 git -C /tmp/clin-app add -A && git -C /tmp/clin-app commit -m "Aggiornamento" && git -C /tmp/clin-app push
 ```

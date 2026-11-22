@@ -131,3 +131,21 @@ class TestFileEImmagini(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPersoneDistinte(unittest.TestCase):
+    """Nome o cognome in comune non bastano per fondere due persone."""
+
+    def test_omonimi_parziali(self):
+        from clin_text import anonymize_text
+        t = ("Paziente: ESPOSITO LUCA. Riferisce la moglie Teresa Esposito.\n"
+             "Diario: il sig. Rossi lamenta dispnea. Chiamata la figlia Elena Rossi.\n"
+             "Anamnesi: paziente Mario Rossi. MMG Dott. Luca Verdi. Il sig. Esposito sta bene.")
+        r = anonymize_text(t, level=10)
+        inv = {v: k for k, v in r.mapping.items()}
+        for name in ("ESPOSITO LUCA", "Teresa Esposito", "Mario Rossi", "Elena Rossi", "Luca Verdi"):
+            self.assertIn(name, inv, name)
+        self.assertEqual(len({inv[n] for n in ("ESPOSITO LUCA", "Teresa Esposito", "Mario Rossi",
+                                               "Elena Rossi", "Luca Verdi")}), 5)
+        self.assertIn(f"il sig. {inv['Mario Rossi']} lamenta", r.text)
+        self.assertIn(f"Il sig. {inv['ESPOSITO LUCA']} sta bene", r.text)
