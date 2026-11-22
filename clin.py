@@ -192,6 +192,15 @@ def cmd_risultati(a) -> int:
 
 def cmd_impostazioni(a) -> int:
     import clin_settings
+    if a.chiave == "categorie":
+        from anonymize_engine import CONTROL_CATEGORIES
+        excl = set(clin_settings.load()["categorie_escluse"])
+        print("Categorie rimosse (si) o lasciate nel testo (no):")
+        for c, desc in CONTROL_CATEGORIES.items():
+            print(f"  {'no' if c in excl else 'si':<3} {c:<24} {desc}")
+        print('\nPer lasciarne alcune: clin.py impostazioni categorie_escluse "Date, Struttura sanitaria"'
+              '\nPer rimuovere di nuovo tutto: clin.py impostazioni categorie_escluse ""')
+        return 0
     if a.chiave:
         if a.valore is None:
             raise ValueError("Indicare anche il valore, es.: clin.py impostazioni ripristino_automatico no")
@@ -199,7 +208,7 @@ def cmd_impostazioni(a) -> int:
     values = clin_settings.load()
     for key, (_, desc) in clin_settings.OPTIONS.items():
         v = values[key]
-        shown = ("si" if v else "no") if isinstance(v, bool) else v
+        shown = ("si" if v else "no") if isinstance(v, bool) else (", ".join(v) or "nessuna") if isinstance(v, list) else v
         print(f"{key:<24} {shown}\n{'':<24} {desc}")
     return 0
 

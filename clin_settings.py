@@ -30,6 +30,10 @@ OPTIONS: Dict[str, tuple] = {
     "motore": ("auto", "Motore per i nomi senza etichetta: auto (GLiNER se installato, altrimenti Ollama), "
                        "gliner oppure ollama."),
     "ocr": (True, "Legge con l'OCR le pagine scansionate e le immagini, se il modello OCR e' installato."),
+    "categorie_escluse": ([], "Categorie da NON rimuovere (controllo manuale; vuoto = si rimuove tutto). "
+                              "Es.: Date, Struttura sanitaria. Elenco: clin.py impostazioni categorie."),
+    "colonne_dal_contenuto": (True, "Nei fogli di calcolo riconosce le colonne di nominativi anche senza "
+                                    "un'intestazione nota, dal contenuto delle celle."),
 }
 
 
@@ -69,6 +73,14 @@ def parse(key: str, raw: str) -> Any:
         if low in {"no", "n", "false", "0", "off"}:
             return False
         raise ValueError(f"{key}: usare si oppure no.")
+    if key == "categorie_escluse":
+        from anonymize_engine import CONTROL_CATEGORIES
+        names = [c.strip() for c in raw.split(",") if c.strip()]
+        lookup = {c.casefold(): c for c in CONTROL_CATEGORIES}
+        bad = [c for c in names if c.casefold() not in lookup]
+        if bad:
+            raise ValueError(f"Categorie sconosciute: {', '.join(bad)}. Disponibili: {', '.join(CONTROL_CATEGORIES)}")
+        return [lookup[c.casefold()] for c in names]
     if key == "motore" and raw.strip() not in ("auto", "gliner", "ollama"):
         raise ValueError("motore: usare auto, gliner oppure ollama.")
     return raw.strip()

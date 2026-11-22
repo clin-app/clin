@@ -343,3 +343,4 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 /* la pillola resta in linea anche dove gli span sono blocchi (piede di pagina) */
 .foot-cols span.clin { display: inline-block; max-width: none; color: var(--ink); line-height: 1.15; }
 #dona[hidden] { display: none; }
+.keep-h { margin-top: 22px; }

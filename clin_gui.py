@@ -33,7 +33,7 @@ from PySide6.QtGui import (
     QNativeGestureEvent, QPainter, QPen, QPixmap, QTextCursor, QWheelEvent,
 )
 from PySide6.QtWidgets import (
-    QAbstractItemView, QApplication, QComboBox, QDialog, QFileDialog, QFrame,
+    QAbstractItemView, QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu,
     QMessageBox, QProgressBar, QPushButton, QScrollArea, QSpinBox,
     QSplitter, QStackedWidget, QTextEdit, QTreeWidget, QTreeWidgetItem,
@@ -513,6 +513,81 @@ class AgentsDialog(CardDialog):
         values["cartella_risultati"] = self.txt_results.text().strip() or "Clin_risultati"
         clin_settings.save(values)
         self.parent_main.log("Impostazioni per gli agenti IA salvate.", "ok")
+        self.accept()
+
+
+class CategoriesDialog(CardDialog):
+    """Controllo manuale: quali categorie di dati rimuovere (tutte, per impostazione predefinita)."""
+
+    def __init__(self, parent_main: "ClinMainWindow"):
+        super().__init__(parent_main, "Cosa rimuovere",
+                         "Vale per l'applicazione, /clin negli agenti e il server MCP", 600, "eraser")
+        import clin_settings
+        from anonymize_engine import CONTROL_CATEGORIES
+        self.parent_main = parent_main
+        values = clin_settings.load()
+        excluded = set(values["categorie_escluse"])
+        self.card_layout.addWidget(caption(
+            "Per impostazione predefinita Clin rimuove tutto. Togliere la spunta solo per i dati che "
+            "devono restare leggibili (per esempio le date degli esami in uno studio): restano in chiaro "
+            "anche nelle copie per l'IA. La lista «Rimuovi sempre» resta comunque attiva."))
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(18)
+        grid.setVerticalSpacing(8)
+        self.boxes = {}
+        for i, (cat, desc) in enumerate(CONTROL_CATEGORIES.items()):
+            box = QCheckBox(cat)
+            box.setChecked(cat not in excluded)
+            box.setToolTip(desc)
+            box.setStyleSheet(f"color: {INK}; font-size: 12.5px;")
+            self.boxes[cat] = box
+            cell = QVBoxLayout()
+            cell.setSpacing(1)
+            cell.addWidget(box)
+            note = caption(desc)
+            note.setWordWrap(True)
+            note.setContentsMargins(22, 0, 0, 0)
+            cell.addWidget(note)
+            grid.addLayout(cell, i // 2, i % 2)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        self.card_layout.addLayout(grid)
+        self.card_layout.addWidget(hairline())
+        self.chk_columns = QCheckBox("Riconoscere le colonne di nominativi anche dal contenuto")
+        self.chk_columns.setChecked(bool(values["colonne_dal_contenuto"]))
+        self.chk_columns.setToolTip(clin_settings.OPTIONS["colonne_dal_contenuto"][1])
+        self.chk_columns.setStyleSheet(f"color: {INK}; font-size: 12.5px;")
+        self.card_layout.addWidget(self.chk_columns)
+        self.card_layout.addWidget(caption(
+            "Fogli di calcolo: oltre alle intestazioni note (paziente, medico, familiare, codice fiscale, "
+            "ricetta…), una colonna con nomi di persona viene pseudonimizzata se il modello locale "
+            "(GLiNER o Ollama) li riconosce nella maggior parte delle celle."))
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        btn_all = make_button("Rimuovi tutto", None, "secondary")
+        btn_all.clicked.connect(lambda: [b.setChecked(True) for b in self.boxes.values()])
+        btn_cancel = make_button("Annulla", None, "secondary")
+        btn_cancel.clicked.connect(self.reject)
+        btn_save = make_button("Salva", "check", "primary")
+        btn_save.setDefault(True)
+        btn_save.clicked.connect(self.save)
+        row.addWidget(btn_all)
+        row.addStretch()
+        row.addWidget(btn_cancel)
+        row.addWidget(btn_save)
+        self.card_layout.addLayout(row)
+
+    def save(self):
+        import clin_settings
+        excluded = [c for c, b in self.boxes.items() if not b.isChecked()]
+        clin_settings.save({"categorie_escluse": excluded,
+                            "colonne_dal_contenuto": self.chk_columns.isChecked()})
+        self.parent_main.log("Lasciati in chiaro: " + ", ".join(excluded) if excluded
+                             else "Categorie: si rimuove tutto.", "ok")
+        try:
+            self.parent_main.sync_preview_settings()
+        except Exception:
+            pass
         self.accept()
 
 
@@ -1821,6 +1896,7 @@ class ClinMainWindow(QMainWindow):
         m_help = menubar.addMenu("Aiuto")
         self._add_action(m_help, "Come funziona", QKeySequence.HelpContents, self.open_how_it_works)
         self._add_action(m_help, "Impostazioni", QKeySequence.Preferences, self.open_settings)
+        self._add_action(m_help, "Cosa rimuovere…", None, lambda: CategoriesDialog(self).exec())
 
     def run_ai_action(self, action: str):
         """Strumenti per l'uso con le IA (vedi clin.py)."""

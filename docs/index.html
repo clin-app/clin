@@ -7,8 +7,8 @@
   <meta name="description" content="Clin rimuove in locale nomi, codici fiscali, recapiti, indirizzi, date e codici di documento da referti, cartelle cliniche, Excel e immagini, prima che arrivino a Claude Code, Codex o Antigravity. Si installa con un comando e si richiama con /clin.">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261122">
-  <link rel="stylesheet" href="clin.css?v=20261122">
+  <link rel="stylesheet" href="style.css?v=20261122b">
+  <link rel="stylesheet" href="clin.css?v=20261122b">
 </head>
 <body>
 
@@ -218,7 +218,7 @@
       </div>
 
       <div class="features four">
-        <div class="feature"><span class="n">01</span><h3>Colonne riconosciute</h3><p>Nominativo (Cognome, Nome, Paziente, Assistito), identificativi (codice fiscale, tessera, nosologico, cartella), nascita, recapiti e residenza (telefono, email, indirizzo, comune).</p></div>
+        <div class="feature"><span class="n">01</span><h3>Colonne riconosciute</h3><p>Dall’intestazione: paziente, medici, personale, familiari e caregiver, codice fiscale e documenti, nosologico, ricetta, campione, struttura, nascita, recapiti e residenza. Dal contenuto: una colonna di nomi con un’intestazione qualsiasi («Coordinatore») viene riconosciuta dal modello locale. In ogni altra cella si cercano comunque telefoni, codici, date e nomi.</p></div>
         <div class="feature"><span class="n">02</span><h3>Pseudonimi stabili</h3><p>Un codice per tipo di dato: PAZ per il paziente, ID per il codice fiscale, IDC per gli identificativi clinici. «Rossi | Mario», «ROSSI MARIO» e «Mario Rossi» ricevono lo stesso codice.</p></div>
         <div class="feature"><span class="n">03</span><h3>Variabili cliniche intatte</h3><p>Valori numerici, classi, punteggi, codici ICD ed esiti restano invariati. L’età resta disponibile per l’analisi; i valori dai 90 anni in su diventano «90+».</p></div>
         <div class="feature"><span class="n">04</span><h3>Testo libero</h3><p>Le celle di note vengono analizzate come un referto: familiari, medici, telefoni e indirizzi citati nel testo vengono oscurati.</p></div>
@@ -379,14 +379,16 @@
   <section class="section soft" id="rimosso">
     <div class="wrap">
       <span class="eyebrow">Cosa viene rimosso</span>
-      <h2>Tutti i dati personali, sempre, <span>senza livelli da impostare.</span></h2>
+      <h2>Tutti i dati personali, sempre, <span>con un controllo manuale per categoria.</span></h2>
       <div class="split split-top removed">
         <ul class="checks">
           <li><span><b>Persone, in qualsiasi lingua</b>Pazienti, familiari, medici, operatori e firmatari, anche senza etichetta.</span></li>
           <li><span><b>Identificativi</b>Codice fiscale (anche omocodico), tessera sanitaria, STP/ENI, carta d’identità, patente, passaporto, permesso di soggiorno.</span></li>
           <li><span><b>Codici clinici e amministrativi</b>Nosologico, nosografico, ricovero, episodio, verbale di Pronto Soccorso, impegnativa, ricetta, referto, protocollo.</span></li>
           <li><span><b>Recapiti e indirizzi</b>Telefoni in ogni formato, email e PEC, indirizzi con o senza etichetta, CAP e comune.</span></li>
-          <li><span><b>Firme digitali, date, età, IBAN, strutture</b>Inclusi i campi dei certificati di firma (CN, SERIALNUMBER).</span></li>
+          <li><span><b>Firme digitali, date, età, IBAN, strutture</b>Inclusi i campi dei certificati di firma (CN, SERIALNUMBER). Le età dai 90 anni in su diventano «90+».</span></li>
+          <li><span><b>Loghi, timbri, firme, codici a barre e QR</b>Nei PDF le immagini incorporate vengono tolte senza cancellare il testo che vi si sovrappone; scansioni e fotografie passano dall’OCR.</span></li>
+          <li><span><b>Ciò che non si vede</b>Metadati (autore, software, date), allegati, commenti, campi modulo, testo nascosto o fuori pagina e nomi nei file prodotti («dimissione_ferrari.pdf» diventa «dimissione_ANON»).</span></li>
         </ul>
         <div class="card keep">
           <h3>Resta leggibile</h3>
@@ -397,6 +399,8 @@
             <li>Durate: «storia di 10 anni di diabete»</li>
             <li>Codici ICD e DRG, schemi terapeutici: «FOLFOX-4»</li>
           </ul>
+          <h3 class="keep-h">Controllo manuale</h3>
+          <p class="muted">Per impostazione predefinita si rimuove tutto. Da <b>Aiuto › Cosa rimuovere</b> o con <code>clin.py impostazioni categorie</code> si può lasciare in chiaro una singola categoria, per esempio le date degli esami o il nome della struttura in uno studio multicentrico.</p>
         </div>
       </div>
     </div>
@@ -485,14 +489,14 @@
   <span class="wordmark" aria-hidden="true">/Clin</span>
 </footer>
 
-<script src="hero-stage.js?v=20261122" defer></script>
+<script src="hero-stage.js?v=20261122b" defer></script>
 <script>
   /* Pagina Ko-fi per i contributi volontari: finche' e' vuota il pulsante non compare. */
   const KOFI = '';
   if (KOFI) { const d = document.getElementById('dona'); d.href = 'https://ko-fi.com/' + encodeURIComponent(KOFI); d.hidden = false; }
 </script>
-<script src="hero-ascii.js?v=20261122" defer></script>
-<script src="demo.js?v=20261122" defer></script>
+<script src="hero-ascii.js?v=20261122b" defer></script>
+<script src="demo.js?v=20261122b" defer></script>
 <script>
   // indirizzo dell'installer: lo stesso sito che serve questa pagina
   (function () {

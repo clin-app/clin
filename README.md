@@ -288,6 +288,8 @@ python3 clin.py impostazioni ripristino_automatico no
 | `ripulisci_output` | si | Output dei comandi ripulito (Claude Code) |
 | `modello_locale` | si | Modello locale per i nomi senza etichetta |
 | `motore` | `auto` | `auto` (GLiNER se installato, altrimenti Ollama), `gliner` o `ollama` |
+| `categorie_escluse` | nessuna | Categorie lasciate in chiaro (controllo manuale), es. `"Date, Struttura sanitaria"`; elenco con `clin.py impostazioni categorie` |
+| `colonne_dal_contenuto` | si | Colonne di nominativi riconosciute dal contenuto, non solo dall'intestazione |
 | `ocr` | si | OCR di scansioni e immagini |
 
 `/clin off` la disattiva. Nella cartella attiva la guardia lavora con gli hook
@@ -339,7 +341,18 @@ limitarlo ulteriormente: variabile d'ambiente `CLIN_CARTELLE`
 
 ## Cosa viene riconosciuto
 
-Non c'è una scala di sensibilità: Clin rimuove sempre **tutti** i dati personali.
+Non c'è una scala di sensibilità: per impostazione predefinita Clin rimuove
+**tutti** i dati personali. Per un uso preciso (per esempio uno studio che deve
+conservare le date degli esami) le singole categorie si possono lasciare in
+chiaro a mano: menu **Aiuto › Cosa rimuovere** nell'applicazione, oppure
+
+```bash
+python3 clin.py impostazioni categorie                                  # stato di ogni categoria
+python3 clin.py impostazioni categorie_escluse "Date, Struttura sanitaria"
+python3 clin.py impostazioni categorie_escluse ""                       # di nuovo tutto
+```
+
+L'impostazione vale per l'applicazione, per `/clin` negli agenti e per il server MCP.
 
 | Dati | Esempi |
 |---|---|
@@ -352,6 +365,9 @@ Non c'è una scala di sensibilità: Clin rimuove sempre **tutti** i dati persona
 | Firme digitali | «Firmato digitalmente da …», «… ai sensi del D.Lgs. 82/2005 da: …», `CN=`, `SERIALNUMBER=TINIT-…` |
 | Date ed età | Tutte le date (nascita, ricovero, esame, firma), età |
 | Altro | IBAN (mod-97), partita IVA e carte (checksum), strutture sanitarie |
+| Immagini nei PDF | Loghi, timbri, firme scansionate, codici a barre e QR, foto: rimossi senza cancellare il testo sovrapposto. Le pagine scansionate passano dall'OCR |
+| Dati nascosti | Metadati e XMP, allegati, commenti, campi modulo, segnalibri, JavaScript, testo invisibile o fuori pagina |
+| Nomi dei file prodotti | «ROSSI_MARIO_referto_12-03-2024» diventa «ANON_referto_ANON»; anche in minuscolo («dimissione_ferrari» → «dimissione_ANON») |
 
 Restano leggibili termini clinici, eponimi («manovra di Giordano», «morbo di
 Parkinson»), farmaci, posologie, durate («storia di 10 anni di diabete»),
@@ -377,7 +393,13 @@ formattazione.
 |---|---|
 | Nominativo: Cognome, Nome, Paziente, Assistito… | Pseudonimo `PAZ-0001`; «Rossi \| Mario» in due colonne, «ROSSI MARIO» e «Mario Rossi» ricevono lo stesso codice |
 | Codice fiscale, tessera sanitaria, passaporto | Pseudonimo `ID-0001` |
-| Nosologico, cartella, ID paziente | Pseudonimo `IDC-0001` |
+| Nosologico, cartella, ID paziente, ricetta/NRE, impegnativa, campione, accession, ricovero, letto | Pseudonimo `IDC-0001` |
+| Medico, refertante, firma, MMG | Pseudonimo `MED-0001` |
+| Infermiere, operatore, compilatore | Pseudonimo `OPE-0001` |
+| Familiare, caregiver, tutore, contatto di emergenza | Pseudonimo `PER-0001` |
+| Documento, carta d'identità, patente | Pseudonimo `DOC-0001` |
+| Ospedale, struttura, presidio, ASL, centro | Pseudonimo `STR-0001` |
+| Colonna di nomi con intestazione qualsiasi («Coordinatore») | Riconosciuta dal contenuto con il modello locale: pseudonimo `PER-0001` |
 | Data e luogo di nascita, telefono, email, indirizzo, comune di residenza | Oscurati |
 | Età | Conservata; dai 90 anni in su diventa «90+» |
 | Note e testo libero | Analizzati come un referto (familiari, medici, recapiti, date) |
@@ -439,7 +461,11 @@ durate, codici ICD, eponimi e schemi terapeutici restano leggibili.
 - Senza modello locale (GLiNER o Ollama) un nome privo di etichetta e di contesto («Elira Shehu,
   45enne…») può sfuggire; per questi casi c'è la lista «Rimuovi sempre».
 - Nei fogli di calcolo il modello locale non viene usato cella per cella
-  (sarebbe troppo lento): i nominativi arrivano dalle colonne riconosciute.
+  (sarebbe troppo lento): decide quali colonne contengono nomi di persona
+  (intestazione nota oppure contenuto), e quei nomi vengono poi cercati anche
+  nelle celle di testo libero.
+- I codici a barre disegnati come grafica vettoriale (non come immagine) nei
+  PDF non vengono riconosciuti; quelli in forma di immagine vengono rimossi.
 - I documenti reali vanno comunque controllati nell'anteprima o nelle copie
   prodotte.
 - Nella modalità appunti, il testo incollato **prima** di passare da Clin è già
