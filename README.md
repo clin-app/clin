@@ -37,7 +37,7 @@ python3 clin.py installa      # una volta: collega Clin a Claude Code
 
 Poi si apre Claude Code (terminale, IDE o scheda Code di Claude Desktop) nella
 cartella dei dati e si scrive `/clin`. Clin protegge la cartella, crea copie
-anonime di Excel, CSV e PDF in `Clin_anonimizzati/` e Claude lavora solo su
+anonime di Excel, CSV, PDF, Word e file di testo in `Clin_anonimizzati/` e Claude lavora solo su
 quelle. Per i dettagli: «Guardia automatica per agenti».
 
 Senza riga di comando: `python3 clin.py` apre l'applicazione grafica.
@@ -410,19 +410,19 @@ Restano leggibili termini clinici, eponimi («manovra di Giordano», «morbo di
 Parkinson»), farmaci, posologie, durate («storia di 10 anni di diabete»),
 valori di laboratorio, codici ICD/DRG e schemi terapeutici («FOLFOX-4»).
 
-**Lingue.** Oltre all'italiano, Clin riconosce documenti in inglese, francese,
-tedesco, spagnolo, portoghese, olandese, polacco e rumeno: etichette (Patient
-name, Nom du patient, Name des Patienten…), date per esteso («3 September 2023»,
-«14. März 2024», «12 de mayo de 2026»), identificativi nazionali (NHS number,
-numéro de sécurité sociale, Versichertennummer, DNI/NIE, número de utente, BSN,
-PESEL, CNP), numeri di cartella (Hospital number, n° de dossier, Fallnummer,
-historia clínica, processo, patiëntnummer…), telefoni e indirizzi nei formati
-nazionali, strutture sanitarie, titoli dei medici (Dr. med., lek. med., Dra.).
-I nomi senza etichetta li trova GLiNER, multilingue; le parole di parentela
-straniere servono solo a riconoscere un familiare già trovato, perché in tedesco
-ogni sostantivo ha la maiuscola. Benchmark multilingue (`tests/benchmark/run_multi.py`,
-160 referti in 8 lingue): con GLiNER 2080/2080 dati rimossi e 480/480 termini
-clinici intatti; con le sole regole 1600/2080, senza falsi positivi.
+**Lingue.** Oltre all'italiano, Clin riconosce documenti in 40 lingue europee
+(alfabeto latino, cirillico e greco): etichette di paziente e nascita, mesi e date
+per esteso in tutti i formati nazionali (anche con l'anno davanti), titoli dei
+medici, identificativi nazionali (NHS number, numéro de sécurité sociale,
+Versichertennummer, DNI/NIE, número de utente, BSN, PESEL, CNP…), codici clinici
+e di cartella, telefoni, indirizzi e strutture sanitarie. I nomi senza etichetta
+(anche scritti tutti in minuscolo o tutti in maiuscolo) li trova GLiNER,
+multilingue; le parole di parentela straniere servono solo a classificare un
+familiare già trovato, così in tedesco i sostantivi comuni non generano falsi
+positivi. Benchmark multilingue (`tests/benchmark/run_multi.py`, 160 referti):
+con GLiNER 2080/2080 dati rimossi e 480/480 termini clinici intatti (1600/2080
+con le sole regole, zero falsi positivi); Pan-European PII Benchmark (2000
+referti in 40 lingue): 99,7% con GLiNER, 90% con le sole regole.
 
 **Riconoscimento contestuale.** Le regole coprono i dati con forma
 riconoscibile ed etichette. I nomi senza alcun contesto («Elira Shehu, 45enne,
@@ -575,11 +575,14 @@ trovare le parole e i loro riquadri, non ricostruire il documento.
 | `clin_text.py` | Testo con segnaposto per le IA (PDF, DOCX, XLSX, CSV, TXT) |
 | `clin_mcp.py` | Server MCP senza dipendenze esterne |
 | `clin_ocr.py` | OCR locale facoltativo e redazione sui pixel delle scansioni |
+| `clin_lingue.py` | Regole e vocabolari per 40 lingue europee |
 | `scripts/fetch_ocr_model.py` | Download del modello OCR con verifica SHA-256 |
 | `anonymize_pdf.py` | Riga di comando per l'anonimizzazione di PDF in lotto |
 | `integrations/claude-code/` | Skill `/clin` (usata anche per Codex e Antigravity) |
 | `build_app.py` | Creazione di Clin.app per macOS |
-| `web/` | App web per telefono (Pyodide, Tesseract.js, pdf.js) e script di build |
+| `web/` | App web per browser e telefono (Pyodide, Tesseract.js, pdf.js) e script di build |
+| `extension/` | Estensione per Chrome ed Edge (Pyodide, pdf.js, Tesseract.js, GLiNER ONNX) |
+| `docs/` | Sito informativo e script di installazione rapida (`install.sh`) |
 | `ui_kit.py` | Sistema di design dell'interfaccia |
 
 ## Test
@@ -588,7 +591,7 @@ trovare le parole e i loro riquadri, non ricostruire il documento.
 python3 -m unittest discover -s tests -v
 ```
 
-I test (45, di cui 3 dell'OCR saltati se il modello OCR non è installato) usano
+I test (87, di cui 3 dell'OCR saltati se il modello OCR non è installato) usano
 solo documenti sintetici generati al momento e girano senza modello linguistico
 (`CLIN_LLM=0`); nessun dato reale è incluso nel repository.
 

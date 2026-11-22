@@ -166,7 +166,7 @@ async function runAll() {
       status(`Lettura di ${n} di ${queue.length}…`);
       const title = `Documento ${n} (${q.kind})`;
       if (q.kind === "PDF") items.push({ titolo: title, pagine: await pdfPages(q.file) });
-      else if (q.kind === "foto") { items.push({ titolo: title, pagine: [await ocrImage(q.file)] }); notes.push(`${title}: testo letto con OCR, verificarlo.`); }
+      else if (q.kind === "foto") { items.push({ titolo: title, pagine: [await ocrImage(q.file)], ocr: true }); notes.push(`${title}: testo letto con OCR, verificarlo.`); }
       else if (q.kind === "tabella") tables.push({ title, file: q.file });
       else items.push({ titolo: title, pagine: [await viaFS(q.file, (p) => py.extract(p))] });
     }
@@ -234,18 +234,21 @@ async function ocrImage(file) {
   const worker = await ocrWorker();
   const { data } = await worker.recognize(canvas);
 
-  // Testo ricostruito riga per riga, con la posizione di ogni parola.
+  // Testo ricostruito riga per riga, con la posizione (in code-point Unicode) di ogni parola.
   const words = [];
-  let text = "";
+  let text = "", cp = 0;
   for (const block of data.blocks || []) {
     for (const para of block.paragraphs || []) {
       for (const line of para.lines || []) {
         line.words.forEach((w, i) => {
-          if (i > 0) text += " ";
-          words.push({ start: text.length, end: text.length + w.text.length, bbox: w.bbox });
+          if (i > 0) { text += " "; cp += 1; }
+          const wLen = Array.from(w.text).length;
+          words.push({ start: cp, end: cp + wLen, bbox: w.bbox });
           text += w.text;
+          cp += wLen;
         });
         text += "\n";
+        cp += 1;
       }
     }
   }
@@ -255,6 +258,7 @@ async function ocrImage(file) {
   words.forEach((w, i) => {
     if (spans.some(([s, e]) => w.start < e && w.end > s)) redacted.add(i);
   });
+  image?.bitmap?.close?.();
   image = { bitmap, words, redacted, scale };
   drawImage();
   $("image-wrap").hidden = false;  // l'immagine oscurata si puo' anche condividere com'e'

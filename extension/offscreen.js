@@ -81,6 +81,7 @@ async function ocr(data, type, prepareOnly = false) {
   const scale = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
   const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
   canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
   const { data: res } = await tess.recognize(await canvas.convertToBlob());
   return res.text || "";
 }
@@ -97,21 +98,25 @@ async function anonymize(items, previous) {
     const data = bytes(it.data);
     const ext = (it.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
     if (it.kind === "PDF") bundle.push({ titolo: title, pagine: await pdfPages(data) });
-    else if (it.kind === "foto") { bundle.push({ titolo: title, pagine: [await ocr(data, it.type)] }); notes.push(`${title}: letto con OCR, da verificare.`); }
+    else if (it.kind === "foto") { bundle.push({ titolo: title, pagine: [await ocr(data, it.type)], ocr: true }); notes.push(`${title}: letto con OCR, da verificare.`); }
     else if (it.kind === "tabella") tables.push({ title, data, ext });
     else bundle.push({ titolo: title, pagine: [viaFS(data, ext, (p) => py.extract(p))] });
   }
   let mapping = { ...previous }, text = "";
-  await withNer(bundle.flatMap((b) => b.pagine).concat(tables.map((t) => viaFS(t.data, t.ext, (p) => py.table_text(p)))));
-  if (nerNote) notes.push(nerNote);
-  if (bundle.length) {
-    const res = JSON.parse(py.run_bundle(JSON.stringify(bundle), 10, JSON.stringify(mapping)));
-    text = res.text; mapping = { ...mapping, ...res.mapping }; notes.push(...(res.notes || []));
-  }
-  for (const t of tables) {
-    const res = JSON.parse(viaFS(t.data, t.ext, (p) => py.run_file(p, 10, JSON.stringify(mapping))));
-    text += (text ? "\n\n" : "") + (many ? `### ${t.title}\n` : "") + res.text;
-    mapping = { ...mapping, ...res.mapping };
+  try {
+    await withNer(bundle.flatMap((b) => b.pagine).concat(tables.map((t) => viaFS(t.data, t.ext, (p) => py.table_text(p)))));
+    if (nerNote) notes.push(nerNote);
+    if (bundle.length) {
+      const res = JSON.parse(py.run_bundle(JSON.stringify(bundle), 10, JSON.stringify(mapping)));
+      text = res.text; mapping = { ...mapping, ...res.mapping }; notes.push(...(res.notes || []));
+    }
+    for (const t of tables) {
+      const res = JSON.parse(viaFS(t.data, t.ext, (p) => py.run_file(p, 10, JSON.stringify(mapping))));
+      text += (text ? "\n\n" : "") + (many ? `### ${t.title}\n` : "") + res.text;
+      mapping = { ...mapping, ...res.mapping };
+    }
+  } finally {
+    py.set_ner("");
   }
   return { text, mapping, notes };
 }
@@ -137,10 +142,15 @@ async function pdfSegments(page, viewport) {
   const segs = [];
   for (const it of content.items) {
     if (!it.str) { if (it.hasEOL && segs.length) segs[segs.length - 1].eol = true; continue; }
-    const [, , c, d, e, f] = it.transform;
+    const [a, b, c, d, e, f] = it.transform;
     const h = it.height || Math.hypot(c, d);
-    const r = viewport.convertToViewportRectangle([e, f - h * 0.22, e + it.width, f + h * 0.9]);
-    segs.push({ str: it.str, box: [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])], eol: it.hasEOL });
+    const vertPdf = Math.abs(b) > Math.abs(a);
+    const pdfRect = vertPdf
+      ? [e - h * 0.9, f, e + h * 0.25, f + (b >= 0 ? 1 : -1) * it.width]
+      : [e, f - h * 0.22, e + (a >= 0 ? 1 : -1) * it.width, f + h * 0.9];
+    const r = viewport.convertToViewportRectangle(pdfRect);
+    const box = [Math.min(r[0], r[2]), Math.min(r[1], r[3]), Math.max(r[0], r[2]), Math.max(r[1], r[3])];
+    segs.push({ str: it.str, box, vertical: (box[3] - box[1]) > (box[2] - box[0]) * 1.5 && it.str.length > 1, eol: it.hasEOL });
   }
   return segs;
 }
@@ -156,39 +166,64 @@ async function ocrSegments(canvas) {
 }
 
 function joinSegs(segs) {
-  let text = "";
-  for (const sg of segs) { sg.start = text.length; text += sg.str; sg.end = text.length; text += sg.eol ? "\n" : " "; }
+  let text = "", cp = 0;
+  for (const sg of segs) {
+    sg.chars = Array.from(sg.str);
+    sg.start = cp;
+    text += sg.str;
+    cp += sg.chars.length;
+    sg.end = cp;
+    text += sg.eol ? "\n" : " ";
+    cp += 1;
+  }
   return text;
 }
 
 // copre gli intervalli sulla tela e calcola il testo anonimizzato di ogni segmento
 function cover(ctx, segs, spans) {
-  // posizione di un carattere nel segmento: larghezze misurate, non stimate dal numero di caratteri
+  // posizione di un carattere (indice code-point) nel segmento: larghezze misurate
   const xAt = (sg, k) => {
+    const chars = sg.chars || Array.from(sg.str);
     const w = sg.box[2] - sg.box[0];
     if (k <= 0) return sg.box[0];
-    if (k >= sg.str.length) return sg.box[2];
+    if (k >= chars.length) return sg.box[2];
     ctx.font = `${Math.max(8, sg.box[3] - sg.box[1])}px Helvetica, Arial, sans-serif`;
     const full = ctx.measureText(sg.str).width || 1;
-    return sg.box[0] + w * ctx.measureText(sg.str.slice(0, k)).width / full;
+    return sg.box[0] + w * ctx.measureText(chars.slice(0, k).join("")).width / full;
   };
   for (const [s, e, ph] of spans) {
     // rettangoli del dato, uniti riga per riga
     const lines = [];
     for (const sg of segs) {
       if (sg.end <= s || sg.start >= e) continue;
+      const chars = sg.chars || Array.from(sg.str);
       const a = Math.max(s, sg.start) - sg.start, b = Math.min(e, sg.end) - sg.start;
-      const h = sg.box[3] - sg.box[1], slack = h * 0.18;  // margine: nessuna lettera deve restare visibile
-      const r = [xAt(sg, a) - slack, sg.box[1] - 2, xAt(sg, b) + slack, sg.box[3] + 2];
-      const line = lines.find((l) => Math.abs((l[1] + l[3]) / 2 - (r[1] + r[3]) / 2) < h * 0.6);
-      if (line) { line[0] = Math.min(line[0], r[0]); line[1] = Math.min(line[1], r[1]); line[2] = Math.max(line[2], r[2]); line[3] = Math.max(line[3], r[3]); }
-      else lines.push(r);
-      sg.out = sg.out ?? sg.str.split("");
+      let r;
+      if (sg.vertical) {
+        const w = sg.box[2] - sg.box[0], totalH = sg.box[3] - sg.box[1], slack = w * 0.2;
+        const y0 = sg.box[1] + totalH * (a / Math.max(1, chars.length)) - slack;
+        const y1 = sg.box[1] + totalH * (b / Math.max(1, chars.length)) + slack;
+        r = [sg.box[0] - 2, Math.min(y0, y1), sg.box[2] + 2, Math.max(y0, y1)];
+        lines.push(r);
+      } else {
+        const h = sg.box[3] - sg.box[1], slack = h * 0.18;  // margine: nessuna lettera deve restare visibile
+        r = [xAt(sg, a) - slack, sg.box[1] - 2, xAt(sg, b) + slack, sg.box[3] + 2];
+        const line = lines.find((l) => Math.abs((l[1] + l[3]) / 2 - (r[1] + r[3]) / 2) < h * 0.6);
+        if (line) { line[0] = Math.min(line[0], r[0]); line[1] = Math.min(line[1], r[1]); line[2] = Math.max(line[2], r[2]); line[3] = Math.max(line[3], r[3]); }
+        else lines.push(r);
+      }
+      sg.out = sg.out ?? chars.slice();
       for (let k = a; k < b; k++) sg.out[k] = "";
       if (s >= sg.start) sg.out[a] = ph;  // testo del livello invisibile: il segnaposto al posto del dato
     }
     lines.forEach((r, i) => {
       const [x0, y0, x1, y1] = r, h = y1 - y0;
+      const vertBox = h > (x1 - x0) * 1.8;
+      if (vertBox) {
+        ctx.fillStyle = "#101411";
+        ctx.fillRect(x0, y0, x1 - x0, h);
+        return;
+      }
       let size = Math.min(h * 0.72, 30);
       ctx.font = `700 ${size}px Helvetica, Arial, sans-serif`;
       let tw = ctx.measureText(ph).width;
@@ -288,7 +323,11 @@ async function redactPdf(data, state) {
   step = "segnaposto";
   step = "nomi";
   await withNer(pages.map((p) => p.text));
-  const plan = JSON.parse(py.plan_pages(JSON.stringify(pages.map((p) => p.text)), JSON.stringify(state.map)));
+  const plan = JSON.parse(py.plan_pages(
+    JSON.stringify(pages.map((p) => p.text)),
+    JSON.stringify(state.map),
+    JSON.stringify(pages.map((p) => p.ocrUsed)),
+  ));
   state.map = { ...state.map, ...plan.mapping };
   const out = [];
   pages.forEach((p, i) => {
@@ -310,10 +349,11 @@ async function redactImage(data, type, state) {
   canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
   const ctx = canvas.getContext("2d");
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);  // ridisegnata: niente EXIF (posizione, data, dispositivo)
+  bitmap.close();
   const segs = await ocrSegments(canvas);
   const text = joinSegs(segs);
   await withNer([text]);
-  const plan = JSON.parse(py.plan_pages(JSON.stringify([text]), JSON.stringify(state.map)));
+  const plan = JSON.parse(py.plan_pages(JSON.stringify([text]), JSON.stringify(state.map), JSON.stringify([true])));
   state.map = { ...state.map, ...plan.mapping };
   cover(ctx, segs, plan.spans[0]);
   return await jpegOf(canvas);
@@ -331,36 +371,41 @@ const b64of = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) 
 async function redact(items, state) {
   await boot();
   const files = [], notes = [];
-  for (const it of items) {
-    const data = bytes(it.data);
-    const dot = it.name.lastIndexOf(".");
-    const stem = dot > 0 ? it.name.slice(0, dot) : it.name, ext = dot > 0 ? it.name.slice(dot).toLowerCase() : "";
-    let out, type = it.type || "application/octet-stream", outExt = ext;
-    if (it.kind === "PDF") {
-      const r = await redactPdf(data, state);
-      out = r.bytes; type = "application/pdf";
-      if (r.ocr) notes.push(`${it.name}: pagine scansionate lette con OCR, verificare.`);
-    } else if (it.kind === "foto") {
-      out = await redactImage(data, it.type, state); type = "image/jpeg"; outExt = ".jpg";
-      notes.push(`${it.name}: letta con OCR, verificare.`);
-    } else if (it.kind === "Word") {
-      await withNer([viaFS(data, ext, (p) => py.extract(p))]);
-      const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_docx(i, o, JSON.stringify(state.map)));
-      state.map = { ...state.map, ...JSON.parse(r).mapping }; out = b;
-    } else if (it.kind === "tabella" || it.kind === "Excel") {
-      if (it.kind === "Excel") await excelReady();
-      await withNer([viaFS(data, ext, (p) => py.table_text(p))]);
-      const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {}), JSON.stringify(state.map)));
-      const res = JSON.parse(r);
-      state.book = res.book; state.map = { ...state.map, ...res.mapping }; out = b;
-    } else {  // testo semplice: stesso file, con i segnaposto
-      await withNer([new TextDecoder().decode(data)]);
-      const res = JSON.parse(py.run_bundle(JSON.stringify([{ titolo: "", pagine: [new TextDecoder().decode(data)] }]), 10, JSON.stringify(state.map)));
-      state.map = { ...state.map, ...res.mapping }; out = new TextEncoder().encode(res.text);
+  try {
+    for (const it of items) {
+      const data = bytes(it.data);
+      const dot = it.name.lastIndexOf(".");
+      const stem = dot > 0 ? it.name.slice(0, dot) : it.name, ext = dot > 0 ? it.name.slice(dot).toLowerCase() : "";
+      let out, type = it.type || "application/octet-stream", outExt = ext;
+      if (it.kind === "PDF") {
+        const r = await redactPdf(data, state);
+        out = r.bytes; type = "application/pdf";
+        if (r.ocr) notes.push(`${it.name}: pagine scansionate lette con OCR, verificare.`);
+      } else if (it.kind === "foto") {
+        out = await redactImage(data, it.type, state); type = "image/jpeg"; outExt = ".jpg";
+        notes.push(`${it.name}: letta con OCR, verificare.`);
+      } else if (it.kind === "Word") {
+        await withNer([viaFS(data, ext, (p) => py.extract(p))]);
+        const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_docx(i, o, JSON.stringify(state.map)));
+        state.map = { ...state.map, ...JSON.parse(r).mapping }; out = b;
+      } else if (it.kind === "tabella" || it.kind === "Excel") {
+        if (it.kind === "Excel") await excelReady();
+        await withNer([viaFS(data, ext, (p) => py.table_text(p))]);
+        const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {}), JSON.stringify(state.map)));
+        const res = JSON.parse(r);
+        state.book = res.book; state.map = { ...state.map, ...res.mapping }; out = b;
+      } else {  // testo semplice: stesso file, con i segnaposto
+        const text = new TextDecoder().decode(data);
+        await withNer([text]);
+        const res = JSON.parse(py.run_bundle(JSON.stringify([{ titolo: "", pagine: [text] }]), 10, JSON.stringify(state.map)));
+        state.map = { ...state.map, ...res.mapping }; out = new TextEncoder().encode(res.text);
+      }
+      if (nerNote && !notes.includes(nerNote)) notes.push(nerNote);
+      const name = py.safe_name(stem, JSON.stringify(state.map)) + outExt;
+      files.push({ name, type, data: b64of(out) });
     }
-    if (nerNote && !notes.includes(nerNote)) notes.push(nerNote);
-    const name = py.safe_name(stem, JSON.stringify(state.map)) + outExt;
-    files.push({ name, type, data: b64of(out) });
+  } finally {
+    py.set_ner("");
   }
   return { files, mapping: state.map, book: state.book || {}, notes };
 }

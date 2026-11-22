@@ -41,22 +41,30 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 PROTECTED = {".pdf", ".docx", ".doc", ".xlsx", ".xlsm", ".xls", ".csv", ".tsv", ".txt", ".rtf",
-             ".odt", ".ods"}
+             ".odt", ".ods", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
 READS_DIR = Path(os.path.expanduser(os.environ.get("CLIN_DATI") or "~/.clin")) / "letture"
 MARKER = ".clin-protetto"
+RESULTS_MARKER = ".clin-risultati"
 # categorie certe abbastanza da fermare un messaggio (le date da sole no)
 PROMPT_BLOCK = {"ID ufficiali", "Dati bancari", "Nome paziente", "Documenti", "Data di nascita"}
 _GLOB_RX = re.compile(r"\*\.(?:" + "|".join(e[1:] for e in PROTECTED) + r")\b", re.I)
 _EXT_RX = re.compile(r"[^\s'\"|;&<>()=,]+\.(?:" + "|".join(e[1:] for e in PROTECTED) + r")\b", re.I)
-# comandi che non mostrano il contenuto dei file
-_SAFE_CMDS = {"ls", "find", "stat", "file", "du", "mkdir", "mv", "cp", "rm", "open", "touch", "wc",
+# comandi che non mostrano, non copiano e non spostano il contenuto dei file
+_SAFE_CMDS = {"ls", "find", "stat", "file", "du", "mkdir", "touch", "wc",
               "basename", "dirname", "realpath", "echo", "cd", "pwd", "chmod", "mdls", "xattr"}
+_SEARCH_CMDS = {"grep", "egrep", "fgrep", "rg", "ripgrep", "ag", "ack"}
+_SHELL_WRAPPERS = {"sh", "bash", "zsh", "dash", "ksh"}
 
 
 def is_anonymized(path: Path) -> bool:
-    parts = {p.casefold() for p in path.parts}
-    return ("clin_anonimizzati" in parts or "_anonimizzato" in path.stem.casefold()
-            or READS_DIR in path.parents)
+    try:
+        resolved = path.resolve()
+        reads = READS_DIR.resolve()
+    except OSError:
+        resolved, reads = path, READS_DIR
+    parts = {p.casefold() for p in resolved.parts}
+    return ("clin_anonimizzati" in parts or "_anonimizzato" in resolved.stem.casefold()
+            or reads in resolved.parents)
 
 
 # file tecnici con estensione "da documento" che non contengono dati di pazienti
@@ -79,14 +87,25 @@ def is_agent_output(path: Path) -> bool:
     e con segnaposto o pseudonimi al suo interno. Un originale non li contiene mai.
     """
     try:
+        if path.is_symlink():
+            return False
         root = protected_root(path.parent)
         if root is None or path.stat().st_mtime <= (root / MARKER).stat().st_mtime:
             return False
         if path.suffix.lower() in {".xlsx", ".xlsm"}:
             import zipfile
+            chunks = []
+            budget = 2_000_000
             with zipfile.ZipFile(path) as z:
-                data = b"".join(z.read(n)[:2_000_000] for n in z.namelist()
-                                if n.endswith(("sharedStrings.xml",)) or n.startswith("xl/worksheets/"))
+                for n in z.namelist():
+                    if budget <= 0:
+                        break
+                    if n.endswith(("sharedStrings.xml",)) or n.startswith("xl/worksheets/"):
+                        with z.open(n) as zf:
+                            part = zf.read(min(budget, 500_000))
+                            chunks.append(part)
+                            budget -= len(part)
+            data = b"".join(chunks)
         elif path.suffix.lower() in {".csv", ".tsv", ".txt", ".md", ".json"}:
             with open(path, "rb") as fh:
                 data = fh.read(2_000_000)
@@ -104,18 +123,46 @@ def results_dir_for(cwd: str) -> Optional[Path]:
     return clin_settings.results_dir(root) if root else None
 
 
-def in_results(path: Path, cwd: str) -> bool:
-    res = results_dir_for(cwd)
-    if res is None:
-        return False
+def in_data_dir(path: Path) -> bool:
+    """Vero per le tabelle locali di Clin (~/.clin), escluse le copie di lettura della guardia."""
+    import clin
     try:
-        return path.resolve().is_relative_to(res.resolve())
+        resolved = path.resolve()
+        reads = READS_DIR.resolve()
+        if resolved == reads or reads in resolved.parents:
+            return False
+        data_dirs = {clin.MAP_DIR.expanduser().resolve()}
+        import clin_settings
+        data_dirs.add(clin_settings.DATA_DIR.expanduser().resolve())
+        return any(resolved == d or resolved.is_relative_to(d) for d in data_dirs)
     except OSError:
         return False
 
 
+def in_results(path: Path, cwd: str) -> bool:
+    try:
+        resolved = path.resolve()
+    except OSError:
+        return False
+    for anc in (resolved, *resolved.parents):
+        if (anc / RESULTS_MARKER).is_file() or anc.name == "Clin_risultati":
+            return True
+    import clin_settings
+    roots = {r for r in (protected_root(Path(cwd or os.getcwd()).expanduser()),
+                         protected_root(resolved if resolved.exists() else resolved.parent)) if r}
+    for root in roots:
+        try:
+            if resolved.is_relative_to(clin_settings.results_dir(root).resolve()):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 RESULTS_DENIED = ("Clin: la cartella dei risultati contiene i dati reali dei pazienti e non e' "
                   "accessibile all'agente. Lavorare sui file con segnaposto o pseudonimi.")
+DATA_DENIED = ("Clin: la cartella dei dati locali di Clin contiene le tabelle di corrispondenza "
+               "e non e' accessibile all'agente.")
 
 
 def _out(obj: dict) -> None:
@@ -164,9 +211,13 @@ def anonymized_copy(path: Path) -> Path:
 def on_read(data: dict) -> None:
     tool_input = dict(data.get("tool_input") or {})
     raw = tool_input.get("file_path") or ""
-    path = _abs(raw, data.get("cwd", ""))
-    if raw and in_results(path, data.get("cwd", "")):
+    cwd = data.get("cwd", "")
+    path = _abs(raw, cwd)
+    if raw and in_results(path, cwd):
         _deny(RESULTS_DENIED)
+        return
+    if raw and in_data_dir(path):
+        _deny(DATA_DENIED)
         return
     if not raw or not needs_guard(path) or not path.exists():
         return
@@ -194,18 +245,82 @@ def on_read(data: dict) -> None:
 # --------------------------------------------------------------------------
 # Bash e Grep: niente accesso diretto agli originali
 # --------------------------------------------------------------------------
-def _segments(command: str) -> Iterable[List[str]]:
+def _segments(command: str, _depth: int = 0) -> Iterable[List[str]]:
+    if _depth > 4:
+        return
     for seg in re.split(r"\|\||&&|[|;\n]", command):
         try:
             words = shlex.split(seg)
         except ValueError:
             words = seg.split()
-        if words:
-            yield words
+        if not words:
+            continue
+        yield words
+        # "bash -lc 'rg ROSSI'" o "sh -c 'cat coorte.csv'": ispeziona anche il comando interno
+        if Path(words[0]).name in _SHELL_WRAPPERS:
+            for idx, w in enumerate(words[1:], 1):
+                if w.startswith("-") and "c" in w and idx + 1 < len(words):
+                    yield from _segments(words[idx + 1], _depth + 1)
+                    break
+
+
+_SEARCH_VAL_FLAGS = {"-e", "--regexp", "-f", "--file", "-m", "--max-count", "-A", "-B", "-C"}
+_SEARCH_GLOB_FLAGS = {"-g", "--glob", "-t", "--type", "--include"}
+
+
+def _risky_search(words: List[str], cwd: str) -> List[str]:
+    """Ricerche da shell (grep, rg...) che leggerebbero originali non anonimizzati."""
+    pos_args: List[str] = []
+    globs: List[str] = []
+    has_explicit_pat = False
+    i = 1
+    while i < len(words):
+        w = words[i]
+        if w == "--":
+            pos_args.extend(words[i + 1:])
+            break
+        if w in _SEARCH_VAL_FLAGS:
+            if w in {"-e", "--regexp", "-f", "--file"}:
+                has_explicit_pat = True
+            i += 2
+            continue
+        if w in _SEARCH_GLOB_FLAGS and i + 1 < len(words):
+            globs.append(words[i + 1])
+            i += 2
+            continue
+        if w.startswith(("--glob=", "--include=", "--type=")):
+            globs.append(w.split("=", 1)[1])
+            i += 1
+            continue
+        if w.startswith(("-e", "-f")) and len(w) > 2:
+            has_explicit_pat = True
+            i += 1
+            continue
+        if w.startswith("-"):
+            i += 1
+            continue
+        pos_args.append(w)
+        i += 1
+    positive_globs = [g for g in globs if not g.startswith("!")]
+    if positive_globs:
+        joined = " ".join(positive_globs)
+        if not _GLOB_RX.search(joined) and not re.search(
+            r"(?i)\b(?:csv|tsv|txt|pdf|docx?|xlsx?|rtf|odt|ods)\b", joined
+        ):
+            return []
+    targets = pos_args if has_explicit_pat else pos_args[1:]
+    paths = [_abs(t, cwd) for t in targets] if targets else [_abs(".", cwd)]
+    bad = []
+    for p in paths:
+        if p.is_file() and needs_guard(p):
+            bad.append(p.name)
+        elif p.is_dir() and not is_anonymized(p / "x") and _contains_protected(p):
+            bad.append(words[0])
+    return bad
 
 
 def risky_paths(command: str, cwd: str) -> List[str]:
-    """Documenti originali che il comando potrebbe mostrare."""
+    """Documenti originali che il comando potrebbe mostrare, copiare o cercare."""
     found = []
     for words in _segments(command):
         name = Path(words[0]).name
@@ -213,6 +328,8 @@ def risky_paths(command: str, cwd: str) -> List[str]:
             continue
         if name.startswith("python") and len(words) > 1 and Path(words[1]).name in {"clin.py", "clin_guard.py"}:
             continue
+        if name in _SEARCH_CMDS:
+            found.extend(_risky_search(words, cwd))
         seg = " ".join(words)
         for m in _EXT_RX.finditer(seg):
             token = m.group(0)
@@ -222,18 +339,40 @@ def risky_paths(command: str, cwd: str) -> List[str]:
                     found.append(token)
             elif _abs(token, cwd).exists() and needs_guard(_abs(token, cwd)):
                 found.append(token)
+        # glob generico senza estensione ("cat *", "head dati/*")
+        if name not in _SHELL_WRAPPERS:
+            for w in words[1:]:
+                if ("*" in w or "?" in w) and not w.startswith("-") and not _EXT_RX.search(w):
+                    parent = _abs(w, cwd).parent
+                    if parent.is_dir() and not is_anonymized(parent / "x") and _contains_protected(parent):
+                        found.append(w)
     return found
 
 
 def _command_of(tool_input: dict) -> str:
     cmd = tool_input.get("command") or tool_input.get("cmd") or ""
-    return " ".join(cmd) if isinstance(cmd, list) else str(cmd)
+    if isinstance(cmd, list):
+        return " ".join(shlex.quote(str(x)) for x in cmd)
+    return str(cmd)
 
 
 def bash_reason(command: str, cwd: str) -> str:
     res = results_dir_for(cwd)
     if res is not None and (res.name in command or str(res) in command):
         return RESULTS_DENIED
+    if RESULTS_MARKER in command or "Clin_risultati" in command:
+        return RESULTS_DENIED
+    if "segnaposto.json" in command or "pseudonimi.json" in command:
+        return DATA_DENIED
+    for words in _segments(command):
+        for w in words:
+            if w.startswith("-"):
+                continue
+            cand = _abs(w.strip("'\"()"), cwd)
+            if in_results(cand, cwd):
+                return RESULTS_DENIED
+            if in_data_dir(cand):
+                return DATA_DENIED
     risky = risky_paths(command, cwd)
     if not risky:
         return ""
@@ -253,9 +392,12 @@ def on_grep(data: dict) -> None:
     ti = data.get("tool_input") or {}
     cwd = data.get("cwd", "")
     target = _abs(ti.get("path") or cwd or ".", cwd)
+    if in_data_dir(target):
+        _deny(DATA_DENIED)
+        return
     res = results_dir_for(cwd)
     # una ricerca che include la cartella dei risultati la leggerebbe, qualunque sia il filtro
-    if res is not None and res.exists() and (in_results(target, cwd) or res.resolve().is_relative_to(target.resolve())):
+    if in_results(target, cwd) or (res is not None and res.exists() and res.resolve().is_relative_to(target.resolve())):
         _deny(RESULTS_DENIED + " Restringere la ricerca a una sottocartella che non la contenga.")
         return
     glob = (ti.get("glob") or "") + " " + (ti.get("type") or "")
@@ -359,6 +501,10 @@ def antigravity(data: dict) -> None:
             name in _AG_SHELL and bash_reason(" ".join(strings.values()), cwd) == RESULTS_DENIED):
         _out({"decision": "deny", "reason": RESULTS_DENIED})
         return
+    if any(in_data_dir(_abs(v, cwd)) for v in strings.values()) or (
+            name in _AG_SHELL and bash_reason(" ".join(strings.values()), cwd) == DATA_DENIED):
+        _out({"decision": "deny", "reason": DATA_DENIED})
+        return
     if name in _AG_READ:
         for key, value in strings.items():
             path = _abs(value, cwd)
@@ -395,11 +541,36 @@ def protected_root(start: Path) -> Optional[Path]:
 def is_active(data: dict) -> bool:
     if os.environ.get("CLIN_GUARD") == "1":
         return True
-    places = [data.get("cwd")] + list(data.get("workspacePaths") or [])
+    ws = list(data.get("workspacePaths") or [])
+    base_cwd = data.get("cwd") or (ws[0] if ws else "") or os.getcwd()
+    candidates: List[Path] = []
+    for raw in [data.get("cwd"), *ws]:
+        if isinstance(raw, str) and raw:
+            candidates.append(Path(os.path.expanduser(raw)))
     ti = data.get("tool_input") or {}
-    if isinstance(ti.get("file_path"), str):
-        places.append(str(Path(os.path.expanduser(ti["file_path"])).parent))
-    return any(p and protected_root(Path(p).expanduser()) for p in places)
+    for k in ("file_path", "path"):
+        if isinstance(ti.get(k), str) and ti[k]:
+            candidates.append(_abs(ti[k], base_cwd))
+    cmd = _command_of(ti)
+    call_args = ((data.get("toolCall") or {}).get("args") or {})
+    ag_cwd = call_args.get("Cwd") if isinstance(call_args.get("Cwd"), str) else base_cwd
+    for v in call_args.values():
+        if isinstance(v, str) and v:
+            candidates.append(_abs(v, ag_cwd))
+    if isinstance(call_args.get("CommandLine"), str):
+        cmd = cmd + " ; " + call_args["CommandLine"]
+    if cmd:
+        if any(tok in cmd for tok in (RESULTS_MARKER, "Clin_risultati", "segnaposto.json", "pseudonimi.json")):
+            return True
+        for words in _segments(cmd):
+            for w in words:
+                if not w.startswith("-") and ("/" in w or "~" in w or "." in w):
+                    candidates.append(_abs(w.strip("'\"()"), ag_cwd))
+    for p in candidates:
+        start = p if p.is_dir() else p.parent
+        if protected_root(start) or in_results(p, base_cwd) or in_data_dir(p):
+            return True
+    return False
 
 
 def on_stop(data: dict) -> None:

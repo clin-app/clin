@@ -72,10 +72,23 @@ def serve() -> None:
     last = [time.time()]
     lock = threading.Lock()
 
+    def _chunks(text: str) -> List[str]:
+        out, start = [], 0
+        while start < len(text):
+            end = min(len(text), start + CHUNK + OVERLAP)
+            if end < len(text):
+                cut = text.rfind(" ", start, end)
+                if cut > start + CHUNK // 2:
+                    end = cut
+            out.append(text[start:end])
+            if end >= len(text):
+                break
+            start = max(end - OVERLAP, start + 1)
+        return out
+
     def predict(text: str) -> List[dict]:
         out = []
-        for start in range(0, max(1, len(text)), CHUNK):
-            chunk = text[start:start + CHUNK + OVERLAP]
+        for chunk in _chunks(text):
             for e in model.predict_entities(chunk, LABELS, threshold=THRESHOLD):
                 out.append({"testo": e["text"], "tipo": "PERSONA" if e["label"] == "person" else "INDIRIZZO"})
         return out
@@ -94,8 +107,7 @@ def serve() -> None:
     path = socket_path()
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
-    if path.exists():
-        path.unlink()
+    path.unlink(missing_ok=True)
     old = os.umask(0o177)                          # socket leggibile solo dall'utente
     server = socketserver.ThreadingUnixStreamServer(str(path), Handler)
     os.umask(old)
@@ -109,8 +121,7 @@ def serve() -> None:
         server.serve_forever()
     finally:
         server.server_close()
-        if path.exists():
-            path.unlink()
+        path.unlink(missing_ok=True)
 
 
 # --------------------------------------------------------------------------
@@ -144,10 +155,14 @@ def ensure_running(wait: float = 60) -> bool:
         return False
     if _ask({"ping": True}, 2):
         return True
-    log = open(data_dir() / "ner.log", "ab")
-    subprocess.Popen([str(env_python()), str(Path(__file__).resolve()), "serve"],
-                     stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True,
-                     env={**os.environ, "HF_HUB_DISABLE_TELEMETRY": "1"})
+    ddir = data_dir()
+    ddir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(ddir, 0o700)
+    fd = os.open(ddir / "ner.log", os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(fd, "ab") as log:
+        subprocess.Popen([str(env_python()), str(Path(__file__).resolve()), "serve"],
+                         stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True,
+                         env={**os.environ, "HF_HUB_DISABLE_TELEMETRY": "1"})
     deadline = time.time() + wait
     while time.time() < deadline:
         time.sleep(0.5)

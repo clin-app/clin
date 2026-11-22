@@ -55,6 +55,7 @@ def save(values: Dict[str, Any]) -> None:
     data = load()
     data.update({k: v for k, v in values.items() if k in OPTIONS})
     PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(PATH.parent, 0o700)
     tmp = PATH.with_suffix(".tmp")
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:

@@ -276,13 +276,19 @@ def case_normalized(text: str) -> str:
 
 
 def original_case(items, text: str) -> List[Tuple[str, str]]:
-    """Riporta i valori trovati nel testo normalizzato alla forma con cui compaiono nel testo."""
+    """Riporta i valori trovati nel testo normalizzato a tutte le forme con cui compaiono nel testo."""
     norm = case_normalized(text)
     out = []
     for value, kind in items:
-        i = norm.find(value)
-        if i >= 0:
+        if not value:
+            continue
+        start = 0
+        while True:
+            i = norm.find(value, start)
+            if i < 0:
+                break
             out.append((text[i:i + len(value)], kind))
+            start = i + max(1, len(value))
     return out
 
 
@@ -308,6 +314,8 @@ def _verified(items, text: str) -> List[Tuple[str, str]]:
                 value = plausible_person(value) or ""
         elif kind == "INDIRIZZO":
             value = value.strip(" .,;:") if re.search(r"\d", value) and len(value) >= 5 else ""
+        else:
+            value = ""
         if value and value in text:
             out.append((value, kind))
     return list(dict.fromkeys(out))

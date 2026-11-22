@@ -60,7 +60,7 @@
 
   // ---------------------------------------------------------------- vista: app desktop (chat)
   const ext = f => (f.split('.').pop() || '').toUpperCase();
-  const card = f => `<span class="cd-att"><span class="cd-att-i" data-x="${ext(f)}">${ext(f)}</span><span class="cd-att-t"><b>${esc(f)}</b><em>${ext(f) === 'PDF' ? 'PDF' : 'Foglio di calcolo'}</em></span></span>`;
+  const card = f => `<span class="cd-att"><span class="cd-att-i" data-x="${esc(ext(f)).replace(/"/g, '&quot;')}">${esc(ext(f))}</span><span class="cd-att-t"><b>${esc(f)}</b><em>${ext(f) === 'PDF' ? 'PDF' : 'Foglio di calcolo'}</em></span></span>`;
   const desktop = {
     build() {
       stage.innerHTML = `
@@ -126,7 +126,7 @@
     tool(st) {
       const verb = { Bash: 'Ran', Read: 'Read', Write: 'Write', Edit: 'Edit', Glob: 'Search', Grep: 'Search' }[st.name] || st.name;
       const arg = st.name === 'Bash' ? st.arg : st.arg.split('/').pop();
-      this.add(`<div class="cd-tool${st.ok ? '' : ' err'}"><span class="cd-dot"></span><span class="cd-tv">${verb}</span><span class="cd-ta">${esc(arg)}</span><span class="cd-chev">›</span></div>`);
+      this.add(`<div class="cd-tool${st.ok ? '' : ' err'}"><span class="cd-dot"></span><span class="cd-tv">${esc(verb)}</span><span class="cd-ta">${esc(arg)}</span><span class="cd-chev">›</span></div>`);
     },
     clin(text) { this.add(`<div class="cd-clin"><span class="clin">/Clin</span><span>${inline(text)}</span></div>`); },
     assistant(text, done) {
@@ -179,11 +179,11 @@
       tick();
     },
     think(text) { const s = stage.querySelector('.cc-spin'); s.hidden = false; s.querySelector('.cc-spin-t').textContent = text + '…'; },
-    idle() { stage.querySelector('.cc-spin').hidden = true; },
+    idle() { stage.querySelector('.cd-spin') && (stage.querySelector('.cd-spin').hidden = true); stage.querySelector('.cc-spin') && (stage.querySelector('.cc-spin').hidden = true); },
     tool(st) {
       const out = st.out.map((l, n) => `<div class="cc-out">${n ? '   ' : '⎿  '}${esc(l)}</div>`).join('') +
         (st.more ? `<div class="cc-out">   … +${st.more} lines <span class="cc-dim">(ctrl+o to expand)</span></div>` : '');
-      this.add(`<div class="cc-tool"><span class="${st.ok ? 'cc-green' : 'cc-red'}">⏺</span> <b>${st.name}</b>(${esc(st.arg)})</div>${out}`);
+      this.add(`<div class="cc-tool"><span class="${st.ok ? 'cc-green' : 'cc-red'}">⏺</span> <b>${esc(st.name)}</b>(${esc(st.arg)})</div>${out}`);
     },
     clin(text) { this.add(`<div class="cc-out cc-clin">⎿  <span class="clin">/Clin</span> ${inline(text)}</div>`); },
     assistant(text, done) {

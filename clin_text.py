@@ -113,13 +113,29 @@ class _Registry:
         """I nominativi completi (piu' parole) definiscono le persone."""
         for full in sorted({n.strip() for n in names if " " in n.strip()}, key=len, reverse=True):
             key = _norm(full)
+            toks = frozenset(key.split())
             if key in self.group_of:
                 continue
             self.group_of[key] = full
             for tok in key.split():
-                prev = self.group_of.get(tok, full)
-                # parola comune a due nominativi diversi: non indica nessuno dei due
-                self.group_of[tok] = full if prev is not None and _norm(prev) == key else None
+                if tok not in self.group_of:
+                    self.group_of[tok] = full
+                    continue
+                prev = self.group_of[tok]
+                if prev is None:
+                    continue
+                ptoks = frozenset(_norm(prev).split())
+                # «ROSSI MARIO» e «Mario Rossi»: stessa persona; «Luca Rossi» e «Mario Rossi»: ambiguo
+                if toks <= ptoks or ptoks <= toks:
+                    if len(toks) > len(ptoks):
+                        self.group_of[tok] = full
+                else:
+                    self.group_of[tok] = None
+                    if tok in self.token_of:
+                        self.token_of[tok] = None
+
+    def _is_ambiguous_token(self, tok: str) -> bool:
+        return tok in self.group_of and self.group_of[tok] is None
 
     def _register(self, ph: str, names: Sequence[str]) -> None:
         tokens = set(self.people.get(ph, frozenset()))
@@ -129,8 +145,11 @@ class _Registry:
             tokens.update(key.split())
         self.people[ph] = frozenset(tokens)
         for tok in tokens:
-            owner = self.token_of.get(tok, ph)
-            self.token_of[tok] = ph if owner == ph else None
+            if self._is_ambiguous_token(tok):
+                self.token_of[tok] = None
+            else:
+                owner = self.token_of.get(tok, ph)
+                self.token_of[tok] = ph if owner == ph else None
 
     @classmethod
     def from_mapping(cls, mapping: Dict[str, str]) -> "_Registry":
@@ -154,6 +173,10 @@ class _Registry:
         self.by_value[(kind, _norm(original))] = ph
         return ph
 
+    @staticmethod
+    def _kind_of(ph: str) -> str:
+        return ph.strip("[]").rpartition("_")[0]
+
     def _person(self, kind: str, original: str) -> str:
         key = _norm(original)
         tokens = frozenset(key.split())
@@ -163,6 +186,11 @@ class _Registry:
             # stessa persona solo se un nome contiene l'altro (ordine e maiuscole a parte)
             for ph, known in self.people.items():
                 if tokens <= known or known <= tokens:
+                    if len(known) == 1:
+                        only = next(iter(known))
+                        pkind = self._kind_of(ph)
+                        if self._is_ambiguous_token(only) and pkind != kind and "PERSONA" not in (pkind, kind):
+                            continue
                     if len(tokens) > len(known):  # "Rossi" poi "Mario Rossi": si conserva il nome intero
                         self.mapping[ph] = original
                     self._register(ph, [original])
@@ -170,13 +198,20 @@ class _Registry:
             full = self.group_of.get(key) or original
         else:
             tok = next(iter(tokens), "")
-            owner = self.token_of.get(tok)
-            if owner:
-                return owner
-            full = self.group_of.get(tok) or original
-            fkey = _norm(full)
-            if fkey in self.person_of:
-                return self.person_of[fkey]
+            if not self._is_ambiguous_token(tok):
+                owner = self.token_of.get(tok)
+                if owner:
+                    return owner
+                full = self.group_of.get(tok) or original
+                fkey = _norm(full)
+                if fkey in self.person_of:
+                    return self.person_of[fkey]
+            else:
+                same_kind = [ph for ph, known in self.people.items()
+                             if tok in known and self._kind_of(ph) == kind]
+                if len(same_kind) == 1:
+                    return same_kind[0]
+                full = original
         ph = self._new(kind, full)
         self._register(ph, [original, full])
         return ph
@@ -197,7 +232,7 @@ class _Registry:
             # "Giulia" dopo "la figlia Giulia Ferri": stesso familiare (mai il contrario)
             if key in self.isolated:
                 return self.isolated[key]
-            if len(key.split()) == 1 and not self.token_of.get(key):
+            if len(key.split()) == 1 and not self.token_of.get(key) and not self._is_ambiguous_token(key):
                 for full, ph in self.isolated.items():
                     if key in full.split() and sum(key in f.split() for f in self.isolated) == 1 \
                             and key not in self.token_of:
@@ -312,15 +347,44 @@ def restore_text(text: str, mapping: Dict[str, str]) -> str:
 # --------------------------------------------------------------------------
 # Estrazione del testo dai file
 # --------------------------------------------------------------------------
+MAX_DOCX_XML_BYTES = 100 * 1024 * 1024
+_DOCX_DEL_RX = re.compile(r"<w:del\b[^>]*>.*?</w:del>|<w:delText\b[^>]*>.*?</w:delText>", re.S)
+_DOCX_PARA_RX = re.compile(r"<w:p(?:\s[^>]*)?(?<!/)>(?:(?!</?w:p[\s>/]).)*?</w:p>", re.S)
+_DOCX_TOK_RX = re.compile(
+    r"<w:t(?:\s[^>]*)?>(.*?)</w:t>|<w:tab(?:\s[^>]*)?/>|<w:(?:br|cr)(?:\s[^>]*)?/>", re.S
+)
+_TITLE_PREFIX_RX = re.compile(
+    r"(?i)^(dott\.ssa|dott\.?|dr\.ssa|dr\.?|prof\.ssa|prof\.?|sig\.ra|sig\.?|inf\.)\s+"
+)
+
+
+def _docx_para_text(para_xml: str) -> str:
+    out = []
+    for m in _DOCX_TOK_RX.finditer(para_xml):
+        if m.group(1) is not None:
+            out.append(_unescape(m.group(1)))
+        elif m.group(0).startswith("<w:tab"):
+            out.append("\t")
+        else:
+            out.append("\n")
+    return "".join(out)
+
+
 def _docx_text(path: Path) -> str:
+    total = 0
     with zipfile.ZipFile(path) as z:
         parts = [n for n in z.namelist()
                  if re.match(r"word/(document|header\d*|footer\d*|footnotes|endnotes|comments)\.xml$", n)]
         chunks = []
         for name in sorted(parts, key=lambda n: (not n.endswith("document.xml"), n)):
-            xml = z.read(name).decode("utf-8", "ignore")
+            info = z.getinfo(name)
+            total += info.file_size
+            if total > MAX_DOCX_XML_BYTES:
+                raise ValueError("Documento Word troppo grande una volta decompresso.")
+            xml = _DOCX_DEL_RX.sub("", z.read(name).decode("utf-8", "ignore"))
             xml = re.sub(r"</w:p>", "\n", xml)
-            xml = re.sub(r"<w:tab/>", "\t", xml)
+            xml = re.sub(r"<w:tab(?:\s[^>]*)?/>", "\t", xml)
+            xml = re.sub(r"<w:(?:br|cr)(?:\s[^>]*)?/>", "\n", xml)
             xml = re.sub(r"<[^>]+>", "", xml)
             chunks.append(_unescape(xml))
     return "\n".join(chunks)
@@ -329,6 +393,168 @@ def _docx_text(path: Path) -> str:
 def _unescape(s: str) -> str:
     import html
     return html.unescape(s)
+
+
+def _xml_escape_runs(text: str) -> str:
+    """Converte testo con tabulazioni e ritorni a capo in nodi Word validi dentro <w:r>."""
+    from xml.sax.saxutils import escape
+    lines = text.split("\n")
+    xml_lines = []
+    for line in lines:
+        tabs = line.split("\t")
+        xml_lines.append("</w:t><w:tab/><w:t xml:space=\"preserve\">".join(escape(t) for t in tabs))
+    body = "</w:t><w:br/><w:t xml:space=\"preserve\">".join(xml_lines)
+    return f'<w:t xml:space="preserve">{body}</w:t>'
+
+
+def redact_docx_file(
+    in_path: Path,
+    out_path: Path,
+    level: int = DEFAULT_LEVEL,
+    explicit: Optional[Sequence[str]] = None,
+    whitelist: Optional[Sequence[str]] = None,
+    registry: Optional[_Registry] = None,
+    previous: Optional[Dict[str, str]] = None,
+) -> Tuple[Dict[str, str], Dict[str, int], List[str]]:
+    """
+    Riscrive un file .docx sostituendo i dati personali con segnaposto.
+    Gestisce paragrafi vuoti (<w:p/>), celle di tabella, tabulazioni e a capo,
+    rimuove revisioni cancellate (<w:del>), miniature e metadati identificativi.
+    """
+    t_rx = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.S)
+    sep_rx = re.compile(r"<w:(?:tab|br|cr)(?:\s[^>]*)?/>")
+    total = 0
+    with zipfile.ZipFile(in_path) as zin:
+        parts = [n for n in zin.namelist() if n.startswith("word/") and n.endswith(".xml")]
+        xml: Dict[str, str] = {}
+        for n in parts:
+            total += zin.getinfo(n).file_size
+            if total > MAX_DOCX_XML_BYTES:
+                raise ValueError("Documento Word troppo grande una volta decompresso.")
+            xml[n] = _DOCX_DEL_RX.sub("", zin.read(n).decode("utf-8", "replace"))
+
+        paras: List[Tuple[str, str]] = []
+        for n in parts:
+            for m in _DOCX_PARA_RX.finditer(xml[n]):
+                paras.append((n, _docx_para_text(m.group(0))))
+
+        joined = "\n".join(t for _, t in paras)
+        prev_names = [v for k, v in (previous or {}).items() if k.startswith("[PAZIENTE_")]
+        names = prev_names + collect_names(joined)
+        reg = registry or (_Registry.from_mapping(previous) if previous else _Registry([]))
+        reg.add_names(_without_relatives(joined, names, level, explicit, whitelist))
+
+        counts: Dict[str, int] = {}
+        spans_all = []
+        for s, e, cat in find_spans(joined, level, explicit, whitelist, names):
+            original = " ".join(joined[s:e].split())
+            tm = _TITLE_PREFIX_RX.match(original)
+            if tm:  # "Dott. Neri": il titolo resta leggibile
+                skip = len(tm.group(0))
+                s += skip
+                original = original[skip:]
+                while s < e and joined[s].isspace():
+                    s += 1
+            if e <= s or not original:
+                continue
+            ph = reg.get(_PLACEHOLDER.get(cat, "DATO"), original, link=cat != "Persone")
+            counts[cat] = counts.get(cat, 0) + 1
+            spans_all.append((s, e, ph))
+
+        starts, pos = [], 0
+        for _, t in paras:
+            starts.append(pos)
+            pos += len(t) + 1
+        plans: List[List[Tuple[int, int, str]]] = [[] for _ in paras]
+        for s, e, ph in spans_all:
+            first = True
+            for i, st in enumerate(starts):
+                en = st + len(paras[i][1])
+                if e <= st or s >= en:
+                    continue
+                a, b = max(s, st) - st, min(e, en) - st
+                plans[i].append((a, b, ph if first else ""))
+                first = False
+        it = iter(plans)
+
+        def rewrite_para(pm: re.Match) -> str:
+            p = pm.group(0)
+            spans = next(it)
+            if not spans:
+                return p
+            text = _docx_para_text(p)
+            for s, e, ph in sorted(spans, reverse=True):
+                text = text[:s] + ph + text[e:]
+            p_clean = sep_rx.sub("", p)
+            first = [True]
+
+            def t_sub(m: re.Match) -> str:
+                if first[0]:
+                    first[0] = False
+                    return _xml_escape_runs(text)
+                return m.group(1) + m.group(3)
+
+            return t_rx.sub(t_sub, p_clean)
+
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                fn = item.filename
+                if fn == "docProps/custom.xml" or fn.startswith("docProps/thumbnail"):
+                    continue
+                data = zin.read(fn)
+                if fn in xml:
+                    data = _DOCX_PARA_RX.sub(rewrite_para, xml[fn]).encode("utf-8")
+                elif fn == "docProps/core.xml":
+                    data = re.sub(
+                        rb"(<(?:dc:creator|cp:lastModifiedBy|dc:title|dc:subject|dc:description|cp:keywords)(?:\s[^>]*)?>)[^<]*",
+                        rb"\1", data,
+                    )
+                elif fn == "docProps/app.xml":
+                    data = re.sub(rb"(<(?:Company|Manager)(?:\s[^>]*)?>)[^<]*", rb"\1", data)
+                zout.writestr(item, data)
+    return dict(reg.mapping), counts, names
+
+
+def anonymize_prose_document(
+    input_path: Path,
+    output_path: Path,
+    sensitivity_level: int = DEFAULT_LEVEL,
+    explicit_targets: Optional[Sequence[str]] = None,
+    whitelist_words: Optional[Sequence[str]] = None,
+    registry: Optional[_Registry] = None,
+) -> "FileResult":
+    """Anonimizza su file un documento testuale (.txt, .md) o Word (.docx) per l'uso in lotto."""
+    from anonymize_engine import FileResult
+    input_path, output_path = Path(input_path), Path(output_path)
+    res = FileResult(input_path=input_path, output_path=output_path, pages=1)
+    if input_path.resolve() == output_path.resolve():
+        res.error = "Il file di output coincide con l'input."
+        return res
+    try:
+        ext = input_path.suffix.lower()
+        if ext == ".docx":
+            _, counts, names = redact_docx_file(
+                input_path, output_path, level=sensitivity_level,
+                explicit=explicit_targets, whitelist=whitelist_words, registry=registry,
+            )
+        else:
+            raw = _read_text(input_path)
+            names = collect_names(raw)
+            reg = registry if registry is not None else _Registry([])
+            reg.add_names(_without_relatives(raw, names, sensitivity_level, explicit_targets, whitelist_words))
+            counts = {}
+            anon = _replace(raw, reg, sensitivity_level, explicit_targets, whitelist_words, names, counts)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(anon, encoding="utf-8")
+        res.per_category = dict(counts)
+        res.redactions = sum(counts.values())
+        res.detected_names = list(names)[:200]
+        if res.redactions == 0:
+            res.warnings.append("Nessun dato sensibile rilevato nel documento.")
+    except Exception as exc:
+        res.error = f"{type(exc).__name__}: {exc}"
+    return res
 
 
 def _read_text(path: Path) -> str:
@@ -344,6 +570,21 @@ def _read_text(path: Path) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def _is_forbidden_path(p: Path) -> bool:
+    """Vero per le tabelle private di Clin (~/.clin) e le cartelle dei risultati reali."""
+    for anc in (p, *p.parents):
+        if (anc / ".clin-risultati").is_file() or anc.name == "Clin_risultati":
+            return True
+    try:
+        import clin_settings
+        data_dir = clin_settings.DATA_DIR.expanduser().resolve()
+        if p.is_relative_to(data_dir):
+            return True
+    except (ImportError, OSError):
+        pass
+    return False
+
+
 def check_path(path: Path, allowed_roots: Optional[Sequence[Path]] = None) -> Path:
     """Controlli prima di aprire un file indicato da un'IA o da un utente."""
     p = Path(path).expanduser().resolve()
@@ -354,6 +595,8 @@ def check_path(path: Path, allowed_roots: Optional[Sequence[Path]] = None) -> Pa
                          f"(ammessi: {', '.join(sorted(SUPPORTED_SUFFIXES))})")
     if p.stat().st_size > MAX_FILE_MB * 1024 * 1024:
         raise ValueError(f"File troppo grande (limite {MAX_FILE_MB} MB).")
+    if _is_forbidden_path(p):
+        raise ValueError("Accesso negato: il file appartiene ai dati riservati o ai risultati di Clin.")
     if allowed_roots:
         if not any(p.is_relative_to(Path(r).expanduser().resolve()) for r in allowed_roots):
             raise ValueError("Il file e' fuori dalle cartelle autorizzate per Clin.")
@@ -406,44 +649,40 @@ def anonymize_file(
     elif ext in {".xlsx", ".xlsm", ".csv", ".tsv"}:
         return _anonymize_table_file(p, level, explicit, whitelist, previous)
     else:
+        from tabular_engine import is_table_file
+        if ext == ".txt" and is_table_file(p):
+            return _anonymize_table_file(p, level, explicit, whitelist, previous)
         sections.append(("Testo", _read_text(p)))
 
     for _, t in sections:
         names.extend(collect_names(t))
 
+    joined = "\n\n".join(t for _, t in sections)
+    eff_explicit = list(explicit or []) + ocr_extra
     # `previous`: la numerazione prosegue da letture precedenti, cosi' [PAZIENTE_1]
     # e' la stessa persona in tutti i file della sessione
     registry = _Registry.from_mapping(previous) if previous else _Registry([])
-    registry.add_names(names)
+    registry.add_names(_without_relatives(joined, names, level, eff_explicit, whitelist))
     counts: Dict[str, int] = {}
     body: List[str] = []
     for title, t in sections:
-        new = _replace(t, registry, level, list(explicit or []) + ocr_extra, whitelist,
+        new = _replace(t, registry, level, eff_explicit, whitelist,
                        names, counts)
         body.append(f"--- {title} ---\n{new.strip()}" if len(sections) > 1 else new.strip())
     return TextResult("\n\n".join(body), dict(registry.mapping), counts, notes)
 
 
-_HEADER_KIND = {"Nome paziente": "PAZIENTE", "ID ufficiali": "ID",
-                "Data di nascita": "DATA_NASCITA", "Contatti": "CONTATTO",
-                "Identificativi clinici": "ID_CLINICO"}
-
-
 def _header_category(header: str, level: int) -> Optional[str]:
-    from anonymize_engine import CATEGORY_LEVELS
-    from tabular_engine import _HEADER_RULES
-    norm = re.sub(r"[\s_\-./:#°]+", " ", (header or "").lower()).strip()
-    for rx, _mode, cat in _HEADER_RULES:
-        if norm and level >= CATEGORY_LEVELS.get(cat, 99) and rx.fullmatch(norm):
-            return cat
-    return None
+    from tabular_engine import header_category
+    found = header_category(header, level)
+    return found[1] if found else None
 
 
-def _row_names(row, cats) -> List[str]:
+def _row_names(row, cats, target_cat: str = "Nome paziente") -> List[str]:
     """Nominativi della riga: con piu' colonne di nome (Cognome, Nome) uno solo, unito."""
     vals = [" ".join(str(row[c]).split()) for c, cat in enumerate(cats)
-            if cat == "Nome paziente" and c < len(row) and row[c] not in (None, "")]
-    if len(vals) > 1 and all(len(v.split()) == 1 for v in vals):
+            if cat == target_cat and c < len(row) and row[c] not in (None, "")]
+    if target_cat == "Nome paziente" and len(vals) > 1 and all(len(v.split()) == 1 for v in vals):
         return [" ".join(vals)]
     return vals
 
@@ -466,27 +705,33 @@ def _anonymize_table_file_rules(path: Path, level: int, explicit, whitelist, pre
     dall'intestazione) vengono sostituite per intero; le altre celle passano
     dal rilevamento automatico, che conosce anche i nominativi delle colonne.
     """
-    from tabular_engine import load_table
+    from anonymize_engine import excluded_categories
+    from tabular_engine import _AGE_HEADER, _norm_header, load_table
     sheets = load_table(path).sheets
     names: List[str] = []
+    reg_names: List[str] = []
     plans = []
     for sheet in sheets:
         header = ["" if h is None else str(h) for h in (sheet.rows[0] if sheet.rows else [])]
         cats = [_header_category(h, level) for h in header]
         plans.append((sheet, header, cats))
         for row in sheet.rows[1:]:
-            for v in _row_names(row, cats):
-                names.append(v)
-                names.extend(t for t in v.split() if len(t) >= 3)
+            for tcat in ("Nome paziente", "Medici", "Personale sanitario", "Persone"):
+                for v in _row_names(row, cats, tcat):
+                    names.append(v)
+                    names.extend(t for t in v.split() if len(t) >= 3 and t.casefold() not in clin_llm._PARTICLES)
+                    if tcat != "Persone":
+                        reg_names.append(v)
     # `previous`: la numerazione prosegue da letture precedenti, cosi' [PAZIENTE_1]
     # e' la stessa persona in tutti i file della sessione
     registry = _Registry.from_mapping(previous) if previous else _Registry([])
-    registry.add_names(names)
+    registry.add_names(reg_names)
     counts: Dict[str, int] = {}
     body: List[str] = []
-    from tabular_engine import _AGE_HEADER, _norm_header
+    cap_age = "Data di nascita" not in excluded_categories()
     for sheet, header, cats in plans:
-        age_cols = {c for c, h in enumerate(header) if _AGE_HEADER.fullmatch(_norm_header(h))}
+        age_cols = ({c for c, h in enumerate(header) if _AGE_HEADER.fullmatch(_norm_header(h))}
+                    if cap_age else set())
         lines = ["\t".join(header)]
         for row in sheet.rows[1:]:
             cells = []
@@ -499,7 +744,8 @@ def _anonymize_table_file_rules(path: Path, level: int, explicit, whitelist, pre
                     cells.append(registry.get("PAZIENTE", person[0]))
                     counts[cat] = counts.get(cat, 0) + 1
                 elif v.strip() and cat:
-                    cells.append(registry.get(_HEADER_KIND.get(cat, "DATO"), v))
+                    kind = _PLACEHOLDER.get(cat, "DATO")
+                    cells.append(registry.get(kind, v, link=cat != "Persone"))
                     counts[cat] = counts.get(cat, 0) + 1
                 elif c in age_cols and _is_90_plus(v):
                     cells.append("90+")  # eta' molto alta: identifica

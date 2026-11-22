@@ -100,21 +100,26 @@ def tool_anonimizza_documento(args: Dict[str, Any]) -> str:
 
 def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     from anonymize_engine import BatchResult, process_batch_files
+    from clin_text import _is_forbidden_path
     from tabular_engine import TableSettings
 
     roots = allowed_roots()
     target = Path(str(args.get("percorso", ""))).expanduser().resolve()
+    if _is_forbidden_path(target):
+        raise ValueError("Accesso negato: il percorso appartiene ai dati riservati o ai risultati di Clin.")
     if target.is_dir():
         if not any(target.is_relative_to(r.expanduser().resolve()) for r in roots):
             raise ValueError("La cartella e' fuori da quelle autorizzate per Clin.")
         files = sorted(p for p in target.iterdir()
-                       if p.is_file() and p.suffix.lower() in SUPPORTED_SUFFIXES - {".md", ".docx"})
+                       if p.is_file() and not p.is_symlink()
+                       and p.suffix.lower() in SUPPORTED_SUFFIXES - {".md"}
+                       and not _is_forbidden_path(p))
         out_dir = target / "Clin_anonimizzati"
     else:
         files = [check_path(target, roots)]
         out_dir = target.parent / "Clin_anonimizzati"
     if not files:
-        return "Nessun documento supportato (PDF, JPG, PNG, CSV, TSV, XLSX) nel percorso indicato."
+        return "Nessun documento supportato (PDF, DOCX, TXT, JPG, PNG, CSV, TSV, XLSX) nel percorso indicato."
     from tabular_engine import _PseudonymBook
     level = DEFAULT_LEVEL
     # stesso paziente, stesso pseudonimo in tutti i file e in tutte le sessioni

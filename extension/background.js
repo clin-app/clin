@@ -32,25 +32,39 @@ async function engine(op, payload) {
   throw new Error("motore non disponibile");
 }
 
+let queue = Promise.resolve();
+function serialized(fn) {
+  const next = queue.then(fn, fn);
+  queue = next.catch(() => {});
+  return next;
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  if (msg.target !== "background") return false;
+  if (!msg || msg.target !== "background" || sender.id !== chrome.runtime.id) return false;
   (async () => {
     try {
       if (msg.op === "anonymize") {
-        const map = await getMap();
-        const res = await engine("anonymize", { items: msg.items, previous: map });
-        if (res.error) throw new Error(res.error);
-        await chrome.storage.session.set({ [MAP_KEY]: { ...map, ...res.mapping } });
+        const res = await serialized(async () => {
+          const map = await getMap();
+          const r = await engine("anonymize", { items: msg.items, previous: map });
+          if (r.error) throw new Error(r.error);
+          await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping } });
+          return r;
+        });
         reply({ ok: true, text: res.text, count: Object.keys(res.mapping || {}).length, notes: res.notes || [] });
       } else if (msg.op === "redact") {
-        const map = await getMap();
-        const { book = {} } = await chrome.storage.session.get("book");
-        const res = await engine("redact", { items: msg.items, previous: map, book });
-        if (res.error) throw new Error(res.error);
-        await chrome.storage.session.set({ [MAP_KEY]: res.mapping, book: res.book });
+        const res = await serialized(async () => {
+          const map = await getMap();
+          const { book = {} } = await chrome.storage.session.get("book");
+          const r = await engine("redact", { items: msg.items, previous: map, book });
+          if (r.error) throw new Error(r.error);
+          await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping }, book: r.book });
+          return r;
+        });
         reply({ ok: true, files: res.files, notes: res.notes || [] });
       } else if (msg.op === "restore") {
         const res = await engine("restore", { text: msg.text, mapping: await getMap() });
+        if (res.error) throw new Error(res.error);
         reply({ ok: true, text: res.text });
       } else if (msg.op === "status") {
         const { attivo = true } = await chrome.storage.local.get("attivo");
@@ -59,7 +73,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         await chrome.storage.local.set({ attivo: !!msg.attivo });
         reply({ ok: true });
       } else if (msg.op === "forget") {
-        await chrome.storage.session.remove([MAP_KEY, "book"]);
+        await serialized(() => chrome.storage.session.remove([MAP_KEY, "book"]));
         reply({ ok: true });
       } else if (msg.op === "warmup") {
         await ensureEngine();

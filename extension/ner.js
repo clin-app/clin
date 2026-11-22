@@ -71,13 +71,22 @@ async function run(g, parts, found, original) {
     const res = await g.inference({ texts: batch, entities: LABELS, flatNer: true, threshold: 0.5 });
     res.forEach((list, k) => {
       for (const e of list) {
-        let value = (e.spanText || "").trim();
-        if (original) {  // dal testo normalizzato si torna alla forma scritta nel documento
-          const src = original[i + k], at = batch[k].indexOf(value);
-          if (at < 0) continue;
-          value = src.slice(at, at + value.length);
+        const value = (e.spanText || "").trim();
+        if (!value) continue;
+        const kind = e.label === "person" ? "PERSONA" : "INDIRIZZO";
+        if (original) {  // dal testo normalizzato si torna a tutte le forme scritte nel documento
+          const src = original[i + k], norm = batch[k];
+          let from = 0;
+          while (true) {
+            const at = norm.indexOf(value, from);
+            if (at < 0) break;
+            const raw = src.slice(at, at + value.length);
+            if (raw) found.set(raw + "|" + e.label, [raw, kind]);
+            from = at + Math.max(1, value.length);
+          }
+        } else {
+          found.set(value + "|" + e.label, [value, kind]);
         }
-        if (value) found.set(value + "|" + e.label, [value, e.label === "person" ? "PERSONA" : "INDIRIZZO"]);
       }
     });
   }

@@ -40,11 +40,14 @@ PY="$(command -v python3 || true)"
 
 # --- 2. Download --------------------------------------------------------------
 step "Scaricamento di Clin in $DEST"
-mkdir -p "$(dirname "$DEST")"
+mkdir -p -m 700 "$(dirname "$DEST")"
+chmod 700 "$(dirname "$DEST")" 2>/dev/null || true
 NEW="$(mktemp -d "${DEST}.new.XXXXXX")"
 trap 'rm -rf "$NEW"' EXIT
 if [ -d "$SOURCE" ]; then
-  (cd "$SOURCE" && tar --exclude .git --exclude .venv --exclude models --exclude 'web/dist' -cf - .) | tar -xf - -C "$NEW"
+  (cd "$SOURCE" && tar --exclude .git --exclude .venv --exclude models --exclude '__pycache__' \
+    --exclude 'web/dist' --exclude 'web/.vendor-cache' \
+    --exclude 'extension/dist' --exclude 'extension/*.zip' --exclude 'extension/.vendor-cache' -cf - .) | tar -xf - -C "$NEW"
 else
   curl -fsSL "$SOURCE" | tar -xz --strip-components=1 -C "$NEW" \
     || fail "Download non riuscito da $SOURCE"
@@ -86,7 +89,8 @@ ask() {  # ask "domanda" VARIABILE -> 0 se si'
   case "$ans" in s|S|si|sì|y|Y) return 0 ;; *) return 1 ;; esac
 }
 step "Riconoscimento dei nomi senza etichetta"
-if [ -x "$HOME/.clin/ner/bin/python" ]; then
+NER_PY="${CLIN_DATI:-$HOME/.clin}/ner/bin/python"
+if [ -x "$NER_PY" ]; then
   echo "  GLiNER gia' installato"
 elif ask "Installare GLiNER (consigliato, circa 2,4 GB, una volta sola)?" CLIN_GLINER; then
   "$VPY" "$DEST/clin.py" ner installa || echo "  GLiNER non installato: riprovare con  \"$VPY\" \"$DEST/clin.py\" ner installa"

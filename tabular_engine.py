@@ -58,7 +58,28 @@ _ENCODINGS = ("utf-8-sig", "utf-8", "cp1252", "latin-1")
 
 
 def is_table_file(path: Path) -> bool:
-    return Path(path).suffix.lower() in TABLE_SUFFIXES
+    p = Path(path)
+    suffix = p.suffix.lower()
+    if suffix in (EXCEL_SUFFIXES | {".csv", ".tsv"}):
+        return True
+    if suffix != ".txt" or not p.is_file():
+        return False
+    # un .txt e' una tabella solo se ha righe delimitate coerenti (es. esportazione TSV/CSV)
+    # e non un referto in prosa (altrimenti la prima riga verrebbe lasciata in chiaro come intestazione)
+    try:
+        sample = p.read_bytes()[:8192].decode("utf-8", errors="ignore")
+        lines = [ln for ln in sample.splitlines() if ln.strip()][:10]
+        if len(lines) < 2:
+            return False
+        for sep in ("\t", ";"):
+            counts = [ln.count(sep) for ln in lines]
+            if counts[0] >= 1 and min(counts) == max(counts):
+                first = [c.strip() for c in lines[0].split(sep)]
+                if any(header_category(h) for h in first) or all(len(h) <= 40 and ":" not in h for h in first):
+                    return True
+    except OSError:
+        return False
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -299,6 +320,7 @@ class _PseudonymBook:
         import os
         path = Path(path)
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(path.parent, 0o700)
         tmp = path.with_suffix(".tmp")
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
@@ -442,7 +464,9 @@ def _apply_auto(
     if not spans:
         return None, None
 
-    order = sorted(range(len(spans)), key=lambda i: (spans[i][0], -(spans[i][1] - spans[i][0])))
+    rank = {"Persone": 1, "Ricorrenze nominativo": 2, "Personalizzati": 2}
+    order = sorted(range(len(spans)),
+                   key=lambda i: (spans[i][0], -(spans[i][1] - spans[i][0]), rank.get(categories[i], 0)))
     merged: List[Tuple[int, int]] = []
     used_categories: List[str] = []
     for i in order:
@@ -502,12 +526,12 @@ def plan_sheet(
                     if found[1] in _CATEGORY_PREFIX:
                         header_prefix[c] = _CATEGORY_PREFIX[found[1]]
 
-    # I nominativi delle colonne identificative vengono cercati anche nelle
+    # I nominativi delle colonne di persone vengono cercati anche nelle
     # celle di testo libero (note, diagnosi, anamnesi).
     derived: List[str] = []
-    name_rx = _HEADER_RULES[0][0]  # solo le colonne di nominativo
+    person_cats = {"Nome paziente", "Medici", "Personale sanitario", "Persone"}
     name_cols = [c for c, h in enumerate(header)
-                 if name_rx.fullmatch(re.sub(r"[\s_\-\.\/:#°]+", " ", (h or "").lower()).strip())]
+                 if (header_category(h, settings.level) or (None, None))[1] in person_cats]
     if settings.level >= CATEGORY_LEVELS["Ricorrenze nominativo"]:
         for row in sheet.rows[first_data_row:]:
             for c in name_cols:
@@ -542,22 +566,23 @@ def plan_sheet(
     person_cols = [c for c, p in header_prefix.items() if p == "PAZ"]
     # nome del paziente -> suo PAZ: nelle note «Rossi chiede…» diventa «PAZ-0001 chiede…»
     codes: Dict[str, str] = {}
+    row_patient: Dict[int, Tuple[str, str]] = {}
     if settings.registry is not None and person_cols:
         from clin_text import _norm
-        seen_tok: Dict[str, Optional[str]] = {}
-        for row in sheet.rows[first_data_row:]:
+        for idx, row in enumerate(sheet.rows[first_data_row:], start=first_data_row):
             full = " ".join(str(row[k]) for k in person_cols if k < len(row) and row[k] is not None)
             if not full.strip():
                 continue
             code = book.get(sheet.name, person_cols[0], "PAZ", full)
-            codes[_norm(full)] = code
-            codes[_norm(" ".join(reversed(full.split())))] = code
-            for tok in _norm(full).split():
-                if len(tok) >= 3:
-                    seen_tok[tok] = code if seen_tok.get(tok, code) == code else None
-        codes.update({t: c for t, c in seen_tok.items() if c})
-    age_cols = {c for c, h in enumerate(header)
-                if c not in explicit_cols and _AGE_HEADER.fullmatch(_norm_header(h))}
+            nfull = _norm(full)
+            row_patient[idx] = (nfull, code)
+            if len(nfull.split()) >= 2:
+                codes[nfull] = code
+                codes[_norm(" ".join(reversed(full.split())))] = code
+    cap_age = "Data di nascita" not in excluded_categories()
+    age_cols = ({c for c, h in enumerate(header)
+                 if c not in explicit_cols and _AGE_HEADER.fullmatch(_norm_header(h))}
+                if cap_age else set())
 
     for r, row in enumerate(sheet.rows):
         if max_rows is not None and r >= max_rows:
@@ -566,6 +591,14 @@ def plan_sheet(
             continue  # l'intestazione non viene mai alterata
         if allowed_rows is not None and r not in allowed_rows:
             continue
+        row_codes = codes
+        if r in row_patient:
+            nfull, rcode = row_patient[r]
+            row_codes = dict(codes)
+            row_codes[nfull] = rcode
+            for tok in nfull.split():
+                if len(tok) >= 3 and tok not in clin_llm._PARTICLES:
+                    row_codes[tok] = rcode
         for c, raw in enumerate(row):
             value = "" if raw is None else str(raw)
             if not value.strip():
@@ -596,7 +629,7 @@ def plan_sheet(
                 except ValueError:
                     pass
                 continue
-            new_value, category = _apply_auto(value, settings, derived, codes)
+            new_value, category = _apply_auto(value, settings, derived, row_codes)
             if new_value is not None:
                 plans[(r, c)] = CellPlan(new_value, category or "Personalizzati", mode)
 
@@ -618,6 +651,10 @@ def anonymize_table(
     """
     input_path, output_path = Path(input_path), Path(output_path)
     result = FileResult(input_path=input_path, output_path=output_path)
+
+    if input_path.resolve() == output_path.resolve():
+        result.error = "Il file di output coincide con l'input."
+        return result
 
     try:
         doc = load_table(input_path)  # lettura completa
@@ -680,7 +717,8 @@ def _write_excel(
     from openpyxl import load_workbook
 
     # Si riapre senza `data_only` per non perdere formule e formattazione.
-    wb = load_workbook(str(input_path), data_only=False)
+    wb = load_workbook(str(input_path), data_only=False,
+                       keep_vba=input_path.suffix.lower() == ".xlsm")
     try:
         for ws in wb.worksheets:
             plans = all_plans.get(ws.title, {})

@@ -77,13 +77,26 @@ else:
     print(f"ATTENZIONE: modello GLiNER assente in {MODEL}: l'estensione usera' solo le regole. "
           "Esportarlo con tools/export_gliner_onnx.py")
 (DIST / "icons").mkdir()
-for size in (16, 48, 128):  # icone dal logo dell'app (sips su macOS, altrimenti copia)
+for size in (16, 48, 128):  # icone dal logo dell'app (sips su macOS, PySide6 altrove)
     out = DIST / "icons" / f"{size}.png"
     try:
         subprocess.run(["sips", "-z", str(size), str(size), str(WEB / "icon-192.png"), "--out", str(out)],
                        check=True, capture_output=True)
     except (OSError, subprocess.CalledProcessError):
-        shutil.copy2(WEB / "icon-192.png", out)
+        try:
+            from PySide6.QtCore import QRectF, Qt
+            from PySide6.QtGui import QGuiApplication, QImage, QPainter
+            from PySide6.QtSvg import QSvgRenderer
+            _app = QGuiApplication.instance() or QGuiApplication(sys.argv[:1])  # noqa: F841
+            img = QImage(size, size, QImage.Format_ARGB32)
+            img.fill(Qt.transparent)
+            p = QPainter(img)
+            p.setRenderHint(QPainter.Antialiasing)
+            QSvgRenderer(str(EXT.parent / "assets" / "logo.svg")).render(p, QRectF(0, 0, size, size))
+            p.end()
+            img.save(str(out))
+        except Exception:
+            shutil.copy2(WEB / "icon-192.png", out)
 zip_path = EXT / "clin-estensione.zip"
 zip_path.unlink(missing_ok=True)
 shutil.make_archive(str(zip_path.with_suffix("")), "zip", DIST)

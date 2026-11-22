@@ -212,19 +212,23 @@
     return btoa(s);
   }
 
+  const MAX_FILE_BYTES = 35 * 1024 * 1024;  // sotto il limite IPC di Chrome (64 MiB in base64)
+
   // input file del sito a cui consegnare i documenti coperti
-  function fileInput(preferred) {
+  function fileInput(preferred, wantImage = false) {
     if (preferred && document.contains(preferred)) return preferred;
     const all = [...document.querySelectorAll("input[type='file']")];
-    return all.find((i) => !i.accept || /pdf|\*|application/.test(i.accept)) || all[0] || null;
+    if (wantImage) return all.find((i) => !i.accept || /image|\*\/\*/i.test(i.accept)) || all[0] || null;
+    return all.find((i) => !i.accept || /pdf|\*\/\*|application|word|sheet|csv|text|\.txt|\.md|\.xlsx/i.test(i.accept)) || all[0] || null;
   }
 
   function deliver(files, origin) {
     const dt = new DataTransfer();
     files.forEach((f) => dt.items.add(f));
+    const allImages = files.length > 0 && files.every((f) => (f.type || "").startsWith("image/"));
     passing = true;
     try {
-      const input = origin.kind === "input" ? fileInput(origin.input) : fileInput(null);
+      const input = origin.kind === "input" ? fileInput(origin.input, allImages) : fileInput(null, allImages);
       if (input) {
         input.files = dt.files;
         input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -241,13 +245,15 @@
   }
 
   async function handleFiles(files, origin) {
-    const items = [], refused = [];
+    const items = [], refused = [], tooLarge = [];
     for (const f of files) {
       const kind = kindOf(f);
       if (!kind) { refused.push(f.name); continue; }
+      if (f.size > MAX_FILE_BYTES) { tooLarge.push(f.name); continue; }
       items.push({ kind, name: f.name, type: f.type, data: b64(await f.arrayBuffer()) });
     }
     if (refused.length) toast(`Non inviati (formato non supportato): ${refused.join(", ")}`, true, 8000);
+    if (tooLarge.length) toast(`Non inviati (file oltre 35 MB): ${tooLarge.join(", ")}`, true, 8000);
     if (!items.length) return;
     busy = true; render();
     toast(`/Clin · copertura dei dati in ${items.length === 1 ? "1 file" : items.length + " file"}…`, false, 60000);
@@ -271,21 +277,23 @@
   }
 
   async function handle({ files = [], text = "" }, target) {
-    const items = [];
-    const refused = [];
+    const items = [], refused = [], tooLarge = [];
     for (const f of files) {
       const kind = kindOf(f);
       if (!kind) { refused.push(f.name); continue; }
+      if (f.size > MAX_FILE_BYTES) { tooLarge.push(f.name); continue; }
       items.push({ kind, name: f.name, type: f.type, data: b64(await f.arrayBuffer()) });
     }
+    const fileCount = items.length;
     if (text.trim()) items.push({ kind: "testo incollato", text });
-    if (refused.length) toast(`Non inviati (formato non supportato, Excel: salvarlo come CSV): ${refused.join(", ")}`, true, 8000);
+    if (refused.length) toast(`Non inviati (formato non supportato): ${refused.join(", ")}`, true, 8000);
+    if (tooLarge.length) toast(`Non inviati (file oltre 35 MB): ${tooLarge.join(", ")}`, true, 8000);
     if (!items.length) return;
     busy = true; render();
     try {
       const r = await send({ op: "anonymize", items });
       if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
-      const el = target && document.contains(target) ? target : composer();
+      const el = target && editable(target) && document.contains(target) ? target : composer();
       if (!el) throw new Error("campo della chat non trovato");
       const prefix = noteSent ? "" : NOTE;
       noteSent = true;
@@ -293,7 +301,7 @@
       let body = (filled ? "\n\n" : "") + prefix + r.text.replace(/\n{3,}/g, "\n\n");
       if (el.isContentEditable) body = body.replace(/\n\n/g, "\n");
       insert(el, body);
-      const docs = files.length ? `${files.length === 1 ? "1 file" : files.length + " file"} anonimizzat${files.length === 1 ? "o" : "i"}` : "Testo anonimizzato";
+      const docs = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"} anonimizzat${fileCount === 1 ? "o" : "i"}` : "Testo anonimizzato";
       toast(`/Clin · ${docs} sul computer: nella chat entrano solo segnaposto. Controllare prima di inviare.`);
     } catch (err) {
       toast(`/Clin: anonimizzazione non riuscita (${err.message}). Nulla è stato inviato alla chat.`, true, 9000);
@@ -304,17 +312,21 @@
 
   const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); };
 
-  // incolla: testo e immagini dagli appunti
+  // incolla: intercetta anche quando il fuoco e' sul corpo della pagina (ChatGPT/Claude/Gemini hanno
+  // listener globali su window/document che altrimenti invierebbero testo o screenshot non anonimizzati)
   window.addEventListener("paste", (e) => {
-    if (passing || !active || !editable(e.target.closest?.("[contenteditable='true'],textarea,input") || e.target)) return;
+    if (passing || !active || e.target === host) return;
+    const ed = e.target?.closest?.("[contenteditable],textarea,input") || (editable(e.target) ? e.target : null);
+    if (ed && ed.tagName === "INPUT" && !/^(text|search)$/.test(ed.type)) return;
     const dt = e.clipboardData;
     if (!dt) return;
     const files = [...(dt.files || [])];
     const text = files.length ? "" : dt.getData("text/plain");
     if (!files.length && !text) return;
     stop(e);
-    if (files.length) handleFiles(files, { kind: "paste", target: e.target });
-    else handle({ text }, e.target.closest?.("[contenteditable='true'],textarea,input") || e.target);
+    const target = editable(ed) ? ed : composer();
+    if (files.length) handleFiles(files, { kind: "paste", target: target || e.target });
+    else handle({ text }, target);
   }, true);
 
   // trascinamento di file sulla chat

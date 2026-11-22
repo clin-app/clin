@@ -7,8 +7,8 @@
   <meta name="description" content="Clin rimuove in locale nomi, codici fiscali, recapiti, indirizzi, date e codici di documento da referti, cartelle cliniche, Excel e immagini, prima che arrivino a Claude Code, Codex o Antigravity. Si installa con un comando e si richiama con /clin.">
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.css?v=20261122e">
-  <link rel="stylesheet" href="clin.css?v=20261122e">
+  <link rel="stylesheet" href="style.css?v=20261122f">
+  <link rel="stylesheet" href="clin.css?v=20261122f">
 </head>
 <body>
 
@@ -237,9 +237,9 @@
           <table class="lb sheet-table">
             <thead><tr><th>ID studio</th><th>Cognome</th><th>Nome</th><th>Codice fiscale</th><th>Data di nascita</th><th>Età</th><th>Comune di residenza</th><th>Classe NYHA</th><th>EuroSCORE II</th><th>Note</th></tr></thead>
             <tbody>
-              <tr><td>TAVI-001</td><td><b>PAZ-0001</b></td><td><b>PAZ-0001</b></td><td><b>ID-0001</b></td><td>███</td><td>39</td><td>███</td><td>III</td><td>4,2</td><td>riferisce la moglie ███</td></tr>
-              <tr><td>TAVI-002</td><td><b>PAZ-0002</b></td><td><b>PAZ-0002</b></td><td><b>ID-0002</b></td><td>███</td><td>54</td><td>███</td><td>II</td><td>2,8</td><td>accompagnato dal figlio ███</td></tr>
-              <tr><td>TAVI-003</td><td><b>PAZ-0003</b></td><td><b>PAZ-0003</b></td><td><b>ID-0003</b></td><td>███</td><td>90+</td><td>███</td><td>IV</td><td>8,9</td><td>tel. ███</td></tr>
+              <tr><td>TAVI-001</td><td><b>PAZ-0001</b></td><td><b>PAZ-0001</b></td><td><b>ID-0001</b></td><td>[DATA_NASCITA_1]</td><td>39</td><td>[CONTATTO_1]</td><td>III</td><td>4,2</td><td>riferisce la moglie [PERSONA_1]</td></tr>
+              <tr><td>TAVI-002</td><td><b>PAZ-0002</b></td><td><b>PAZ-0002</b></td><td><b>ID-0002</b></td><td>[DATA_NASCITA_2]</td><td>54</td><td>[CONTATTO_1]</td><td>II</td><td>2,8</td><td>accompagnato dal figlio [PERSONA_2]</td></tr>
+              <tr><td>TAVI-003</td><td><b>PAZ-0003</b></td><td><b>PAZ-0003</b></td><td><b>ID-0003</b></td><td>[DATA_NASCITA_3]</td><td>90+</td><td>[CONTATTO_2]</td><td>IV</td><td>8,9</td><td>tel. [CONTATTO_3]</td></tr>
             </tbody>
           </table>
           <p class="table-foot">Dati di esempio, elaborati con <span class="clin">/Clin</span>. Nel foglio «Follow-up» dello stesso file e in follow_up_12m.csv, «ROSSI MARIO» e «Anna Bianchi» diventano PAZ-0001 e PAZ-0003.</p>
@@ -250,7 +250,7 @@
         <div class="feature"><span class="n">01</span><h3>Colonne riconosciute</h3><p>Dall’intestazione: paziente, medici, personale, familiari e caregiver, codice fiscale e documenti, nosologico, ricetta, campione, struttura, nascita, recapiti e residenza. Dal contenuto: una colonna di nomi con un’intestazione qualsiasi («Coordinatore») viene riconosciuta dal modello locale. In ogni altra cella si cercano comunque telefoni, codici, date e nomi.</p></div>
         <div class="feature"><span class="n">02</span><h3>Pseudonimi stabili</h3><p>Un codice per tipo di dato: PAZ per il paziente, ID per il codice fiscale, IDC per gli identificativi clinici. «Rossi | Mario», «ROSSI MARIO» e «Mario Rossi» ricevono lo stesso codice.</p></div>
         <div class="feature"><span class="n">03</span><h3>Variabili cliniche intatte</h3><p>Valori numerici, classi, punteggi, codici ICD ed esiti restano invariati. L’età resta disponibile per l’analisi; i valori dai 90 anni in su diventano «90+».</p></div>
-        <div class="feature"><span class="n">04</span><h3>Testo libero</h3><p>Le celle di note vengono analizzate come un referto: familiari, medici, telefoni e indirizzi citati nel testo vengono oscurati.</p></div>
+        <div class="feature"><span class="n">04</span><h3>Testo libero</h3><p>Le celle di note vengono analizzate come un referto: familiari, medici, telefoni e indirizzi citati nel testo diventano segnaposto ripristinabili ([PERSONA_1], [CONTATTO_1]), mentre il paziente della riga conserva il proprio PAZ.</p></div>
       </div>
 
       <div class="analysis">
@@ -411,7 +411,7 @@
       <h2>Tutti i dati personali, sempre, <span>con un controllo manuale per categoria.</span></h2>
       <div class="split split-top removed">
         <ul class="checks">
-          <li><span><b>Persone, in qualsiasi lingua</b>Pazienti, familiari, medici, operatori e firmatari, anche senza etichetta. Documenti anche in inglese, francese, tedesco, spagnolo, portoghese, olandese, polacco e rumeno, con date, codici e indirizzi nei formati nazionali.</span></li>
+          <li><span><b>Persone, in qualsiasi lingua</b>Pazienti, familiari, medici, operatori e firmatari, anche senza etichetta. Documenti anche in 40 lingue europee (alfabeto latino, cirillico e greco), con date, codici, titoli e indirizzi nei formati nazionali.</span></li>
           <li><span><b>Identificativi</b>Codice fiscale (anche omocodico), tessera sanitaria, STP/ENI, carta d’identità, patente, passaporto, permesso di soggiorno.</span></li>
           <li><span><b>Codici clinici e amministrativi</b>Nosologico, nosografico, ricovero, episodio, verbale di Pronto Soccorso, impegnativa, ricetta, referto, protocollo.</span></li>
           <li><span><b>Recapiti e indirizzi</b>Telefoni in ogni formato, email e PEC, indirizzi con o senza etichetta, CAP e comune.</span></li>
@@ -518,21 +518,21 @@
   <span class="wordmark" aria-hidden="true">/Clin</span>
 </footer>
 
-<script src="hero-stage.js?v=20261122e" defer></script>
+<script src="hero-stage.js?v=20261122f" defer></script>
 <script>
   /* Pagina Ko-fi per i contributi volontari: finche' e' vuota il pulsante non compare. */
   const KOFI = '';
   if (KOFI) { const d = document.getElementById('dona'); d.href = 'https://ko-fi.com/' + encodeURIComponent(KOFI); d.hidden = false; }
 </script>
-<script src="hero-ascii.js?v=20261122e" defer></script>
-<script src="demo.js?v=20261122e" defer></script>
+<script src="hero-ascii.js?v=20261122f" defer></script>
+<script src="demo.js?v=20261122f" defer></script>
 <script>
-  // indirizzo dell'installer: lo stesso sito che serve questa pagina
+  // indirizzo dell'installer: lo stesso sito che serve questa pagina (solo HTTPS, mai HTTP in chiaro)
   (function () {
-    var here = location.protocol.indexOf("http") === 0 ? new URL("install.sh", location.href).href : null;
+    var here = location.protocol === "https:" ? new URL("install.sh", location.href).href : null;
     if (here && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
       document.querySelectorAll("#cmd, #prompt").forEach(function (el) {
-        el.textContent = el.textContent.replace(/https:\/\/\S+install\.sh/, here);
+        el.textContent = el.textContent.replace(/https:\/\/\S+install\.sh/, function () { return here; });
       });
     }
     document.querySelectorAll("[data-copy]").forEach(function (b) {
@@ -541,7 +541,7 @@
         navigator.clipboard.writeText(text).then(function () {
           b.textContent = "Copiato";
           setTimeout(function () { b.textContent = "Copia"; }, 1800);
-        });
+        }).catch(function () {});
       });
     });
     // solo le schede con un pannello (la demo ha il proprio selettore)

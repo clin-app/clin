@@ -1077,8 +1077,21 @@ _ROLE_WORDS = {"dirigente", "direttore", "direttrice", "responsabile", "primario
                "infettivologia", "diabetologia", "fisiatria", "riabilitazione", "endoscopia", "dialisi"}
 _TITLE_TOKENS = {"dott", "ssa", "dr", "prof", "sig", "ra", "na", "signor", "signora", "inf", "dottor", "dottoressa"}
 _NAME_TOKEN = re.compile(r"[" + _LETTER + r"'’]+")
-_NAME_PARTICLES = {"lo", "la", "li", "le", "de", "di", "da", "du", "del", "dei", "della", "dello", "dela",
-                   "van", "von", "der", "el", "al", "bin", "ben", "dos", "das"}
+_NAME_PARTICLES = {"lo", "la", "li", "le", "de", "di", "da", "du", "des", "del", "dei", "degli", "delle",
+                   "dello", "dell", "dela", "van", "von", "der", "den", "ter", "ten", "zu", "el", "al",
+                   "bin", "ben", "dos", "das", "do", "mac", "mc", "ó", "ní", "nic", "uí", "an", "fitz"}
+_WEAK_NAME_LABEL = re.compile(
+    r"(?i)^(?:cognome|surname|nom|apellido|nachname|nome|first\s+name|pr[ée]nom|nombre|vorname)$"
+)
+_APOS_PARTICLE = re.compile(r"^(?:(?i:d|l|dell)['’]|(?:h|n|t|bh|mb|gc|nd|ng|bp|dt)-?)(.+)$")
+
+
+def _is_cap_stem(tok: str) -> bool:
+    """Vero per 'Mario', 'd'Amico', 'dell'Oste', 'hAodha'."""
+    if tok[:1].isupper():
+        return True
+    m = _APOS_PARTICLE.match(tok)
+    return bool(m and m.group(1)[:1].isupper())
 
 
 def collect_names(text: str) -> List[str]:
@@ -1094,7 +1107,9 @@ def collect_names(text: str) -> List[str]:
         if kind == "PERSONA":
             found.append(value)
             # le particelle ("van", "der", "de") non sono parti del nome da cercare da sole
-            found.extend(t for t in value.split() if len(t) >= 3 and t.casefold() not in clin_llm._PARTICLES)
+            found.extend(t for t in value.split()
+                         if len(t) >= 3 and t.casefold() not in clin_llm._PARTICLES
+                         and t.lower().strip("'’") not in _NAME_PARTICLES)
     sources = [(rx, False) for rx in _NAME_SOURCES] + [(rx, True) for rx in _STRONG_NAME_SOURCES]
     for rx, strong in sources:
         for m in rx.finditer(text):
@@ -1105,31 +1120,45 @@ def collect_names(text: str) -> List[str]:
             value = text[v_start:v_end]
             # Etichette "deboli" (Nome, Cognome) in prosa: si accettano solo se
             # seguite da due punti o se il valore e' gia' formato da maiuscole.
+            raw_tokens = _NAME_TOKEN.findall(value)
             tokens: List[str] = []
-            for tok in _NAME_TOKEN.findall(value):
-                if not tokens and tok.lower() in _TITLE_TOKENS:
+            for idx, tok in enumerate(raw_tokens):
+                low = tok.lower().strip("'’")
+                if not tokens and low in _TITLE_TOKENS:
                     continue  # "Dott. Paolo Neri": il titolo non fa parte del nome
-                if tok.lower() in _NAME_PARTICLES and tok[0].isupper() and tokens:
-                    tokens.append(tok)  # "LO IACONO", "Dela Cruz"
-                    continue
-                if tok.lower().strip("'’") in _NAME_STOPWORDS or tok.lower() in _ROLE_WORDS:
+                if low in _NAME_PARTICLES:
+                    j = idx + 1
+                    while j < len(raw_tokens) and raw_tokens[j].lower().strip("'’") in _NAME_PARTICLES:
+                        j += 1
+                    nxt = raw_tokens[j] if j < len(raw_tokens) else ""
+                    nxt_low = nxt.lower().strip("'’")
+                    if nxt and _is_cap_stem(nxt) and nxt_low not in _NAME_STOPWORDS and nxt_low not in _ROLE_WORDS:
+                        tokens.append(tok)  # "Lo Iacono", "van der Berg", "de Luca"
+                        continue
+                if low in _NAME_STOPWORDS or low in _ROLE_WORDS:
                     break
-                if not tok[0].isupper():
+                if not _is_cap_stem(tok):
                     break
                 tokens.append(tok)
-                if len(tokens) == 4:
+                if len(tokens) == 6:
                     break
             if not tokens:
                 continue
-            if not strong and ":" not in label and not label.strip().lower().startswith(
-                ("sig", "mr", "mrs", "ms", "mme", "herr", "frau", "il ", "la ")
-            ) and not all(t.isupper() for t in tokens):
+            if (not strong and ":" not in label and _WEAK_NAME_LABEL.fullmatch(label.strip())
+                    and not all(t.isupper() or t.lower().strip("'’") in _NAME_PARTICLES for t in tokens)):
                 continue
             full = " ".join(tokens)
             if len(full) >= 3:
                 found.append(full)
+            # cognome composto con particella ("Marco de Luca" -> "de Luca", "Jan van der Berg" -> "van der Berg")
+            for idx, t in enumerate(tokens):
+                if t.lower().strip("'’") in _NAME_PARTICLES and idx + 1 < len(tokens):
+                    comp = " ".join(tokens[idx:])
+                    if len(comp) >= 3:
+                        found.append(comp)
+                    break
             for t in tokens:
-                if len(t) >= 3:
+                if len(t) >= 3 and t.lower().strip("'’") not in _NAME_PARTICLES:
                     found.append(t)
     # deduplica preservando l'ordine, piu' lunghi prima
     uniq = list(dict.fromkeys(found))
@@ -1171,13 +1200,19 @@ _SENTENCE_END = re.compile(r"(?<=[^\s.])\.(?=\s+[A-ZÀ-ÖØ-Þ])")
 def _trim_name_end(text: str, start: int, end: int) -> int:
     """Chiude il valore di un nominativo prima della prima parola-etichetta."""
     named = False
-    for m in _NAME_TOKEN.finditer(text, start, end):
+    tokens = list(_NAME_TOKEN.finditer(text, start, end))
+    for idx, m in enumerate(tokens):
         tok = m.group(0)
         low = tok.lower().strip("'’")
         if not named and low in _TITLE_TOKENS:
             continue  # "Dr. Ivan Petrov": il titolo precede il nome
-        if tok.lower() in _NAME_PARTICLES and tok[:1].isupper():
-            continue
+        if low in _NAME_PARTICLES:
+            j = idx + 1
+            while j < len(tokens) and tokens[j].group(0).lower().strip("'’") in _NAME_PARTICLES:
+                j += 1
+            nxt = tokens[j].group(0).lower().strip("'’") if j < len(tokens) else ""
+            if nxt and nxt not in _NAME_STOPWORDS and nxt not in _ROLE_WORDS:
+                continue
         if low in _NAME_STOPWORDS or low in _ROLE_WORDS:
             return len(text[:m.start()].rstrip(" \t,;-–")) if named else start
         named = True
@@ -1453,6 +1488,10 @@ def anonymize_document(
     input_path = Path(input_path)
     output_path = Path(output_path)
     result = FileResult(input_path=input_path, output_path=output_path)
+
+    if input_path.resolve() == output_path.resolve():
+        result.error = "Il file di output coincide con l'input."
+        return result
 
     doc = None
     try:
@@ -1812,17 +1851,26 @@ def process_batch_files(
             )
         else:
             # Import ritardato: il motore tabellare importa a sua volta da qui.
-            from tabular_engine import TABLE_SUFFIXES, anonymize_table
+            from tabular_engine import anonymize_table, is_table_file
 
-            if ext not in TABLE_SUFFIXES:
+            if is_table_file(src_path):
+                if table_settings is None:
+                    res = FileResult(input_path=src_path,
+                                     error="Impostazioni tabellari mancanti.")
+                else:
+                    res = anonymize_table(src_path, out_path, table_settings,
+                                          should_cancel=should_cancel)
+            elif ext in {".txt", ".md", ".docx"}:
+                from clin_text import anonymize_prose_document
+                reg = getattr(table_settings, "registry", None) if table_settings else None
+                res = anonymize_prose_document(
+                    src_path, out_path, sensitivity_level=sensitivity_level,
+                    explicit_targets=explicit_targets, whitelist_words=whitelist_words,
+                    registry=reg,
+                )
+            else:
                 res = FileResult(input_path=src_path,
                                  error=f"Formato non supportato: {ext}")
-            elif table_settings is None:
-                res = FileResult(input_path=src_path,
-                                 error="Impostazioni tabellari mancanti.")
-            else:
-                res = anonymize_table(src_path, out_path, table_settings,
-                                      should_cancel=should_cancel)
 
         if anonymize_filenames and res.ok and res.output_path and res.output_path.exists():
             clean = safe_output_stem(src_path.stem, sensitivity_level,

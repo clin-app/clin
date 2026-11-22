@@ -126,7 +126,7 @@ class ContextAnalysisWorker(QThread):
 
     def run(self):
         found = False
-        if clin_llm.model():
+        if clin_llm.engine():
             for t in self.texts:
                 if self.isInterruptionRequested():
                     return
@@ -1907,8 +1907,7 @@ class ClinMainWindow(QMainWindow):
             elif action == "ripristina":
                 msg = clin.clip_restore()
             elif action == "dimentica":
-                clin.MAP_FILE.unlink(missing_ok=True)
-                msg = "Tabella segnaposto cancellata."
+                msg = clin.forget_mapping()
             elif action == "claude-desktop":
                 msg = clin.connect_claude_desktop()
             else:

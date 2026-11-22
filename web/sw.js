@@ -27,6 +27,7 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method === "POST" && url.pathname.endsWith("/condividi")) {
     event.respondWith((async () => {
       const form = await event.request.formData();
+      await caches.delete("clin-share");
       const cache = await caches.open("clin-share");
       const file = form.get("file");
       const text = [form.get("title"), form.get("text"), form.get("url")].filter(Boolean).join("\n");

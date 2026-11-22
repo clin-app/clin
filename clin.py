@@ -47,6 +47,17 @@ MAP_FILE = MAP_DIR / "segnaposto.json"
 # --------------------------------------------------------------------------
 # Appunti di sistema (macOS, Windows, Linux) senza dipendenze
 # --------------------------------------------------------------------------
+def _linux_clipboard_cmd(read: bool) -> list:
+    import shutil
+    if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-paste") and shutil.which("wl-copy"):
+        return ["wl-paste", "--no-newline"] if read else ["wl-copy"]
+    if shutil.which("xclip"):
+        return ["xclip", "-selection", "clipboard", "-o"] if read else ["xclip", "-selection", "clipboard"]
+    if shutil.which("xsel"):
+        return ["xsel", "--clipboard", "--output"] if read else ["xsel", "--clipboard", "--input"]
+    raise ValueError("Utilità per gli appunti mancante: installare wl-clipboard (Wayland) oppure xclip/xsel (X11).")
+
+
 def clipboard_get() -> str:
     system = platform.system()
     if system == "Darwin":
@@ -54,8 +65,7 @@ def clipboard_get() -> str:
     if system == "Windows":
         return subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
                               capture_output=True, text=True, check=True).stdout
-    return subprocess.run(["xclip", "-selection", "clipboard", "-o"],
-                          capture_output=True, text=True, check=True).stdout
+    return subprocess.run(_linux_clipboard_cmd(True), capture_output=True, text=True, check=True).stdout
 
 
 def clipboard_set(text: str) -> None:
@@ -65,15 +75,17 @@ def clipboard_set(text: str) -> None:
     elif system == "Windows":
         subprocess.run(["clip"], input=text, text=True, check=True)
     else:
-        subprocess.run(["xclip", "-selection", "clipboard"], input=text, text=True, check=True)
+        subprocess.run(_linux_clipboard_cmd(False), input=text, text=True, check=True)
 
 
 def notify(message: str) -> None:
     """Notifica di sistema su macOS (utile quando il comando parte da una scorciatoia)."""
     if platform.system() == "Darwin" and not sys.stdout.isatty():
-        safe = message.replace('"', "'")
-        subprocess.run(["osascript", "-e", f'display notification "{safe}" with title "Clin"'],
-                       capture_output=True)
+        subprocess.run(
+            ["osascript", "-e", 'on run argv\ndisplay notification (item 1 of argv) with title "Clin"\nend run',
+             "--", message],
+            capture_output=True,
+        )
     print(message)
 
 
@@ -81,7 +93,8 @@ def notify(message: str) -> None:
 # Tabella segnaposto: solo in locale, leggibile solo dall'utente
 # --------------------------------------------------------------------------
 def save_mapping(mapping: dict) -> None:
-    MAP_DIR.mkdir(mode=0o700, exist_ok=True)
+    MAP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(MAP_DIR, 0o700)
     old = load_mapping()
     old.update(mapping)
     tmp = MAP_FILE.with_suffix(".tmp")
@@ -149,15 +162,20 @@ def cmd_ripristina(a) -> int:
     return 0
 
 
-def cmd_dimentica(a) -> int:
+def forget_mapping() -> str:
+    """Cancella la tabella segnaposto e le copie di lettura della guardia che la usano."""
     import shutil
     try:
         MAP_FILE.unlink()
-        notify("Tabella segnaposto cancellata.")
+        msg = "Tabella segnaposto cancellata."
     except FileNotFoundError:
-        notify("Nessuna tabella segnaposto da cancellare.")
-    # le copie lette dalla guardia usano quei segnaposto: vanno rigenerate
+        msg = "Nessuna tabella segnaposto da cancellare."
     shutil.rmtree(MAP_DIR / "letture", ignore_errors=True)
+    return msg
+
+
+def cmd_dimentica(a) -> int:
+    notify(forget_mapping())
     return 0
 
 

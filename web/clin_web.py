@@ -88,17 +88,21 @@ def run_bundle(items_json, level, previous_json):
     """
     Piu' documenti in un solo testo per la chat (PDF, Word, testi incollati, foto),
     anonimizzati insieme: ogni persona ha lo stesso segnaposto in tutti i documenti.
-    items: [{"titolo": "...", "pagine": ["testo", ...]}]
+    items: [{"titolo": "...", "pagine": ["testo", ...], "ocr": bool}]
     """
     items = json.loads(items_json)
-    blocks = []
+    blocks, explicit = [], []
     for it in items:
         pages = [t for t in it["pagine"]]
+        if it.get("ocr"):
+            for p in pages:
+                explicit.extend(ocr_suspects(p))
         body = "\n\n".join(f"(pagina {i})\n{t.strip()}" if len(pages) > 1 else t.strip()
                             for i, t in enumerate(pages, 1) if t.strip())
         blocks.append(f"### {it['titolo']}\n{body}" if len(items) > 1 else body)
     prev, names = _prev(previous_json)
-    res = anonymize_text("\n\n".join(blocks), level=int(level), previous=prev or None, names=names)
+    res = anonymize_text("\n\n".join(blocks), level=int(level), previous=prev or None, names=names,
+                         explicit=explicit or None)
     res.notes = [f"{it['titolo']}: nessun testo (scansione). Caricarla come foto per l'OCR."
                  for it in items if not any(t.strip() for t in it["pagine"])]
     return _out(res)
@@ -108,9 +112,11 @@ def run_bundle(items_json, level, previous_json):
 # File con i dati coperti (estensione): l'IA riceve il documento, non una trascrizione
 # --------------------------------------------------------------------------
 _TITLE_RX = None
+_PERSON_PH_PREFIXES = ("[PAZIENTE_", "[PERSONA_", "[MEDICO_", "[OPERATORE_",
+                       "PAZ-", "PER-", "MED-", "OPE-")
 
 
-def _plan_texts(texts, previous):
+def _plan_texts(texts, previous, ocr_flags=None):
     """Per ogni testo: [(inizio, fine, segnaposto)], con un solo registro per tutti i testi."""
     import re
     from anonymize_engine import collect_names as _collect
@@ -122,9 +128,11 @@ def _plan_texts(texts, previous):
     registry = _Registry.from_mapping(previous) if previous else _Registry([])
     registry.add_names(_without_relatives(joined, names, 10, None, None))
     plans = []
-    for t in texts:
+    for idx, t in enumerate(texts):
+        is_ocr = bool(ocr_flags and idx < len(ocr_flags) and ocr_flags[idx])
+        explicit = ocr_suspects(t) if is_ocr else None
         spans = []
-        for s, e, cat in find_spans(t, 10, None, None, names):
+        for s, e, cat in find_spans(t, 10, explicit, None, names):
             original = " ".join(t[s:e].split())
             m = _TITLE_RX.match(original)
             if m:  # "Dott. Neri": il titolo resta leggibile
@@ -133,82 +141,26 @@ def _plan_texts(texts, previous):
                 original = original[skip:]
                 while s < e and t[s].isspace():
                     s += 1
+            if e <= s or not original:
+                continue
             ph = registry.get(_PLACEHOLDER.get(cat, "DATO"), original, link=cat != "Persone")
             spans.append([s, e, ph])
         plans.append(spans)
     return plans, dict(registry.mapping)
 
 
-def plan_pages(pages_json, previous_json):
+def plan_pages(pages_json, previous_json, ocr_flags_json="[]"):
     """Testi delle pagine (PDF o OCR) -> intervalli da coprire con il loro segnaposto."""
-    plans, mapping = _plan_texts(json.loads(pages_json), json.loads(previous_json or "{}"))
+    plans, mapping = _plan_texts(json.loads(pages_json), json.loads(previous_json or "{}"),
+                                 json.loads(ocr_flags_json or "[]"))
     return json.dumps({"spans": plans, "mapping": mapping}, ensure_ascii=False)
 
 
 def redact_docx(in_path, out_path, previous_json):
-    """Word: il testo di ogni paragrafo con dati personali viene riscritto con i segnaposto
-    (formattazione del paragrafo conservata; stili interni al paragrafo uniformati).
-    Ripulisce anche intestazioni, piè di pagina, note, commenti e proprieta' del documento."""
-    import re
-    import zipfile
-    from xml.sax.saxutils import escape, unescape
+    """Word: riscrive il file .docx con i segnaposto ripulendo revisioni, miniature e metadati."""
+    from clin_text import redact_docx_file
     previous = json.loads(previous_json or "{}")
-    zin = zipfile.ZipFile(in_path)
-    parts = [n for n in zin.namelist() if n.startswith("word/") and n.endswith(".xml")]
-    para_rx = re.compile(r"<w:p[ >].*?</w:p>", re.S)
-    t_rx = re.compile(r"(<w:t(?: [^>]*)?>)(.*?)(</w:t>)", re.S)
-    xml = {n: zin.read(n).decode("utf-8") for n in parts}
-    paras = []  # (parte, testo del paragrafo)
-    for n in parts:
-        for p in para_rx.findall(xml[n]):
-            paras.append((n, "".join(unescape(m.group(2)) for m in t_rx.finditer(p))))
-    # un solo testo: un'etichetta in una cella e il valore nella cella accanto restano collegati
-    joined = "\n".join(t for _, t in paras)
-    (spans_all,), mapping = _plan_texts([joined], previous)
-    starts, pos = [], 0
-    for _, t in paras:
-        starts.append(pos)
-        pos += len(t) + 1
-    plans = [[] for _ in paras]
-    for s, e, ph in spans_all:
-        first = True
-        for i, st in enumerate(starts):
-            en = st + len(paras[i][1])
-            if e <= st or s >= en:
-                continue
-            a, b = max(s, st) - st, min(e, en) - st
-            plans[i].append([a, b, ph if first else ""])  # il segnaposto una volta sola, nel primo paragrafo
-            first = False
-    it = iter(plans)
-
-    def rewrite(part):
-        def one(pm):
-            p = pm.group(0)
-            spans = next(it)
-            if not spans:
-                return p
-            text = "".join(unescape(m.group(2)) for m in t_rx.finditer(p))
-            for s, e, ph in sorted(spans, reverse=True):
-                text = text[:s] + ph + text[e:]
-            first = [True]
-
-            def t_sub(m):
-                if first[0]:
-                    first[0] = False
-                    return '<w:t xml:space="preserve">' + escape(text) + "</w:t>"
-                return m.group(1) + m.group(3)
-            return t_rx.sub(t_sub, p)
-        return one
-
-    out = zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED)
-    for item in zin.infolist():
-        data = zin.read(item.filename)
-        if item.filename in xml:
-            data = para_rx.sub(rewrite(item.filename), xml[item.filename]).encode("utf-8")
-        elif item.filename == "docProps/core.xml":  # autore, ultima modifica
-            data = re.sub(rb"(<dc:creator>|<cp:lastModifiedBy>)[^<]*", rb"\1", data)
-        out.writestr(item, data)
-    out.close()
+    mapping, _, _ = redact_docx_file(Path(in_path), Path(out_path), level=10, previous=previous)
     return json.dumps({"mapping": mapping}, ensure_ascii=False)
 
 
@@ -231,7 +183,9 @@ def redact_table(in_path, out_path, book_json, previous_json="{}"):
 def safe_name(stem, mapping_json):
     """Nome del file prodotto senza i nominativi ("dimissione_ferrari" -> "dimissione_ANON")."""
     from anonymize_engine import safe_output_stem
-    names = [v for k, v in json.loads(mapping_json or "{}").items() if " " in str(v)]
+    mapping = json.loads(mapping_json or "{}")
+    names = [str(v) for k, v in mapping.items()
+             if v and (" " in str(v) or str(k).startswith(_PERSON_PH_PREFIXES))]
     return safe_output_stem(stem, 10, names)
 
 
