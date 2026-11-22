@@ -49,6 +49,7 @@ Senza riga di comando: `python3 clin.py` apre l'applicazione grafica.
 | **Applicazione** | Chi deve condividere file | PDF con oscuramento irreversibile, Excel e CSV con pseudonimi |
 | **Collegamento MCP** | Chat di Claude Desktop, Cursor e altri client MCP | Solo il testo anonimizzato del file indicato |
 | **Modalità appunti** | ChatGPT, Gemini, Copilot e qualunque chat nel browser | Il testo copiato, già anonimizzato al momento dell'incolla |
+| **Estensione Chrome/Edge** | ChatGPT, Claude, Gemini, Copilot, Mistral nel browser | Testi e file intercettati nella pagina e anonimizzati prima dell'invio |
 | **Guardia per agenti** | Claude Code, Codex, Antigravity su cartelle di dati (`/clin`) | Solo copie anonime: gli originali vengono intercettati dagli hook |
 | **Telefono** | iPhone e Android, con qualunque app di IA | Foto con riquadri neri e testo con segnaposto, prodotti sul telefono |
 
@@ -75,7 +76,7 @@ telefono. Dopo il primo avvio l'app funziona anche senza rete.
 Ogni parola dell'immagine si può oscurare o scoprire con un tocco, prima di
 condividerla.
 
-**Indirizzo: https://clin-app.github.io/app/**
+**Indirizzo: https://clin-app.github.io/clin/app/**
 
 ### Installazione sul telefono
 
@@ -108,15 +109,13 @@ La cartella si pubblica su un qualunque hosting statico con HTTPS (GitHub Pages,
 Vercel, Netlify, server interno della struttura). L'hosting serve solo file
 statici: non riceve i documenti, che restano nel telefono.
 
-La versione pubblica è nel repository
-[clin-app/app](https://github.com/clin-app/app) (solo l'app
-compilata, servita da GitHub Pages). Per aggiornarla dopo una modifica:
+La versione pubblica è in `docs/app/` di questo repository, servita da GitHub
+Pages insieme al sito. Per aggiornarla dopo una modifica si usa lo script di
+pubblicazione (vedi «Pubblicazione di una nuova versione»), oppure solo:
 
 ```bash
-python3 web/build.py
-git clone https://github.com/clin-app/app.git /tmp/clin-app
-rsync -a --delete --exclude .git --exclude README.md web/dist/ /tmp/clin-app/
-git -C /tmp/clin-app add -A && git -C /tmp/clin-app commit -m "Aggiornamento" && git -C /tmp/clin-app push
+python3 web/build.py && rm -rf docs/app && cp -R web/dist docs/app
+git add docs/app && git commit -m "App web aggiornata" && git push
 ```
 
 Al successivo avvio i telefoni scaricano la nuova versione e la conservano per
@@ -146,20 +145,43 @@ Per chi usa le chat IA nel browser (per esempio sul PC del reparto), l'estension
   risultati identici al modello originale nel 99,6% dei casi) ed eseguito con
   onnxruntime-web. Sul benchmark nel browser: recall 1,000, nessun termine clinico
   coperto (1000/1000), circa 2 s per documento;
-- nessuna richiesta di rete: motore (Pyodide, pdf.js, Tesseract, GLiNER) dentro
-  l'estensione (`connect-src 'self'`).
+- nessuna richiesta di rete nel pacchetto completo: motore (Pyodide, pdf.js,
+  Tesseract, GLiNER) dentro l'estensione. Il pacchetto per il Chrome Web Store
+  (limite di 128 MB) scarica `model.onnx` una sola volta dalla release
+  `modello-gliner-v1`, ne verifica lo SHA-256 e lo conserva nella cache del browser.
 
 Siti: chatgpt.com, claude.ai, gemini.google.com, copilot.microsoft.com, chat.mistral.ai.
 
+### Installazione in modalità sviluppatore
+
+1. Scaricare l'estensione completa:
+   **https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip**
+2. Estrarla in una cartella stabile (il browser la legge da lì).
+3. `chrome://extensions` (o `edge://extensions`) › **Modalità sviluppatore** ›
+   **Carica estensione non pacchettizzata** › cartella estratta.
+
+Aggiornamento: sostituire il contenuto della cartella con il nuovo zip e premere
+⟳ sulla scheda Clin. Dove le estensioni non sono consentite si usa l'app nel
+browser: https://clin-app.github.io/clin/app/
+
+### Compilazione dai sorgenti
+
 ```bash
-python3 web/build.py && python3 extension/build.py   # extension/dist e extension/clin-estensione.zip
+python3 web/build.py && python3 extension/build.py           # completa: extension/dist e extension/clin-estensione.zip
+python3 web/build.py && python3 extension/build.py --store   # Chrome Web Store: extension/clin-webstore.zip (< 128 MB)
 ```
 
-Per provarla: Chrome › Estensioni › Modalità sviluppatore › «Carica estensione non
-pacchettizzata» › `extension/dist`. Per l'installazione con un clic va pubblicata sul
-Chrome Web Store (e sul sito dei componenti aggiuntivi di Edge) con
-`clin-estensione.zip`. Dove le estensioni non sono consentite si usa l'app nel
-browser: https://clin-app.github.io/app/
+Il modello GLiNER ONNX si esporta una volta in `~/.clin/modelli/gliner-onnx` con
+`tools/export_gliner_onnx.py`.
+
+### Pubblicazione di una nuova versione
+
+1. Aumentare `"version"` in `extension/manifest.json`.
+2. `python3 tools/pubblica.py`: compila app web (copiata in `docs/app/`), estensione
+   completa ed estensione per lo Store, e crea la release `vX.Y.Z` con
+   `clin-estensione.zip` e `clin-estensione-webstore.zip`.
+3. `git add -A && git commit && git push`: il sito si aggiorna da solo e il pulsante
+   «Scarica l'estensione» punta sempre all'ultima release.
 
 ## Installazione
 
@@ -582,7 +604,9 @@ trovare le parole e i loro riquadri, non ricostruire il documento.
 | `build_app.py` | Creazione di Clin.app per macOS |
 | `web/` | App web per browser e telefono (Pyodide, Tesseract.js, pdf.js) e script di build |
 | `extension/` | Estensione per Chrome ed Edge (Pyodide, pdf.js, Tesseract.js, GLiNER ONNX) |
-| `docs/` | Sito informativo e script di installazione rapida (`install.sh`) |
+| `docs/` | Sito (GitHub Pages), informativa privacy, script di installazione rapida (`install.sh`) |
+| `docs/app/` | App web compilata, pubblicata su https://clin-app.github.io/clin/app/ |
+| `tools/` | Pubblicazione (`pubblica.py`), esportazione GLiNER ONNX, benchmark dell'estensione |
 | `ui_kit.py` | Sistema di design dell'interfaccia |
 
 ## Test

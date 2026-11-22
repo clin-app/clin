@@ -346,3 +346,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .keep-h { margin-top: 22px; }
 .ext { margin-top: 18px; padding: 24px 26px; }
 .ext h3 { font-size: 20px; font-weight: 500; letter-spacing: -.01em; margin-bottom: 8px; }
+.ext-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin: 18px 0 14px; }
+.ext-steps { margin: 0 0 12px 1.2em; padding: 0; display: grid; gap: 6px; line-height: 1.55; }
+.ext .small { font-size: 14px; }
+@media (max-width: 640px) { .ext-actions .btn { white-space: normal; height: auto; padding: 12px 18px; line-height: 1.3; } }

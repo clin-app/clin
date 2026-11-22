@@ -103,7 +103,7 @@
         <div>
           <p class="lede">Per scrivere una lettera di dimissione con Claude, ChatGPT o Gemini su un computer dell’ospedale basta aprire una pagina.</p>
           <p class="sub">Si trascinano i PDF della cartella clinica e si incollano diari ed esami: <span class="clin">/Clin</span> li anonimizza nel browser, tutti insieme e con gli stessi segnaposto, e la risposta dell’IA torna con i nomi veri. Il browser blocca ogni connessione verso altri siti; la tabella dei segnaposto resta solo nella scheda e si cancella chiudendola.</p>
-          <div class="actions"><a class="btn btn-dark" href="https://clin-app.github.io/app/">Apri Clin nel browser</a></div>
+          <div class="actions"><a class="btn btn-dark" href="app/">Apri Clin nel browser</a></div>
         </div>
       </div>
       <div class="features four">
@@ -112,9 +112,19 @@
         <div class="feature"><span class="n">03</span><h3>Ripristinare</h3><p>Incollare la risposta in <span class="clin">/Clin</span>: segnaposto e codici tornano ai nomi e ai dati reali.</p></div>
         <div class="feature"><span class="n">04</span><h3>Riportare</h3><p>«Copia con i dati reali» e incollare la lettera nella cartella clinica. Nessun dato è uscito dal computer.</p></div>
       </div>
-      <div class="card ext">
+      <div class="card ext" id="estensione">
         <h3>Ancora più semplice: l’estensione per Chrome ed Edge</h3>
-        <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude e Gemini: i documenti si trascinano direttamente nella chat e l’IA riceve gli stessi file con i dati personali coperti dai segnaposto. Il riconoscimento dei nomi usa lo stesso modello locale della versione per agenti, dentro il browser. Una pillola «/Clin attivo» mostra la risposta con i nomi veri, visibili solo a chi la usa. In arrivo sul Chrome Web Store.</p>
+        <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude e Gemini: i documenti si trascinano direttamente nella chat e l’IA riceve gli stessi file con i dati personali coperti dai segnaposto. Il riconoscimento dei nomi usa lo stesso modello locale della versione per agenti, dentro il browser. Una pillola «/Clin attivo» mostra la risposta con i nomi veri, visibili solo a chi la usa.</p>
+        <div class="actions ext-actions">
+          <a class="btn btn-dark" href="https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip">Scarica l’estensione completa (.zip, circa 500 MB)</a>
+          <a class="link-in" href="https://github.com/clin-app/clin/releases/latest">Note di versione</a>
+        </div>
+        <ol class="ext-steps">
+          <li>Estrarre lo zip in una cartella stabile, per esempio <code>Documenti/Clin-estensione</code> (non va cancellata: il browser la legge da lì).</li>
+          <li>Aprire <code>chrome://extensions</code> (Chrome) o <code>edge://extensions</code> (Edge) e attivare <b>Modalità sviluppatore</b>.</li>
+          <li>Cliccare <b>Carica estensione non pacchettizzata</b> e scegliere la cartella estratta. Ricaricare le schede di ChatGPT, Claude o Gemini già aperte.</li>
+        </ol>
+        <p class="muted small">Il pacchetto contiene tutto (motore, lettura PDF, OCR e modello GLiNER): dopo l’installazione l’estensione non effettua alcuna richiesta di rete. Per aggiornarla: sostituire il contenuto della cartella con il nuovo zip e premere ⟳ sulla scheda Clin. In arrivo anche sul Chrome Web Store.</p>
       </div>
       <p class="note">Senza estensione, non trascinare i documenti direttamente nella chat dell’IA: un file caricato lì raggiunge subito i server del fornitore, prima di qualsiasi anonimizzazione. Sul telefono la stessa pagina si aggiunge alla schermata Home e legge anche le foto dei fogli cartacei.</p>
     </div>
@@ -478,7 +488,7 @@
           <details><summary>È necessaria una connessione di rete?</summary><p>Soltanto per l’installazione. Anonimizzazione, OCR e modello linguistico funzionano in locale, anche senza rete.</p></details>
           <details><summary>Funziona con le immagini DICOM?</summary><p>Non ancora. Le radiografie vanno esportate in JPG o PNG: il testo stampato sull’immagine viene letto con l’OCR e coperto. I metadati DICOM non vengono trattati.</p></details>
           <details><summary>È disponibile per Windows?</summary><p>Tramite WSL (Windows Subsystem for Linux), con lo stesso comando. Un installer nativo per Windows non è ancora disponibile.</p></details>
-          <details><summary>È disponibile una versione per smartphone?</summary><p>Sì, come app web installabile su iPhone e Android; l’elaborazione avviene nel browser del dispositivo: <a class="link-in" href="https://clin-app.github.io/app/">clin-app.github.io/app</a>.</p></details>
+          <details><summary>È disponibile una versione per smartphone?</summary><p>Sì, come app web installabile su iPhone e Android; l’elaborazione avviene nel browser del dispositivo: <a class="link-in" href="app/">clin-app.github.io/clin/app</a>.</p></details>
         </div>
       </div>
     </div>
@@ -510,7 +520,7 @@
       <div class="actions"><a class="btn btn-white" href="#installazione">Installazione</a></div>
     </div>
     <div class="foot-cols">
-      <div><p>Progetto</p><a href="https://github.com/clin-app/clin">Codice sorgente</a><a href="https://clin-app.github.io/app/">App per telefono</a><a href="#domande">Domande frequenti</a></div>
+      <div><p>Progetto</p><a href="https://github.com/clin-app/clin">Codice sorgente</a><a href="app/">App per telefono</a><a href="#domande">Domande frequenti</a></div>
       <div><p>Agenti</p><a href="#installazione">Claude Code</a><a href="#installazione">Codex</a><a href="#installazione">Google Antigravity</a></div>
       <div><p>Note</p><span>Le copie prodotte vanno sempre verificate. <span class="clin">/Clin</span> riduce il rischio di esposizione dei dati e non sostituisce le valutazioni previste dal GDPR.</span><span class="credits">Carattere: Albert Sans (SIL Open Font License).</span></div>
     </div>

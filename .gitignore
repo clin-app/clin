@@ -26,3 +26,6 @@ models/
 extension/dist/
 extension/*.zip
 extension/.vendor-cache/
+
+# Pacchetti generati da tools/pubblica.py
+release/
