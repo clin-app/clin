@@ -241,7 +241,10 @@ DOCTOR_PATTERNS = [
     r'\b(?:CN|cn|GN|SN|givenName|surname|commonName)\s*=\s*(?P<v>[^,;/\n=]{2,60})',
     r'\b(?:SERIALNUMBER|serialNumber|2\.5\.4\.5)\s*=\s*(?P<v>[A-Z:\-]*[A-Z0-9]{6,})',
     r'(?i)\bSigned\s*by[:\s]+(?P<v>[^\n\r,;\t]{3,})',
-    r'(?i)\b(?:Medico|Physician|Doctor|Esaminatore|Refertatore|Dirigente\s*Medico|Médecin|Médico)[:\s]+(?P<v>[^\n\r,;\t]{3,})',
+    # "Medico: Rossi", "Medico curante Luca Bianchi"; mai "Medico di guardia" (il ruolo non e' un nome)
+    r'(?i)\b(?:Medico|Physician|Doctor|Esaminatore|Refertatore|Dirigente\s*Medico|Médecin|Médico)'
+    r'(?:\s+(?:curante|di\s+guardia|di\s+base|di\s+famiglia|referente|responsabile|refertante|in\s+turno|di\s+reparto))?'
+    r'[:\s]+(?P<v>(?-i:[A-ZÀ-ÖØ-Þ])[^\n\r,;\t]{2,})',
 ]
 
 # 8. Personale sanitario e destinatari

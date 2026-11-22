@@ -25,3 +25,4 @@ web/.vendor-cache/
 models/
 extension/dist/
 extension/*.zip
+extension/.vendor-cache/

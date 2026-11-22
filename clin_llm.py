@@ -119,8 +119,22 @@ def model() -> Optional[str]:
         return _state["model"]  # type: ignore[return-value]
 
 
+# Entita' gia' calcolate altrove (GLiNER eseguito nel browser dall'estensione):
+# [(valore, tipo)] per il documento in lavorazione; None se non usate.
+_external: Optional[List[Tuple[str, str]]] = None
+
+
+def set_external(items: Optional[List[Tuple[str, str]]]) -> None:
+    """L'estensione passa i nomi trovati da GLiNER (onnxruntime-web) prima di anonimizzare."""
+    global _external
+    _external = [(str(v), str(t)) for v, t in items] if items is not None else None
+    _cache.clear()
+
+
 def engine() -> str:
     """Motore per i nomi senza etichetta: "gliner", "ollama" o "" (solo regole)."""
+    if _external is not None:
+        return "esterno"
     if os.environ.get("CLIN_LLM", "1") == "0":
         return ""
     try:
@@ -199,6 +213,10 @@ def entities(text: str) -> List[Tuple[str, str]]:
     eng = engine()
     if not eng:
         return []
+    if eng == "esterno":  # solo i valori che compaiono in questo testo, con le stesse verifiche
+        result = _verified([it for it in _external if it[0] and it[0] in text], text)
+        _cache[key] = result
+        return result
     if eng == "gliner":
         import clin_ner
         items = clin_ner.entities(text)

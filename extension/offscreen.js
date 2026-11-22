@@ -20,6 +20,22 @@ async function boot() {
   await booting;
 }
 
+// GLiNER nel browser (ner.js): i nomi senza etichetta trovati dal modello passano al motore Python,
+// che li verifica (compaiono nel testo, non sono eponimi ne' termini clinici) come sul computer
+let nerNote = "";
+async function withNer(texts) {
+  try {
+    const ner = await import("./ner.js");
+    const found = await ner.entities(texts.filter(Boolean));
+    py.set_ner(found ? JSON.stringify(found) : "");
+    nerNote = found ? "" : "Modello GLiNER assente: nomi senza etichetta riconosciuti solo dal contesto.";
+  } catch (err) {
+    console.error(err);
+    py.set_ner("");
+    nerNote = "GLiNER non disponibile in questo momento: nomi senza etichetta riconosciuti solo dal contesto.";
+  }
+}
+
 const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
 async function pdfPages(data) {
@@ -86,6 +102,8 @@ async function anonymize(items, previous) {
     else bundle.push({ titolo: title, pagine: [viaFS(data, ext, (p) => py.extract(p))] });
   }
   let mapping = { ...previous }, text = "";
+  await withNer(bundle.flatMap((b) => b.pagine).concat(tables.map((t) => viaFS(t.data, t.ext, (p) => py.table_text(p)))));
+  if (nerNote) notes.push(nerNote);
   if (bundle.length) {
     const res = JSON.parse(py.run_bundle(JSON.stringify(bundle), 10, JSON.stringify(mapping)));
     text = res.text; mapping = { ...mapping, ...res.mapping }; notes.push(...(res.notes || []));
@@ -268,6 +286,8 @@ async function redactPdf(data, state) {
   }
   await doc.destroy();
   step = "segnaposto";
+  step = "nomi";
+  await withNer(pages.map((p) => p.text));
   const plan = JSON.parse(py.plan_pages(JSON.stringify(pages.map((p) => p.text)), JSON.stringify(state.map)));
   state.map = { ...state.map, ...plan.mapping };
   const out = [];
@@ -291,7 +311,9 @@ async function redactImage(data, type, state) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);  // ridisegnata: niente EXIF (posizione, data, dispositivo)
   const segs = await ocrSegments(canvas);
-  const plan = JSON.parse(py.plan_pages(JSON.stringify([joinSegs(segs)]), JSON.stringify(state.map)));
+  const text = joinSegs(segs);
+  await withNer([text]);
+  const plan = JSON.parse(py.plan_pages(JSON.stringify([text]), JSON.stringify(state.map)));
   state.map = { ...state.map, ...plan.mapping };
   cover(ctx, segs, plan.spans[0]);
   return await jpegOf(canvas);
@@ -322,17 +344,21 @@ async function redact(items, state) {
       out = await redactImage(data, it.type, state); type = "image/jpeg"; outExt = ".jpg";
       notes.push(`${it.name}: letta con OCR, verificare.`);
     } else if (it.kind === "Word") {
+      await withNer([viaFS(data, ext, (p) => py.extract(p))]);
       const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_docx(i, o, JSON.stringify(state.map)));
       state.map = { ...state.map, ...JSON.parse(r).mapping }; out = b;
     } else if (it.kind === "tabella" || it.kind === "Excel") {
       if (it.kind === "Excel") await excelReady();
+      await withNer([viaFS(data, ext, (p) => py.table_text(p))]);
       const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {})));
       const res = JSON.parse(r);
       state.book = res.book; state.map = { ...state.map, ...res.mapping }; out = b;
     } else {  // testo semplice: stesso file, con i segnaposto
+      await withNer([new TextDecoder().decode(data)]);
       const res = JSON.parse(py.run_bundle(JSON.stringify([{ titolo: "", pagine: [new TextDecoder().decode(data)] }]), 10, JSON.stringify(state.map)));
       state.map = { ...state.map, ...res.mapping }; out = new TextEncoder().encode(res.text);
     }
+    if (nerNote && !notes.includes(nerNote)) notes.push(nerNote);
     const name = py.safe_name(stem, JSON.stringify(state.map)) + outExt;
     files.push({ name, type, data: b64of(out) });
   }
@@ -356,4 +382,4 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   return true;
 });
 
-boot();  // il motore si prepara subito, cosi' la prima richiesta e' veloce
+boot().then(() => import("./ner.js")).then((ner) => ner.ready()).catch((err) => console.error(err));  // motore e modello pronti subito

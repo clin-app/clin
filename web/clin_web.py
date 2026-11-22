@@ -162,7 +162,23 @@ def redact_docx(in_path, out_path, previous_json):
     for n in parts:
         for p in para_rx.findall(xml[n]):
             paras.append((n, "".join(unescape(m.group(2)) for m in t_rx.finditer(p))))
-    plans, mapping = _plan_texts([t for _, t in paras], previous)
+    # un solo testo: un'etichetta in una cella e il valore nella cella accanto restano collegati
+    joined = "\n".join(t for _, t in paras)
+    (spans_all,), mapping = _plan_texts([joined], previous)
+    starts, pos = [], 0
+    for _, t in paras:
+        starts.append(pos)
+        pos += len(t) + 1
+    plans = [[] for _ in paras]
+    for s, e, ph in spans_all:
+        first = True
+        for i, st in enumerate(starts):
+            en = st + len(paras[i][1])
+            if e <= st or s >= en:
+                continue
+            a, b = max(s, st) - st, min(e, en) - st
+            plans[i].append([a, b, ph if first else ""])  # il segnaposto una volta sola, nel primo paragrafo
+            first = False
     it = iter(plans)
 
     def rewrite(part):
@@ -213,3 +229,17 @@ def safe_name(stem, mapping_json):
     from anonymize_engine import safe_output_stem
     names = [v for k, v in json.loads(mapping_json or "{}").items() if " " in str(v)]
     return safe_output_stem(stem, 10, names)
+
+
+def set_ner(items_json):
+    """Nomi e indirizzi trovati da GLiNER nel browser per i testi che seguono (None per disattivare)."""
+    import clin_llm
+    items = json.loads(items_json) if items_json else None
+    clin_llm.set_external([(i[0], i[1]) for i in items] if items is not None else None)
+
+
+def table_text(path):
+    """Testo delle celle di un foglio (prime righe), per cercarvi i nomi con GLiNER."""
+    from tabular_engine import load_table
+    doc = load_table(Path(path), max_rows=200)
+    return "\n".join(" ; ".join(str(c) for c in row if c is not None) for s in doc.sheets for row in s.rows)

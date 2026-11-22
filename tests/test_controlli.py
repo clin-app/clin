@@ -149,3 +149,9 @@ class TestPersoneDistinte(unittest.TestCase):
                                                "Elena Rossi", "Luca Verdi")}), 5)
         self.assertIn(f"il sig. {inv['Mario Rossi']} lamenta", r.text)
         self.assertIn(f"Il sig. {inv['ESPOSITO LUCA']} sta bene", r.text)
+
+
+class TestRuoli(unittest.TestCase):
+    def test_ruolo_non_e_un_nome(self):
+        self.assertEqual(find_matches("Medico di guardia", 10), [])
+        self.assertTrue(any("Luca Bianchi" in m.text for m in find_matches("Medico referente\tLuca Bianchi", 10)))

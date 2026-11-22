@@ -137,7 +137,16 @@ Per chi usa le chat IA nel browser (per esempio sul PC del reparto), l'estension
 - il pannello è in uno shadow DOM chiuso: il sito della chat non può leggere i nomi
   ripristinati. La tabella dei segnaposto sta in `chrome.storage.session` (solo in
   memoria, cancellata alla chiusura del browser);
-- nessuna richiesta di rete: il motore (Pyodide, pdf.js, Tesseract) è dentro
+- l'IA riceve **i file stessi** con i dati coperti: PDF ridisegnati con riquadri che
+  riportano il segnaposto (più un livello di testo invisibile già anonimizzato),
+  foto senza EXIF, Word con i segnaposto, Excel e CSV con pseudonimi per colonna;
+- i nomi senza etichetta («Elira Shehu, 45enne, giunge in PS…») li trova **GLiNER**,
+  lo stesso modello del servizio locale su computer, esportato in ONNX
+  (`tools/export_gliner_onnx.py`, 581 MB: compressa solo la tabella dei vocaboli,
+  risultati identici al modello originale nel 99,6% dei casi) ed eseguito con
+  onnxruntime-web. Sul benchmark nel browser: recall 1,000, nessun termine clinico
+  coperto (1000/1000), circa 2 s per documento;
+- nessuna richiesta di rete: motore (Pyodide, pdf.js, Tesseract, GLiNER) dentro
   l'estensione (`connect-src 'self'`).
 
 Siti: chatgpt.com, claude.ai, gemini.google.com, copilot.microsoft.com, chat.mistral.ai.
