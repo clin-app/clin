@@ -517,13 +517,24 @@
     rvTab.classList.toggle("show", collapsed);
   }
 
-  function readItems(files) {
-    const refused = [], tooLarge = [];
-    return Promise.all(files.map(async (f) => {
+  // Avvia la lettura dei file SINCRONAMENTE mentre l'evento drop/paste/change e' attivo,
+  // prima che Chrome possa revocare il permesso temporaneo di lettura del DataTransfer.
+  function captureFiles(files) {
+    return files.map((f) => {
       const kind = kindOf(f);
+      const ok = Boolean(kind && f.size <= MAX_FILE_BYTES);
+      return { file: f, kind, buf: ok ? f.arrayBuffer() : null };
+    });
+  }
+
+  function readItems(captured) {
+    const refused = [], tooLarge = [];
+    const list = captured.map((c) => (c && "buf" in c ? c : { file: c, kind: kindOf(c), buf: null }));
+    return Promise.all(list.map(async ({ file: f, kind, buf }) => {
       if (!kind) { refused.push(f.name); return null; }
       if (f.size > MAX_FILE_BYTES) { tooLarge.push(f.name); return null; }
-      return { kind, name: f.name, type: f.type, data: b64(await f.arrayBuffer()) };
+      const ab = await (buf || f.arrayBuffer());
+      return { kind, name: f.name, type: f.type, data: b64(ab) };
     })).then((items) => {
       if (refused.length) toast(`Non inviati (formato non supportato): ${refused.join(", ")}`, true, 8000);
       if (tooLarge.length) toast(`Non inviati (file oltre 35 MB): ${tooLarge.join(", ")}`, true, 8000);
@@ -744,7 +755,11 @@
       });
     } catch (err) {
       console.error("[Clin handleFiles]", err);
-      toast(`/Clin: impossibile leggere il file (${err?.message || err}).`, true, 8000);
+      const raw = String(err?.message || err);
+      const msg = /could not be found|NotFoundError/i.test(raw)
+        ? "File non leggibile (se è su iCloud o in un'altra app, salvalo prima sul computer o caricalo col tasto +)."
+        : `impossibile leggere il file (${raw}).`;
+      toast(`/Clin: ${msg}`, true, 9000);
     }
   }
 
@@ -790,9 +805,10 @@
     const files = droppedFiles(dt);
     const text = files.length ? "" : dt.getData("text/plain");
     if (!files.length && !text) return;
+    const captured = files.length ? captureFiles(files) : [];
     stop(e);
     const target = editable(ed) ? ed : composer();
-    if (files.length) handleFiles(files, { kind: "paste", target: target || e.target });
+    if (captured.length) handleFiles(captured, { kind: "paste", target: target || e.target });
     else handle({ text }, target);
   }, true);
 
@@ -800,21 +816,22 @@
     if (passing || !active) return;
     const files = droppedFiles(e.dataTransfer);
     if (!files.length) return;
+    const captured = captureFiles(files);
     const target = e.target;
     stop(e);
     for (const t of ["dragleave", "dragend"]) {
       try { target.dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() })); } catch (_) {}
     }
-    handleFiles(files, { kind: "drop", target });
+    handleFiles(captured, { kind: "drop", target });
   }, true);
 
   const onPick = (e) => {
     const input = e.target;
     if (passing || !active || input?.tagName !== "INPUT" || input.type !== "file" || !input.files?.length) return;
     stop(e);
-    const files = [...input.files];
+    const captured = captureFiles([...input.files]);
     input.value = "";
-    handleFiles(files, { kind: "input", input });
+    handleFiles(captured, { kind: "input", input });
   };
   window.addEventListener("input", onPick, true);
   window.addEventListener("change", onPick, true);
