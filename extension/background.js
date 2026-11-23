@@ -106,6 +106,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
           await chrome.runtime.sendMessage({ target: "offscreen", op: "release", job: msg.job }).catch(() => {});
         }
         reply({ ok: true });
+      } else if (msg.op === "font") {
+        const buf = new Uint8Array(await (await fetch(chrome.runtime.getURL("fonts/AlbertSans.woff2"))).arrayBuffer());
+        let bin = "";
+        for (let i = 0; i < buf.length; i += 0x2000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x2000));
+        reply({ ok: true, data: btoa(bin) });
       } else if (msg.op === "warmup") {
         await ensureEngine();
         reply({ ok: true });

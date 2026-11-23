@@ -40,7 +40,9 @@
     text: ico("M5 6h14M5 12h14M5 18h9"),
     arrow: ico("M4 12h15m0 0l-5-5m5 5l-5 5"),
   };
-  const LOGO = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#d4f06b"/><g transform="rotate(-8 16 16)"><path d="M10.2 7.5h8.6l4.2 4.2v12.1a1.4 1.4 0 0 1-1.4 1.4H10.2a1.4 1.4 0 0 1-1.4-1.4V8.9a1.4 1.4 0 0 1 1.4-1.4z" fill="#101411"/><path d="M18.6 7.5v4.4h4.4" fill="#3c7a4b"/><rect x="11.3" y="13.6" width="9.4" height="1.5" rx=".75" fill="#d4f06b"/><rect x="11.3" y="17" width="9.4" height="3" rx="1" fill="#d4f06b"/><rect x="11.3" y="21.8" width="5.6" height="1.5" rx=".75" fill="#d4f06b"/></g></svg>`;
+  // il segno di Clin: un foglio con due righe coperte
+  const MARK = `<svg class="mk" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3h6.9l4.4 4.4v11.9A1.7 1.7 0 0 1 16.8 21H7.2a1.7 1.7 0 0 1-1.7-1.7V4.7A1.7 1.7 0 0 1 7.2 3z" fill="#d4f06b"/><path d="M14.1 3v4.4h4.4z" fill="#a9c93f"/><rect x="8.2" y="10.6" width="7.6" height="2.5" rx="1.25" fill="#0f1210"/><rect x="8.2" y="14.9" width="4.8" height="2.5" rx="1.25" fill="#0f1210"/></svg>`;
+  const LOGO = `<span class="brand">${MARK}</span>`;
   // pila isometrica di fogli (lo stesso disegno dei diagrammi del sito)
   const stack = (n = 5) => {
     let p = "";
@@ -54,19 +56,19 @@
   root.innerHTML = `
     <style>
       :host { all: initial; }
-      .app { --bg: #fff; --bg2: #f5f6f3; --bg3: #ebede7; --line: #e2e5dd; --ink: #101411; --ink2: #4a504b; --ink3: #767c77;
-             --acc: #d4f06b; --on-acc: #101411; --green: #2e6b3c; --green-bg: #e9f4ec; --warn: #9a5407; --warn-bg: #fff3df; --warn-line: #f1d9ad;
-             --err: #c0302e; --blue: #3c7a4b; --blue-bg: #f1f9d2; --mark-bg: #101411; --mark-ink: #d4f06b;
-             --shadow: 0 24px 64px rgba(16,20,17,.24), 0 2px 8px rgba(16,20,17,.08);
-             font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); letter-spacing: -.005em; }
-      .app.dark { --bg: #181b19; --bg2: #212622; --bg3: #2b312d; --line: #353c37; --ink: #f1f3ee; --ink2: #bcc1bb; --ink3: #8a908a;
-                  --green: #8fd39b; --green-bg: #1d2e22; --warn: #f0b765; --warn-bg: #33290f; --warn-line: #5a4517;
-                  --err: #ff8a85; --blue: #d4f06b; --blue-bg: #283016; --mark-bg: #d4f06b; --mark-ink: #101411;
-                  --shadow: 0 24px 64px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); }
+      .app { --bg: #fff; --bg2: #f7f7f5; --bg3: #efefec; --line: #e8e8e4; --ink: #0f1210; --ink2: #50544f; --ink3: #868a85;
+             --acc: #d4f06b; --on-acc: #0f1210; --green: #2e6b3c; --green-bg: #f1f9d2; --warn: #9a5407; --warn-bg: #fff7ea; --warn-line: #f1d9ad;
+             --err: #c0302e; --blue: #0f1210; --blue-bg: #f6fbe0; --mark-bg: #d4f06b; --mark-ink: #0f1210;
+             --shadow: 0 20px 56px rgba(15,18,16,.16), 0 0 0 1px rgba(15,18,16,.07);
+             font: 14px/1.45 "Clin Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink);
+             letter-spacing: -.01em; -webkit-font-smoothing: antialiased; }
+      .app.dark { --bg: #141614; --bg2: #1c1f1c; --bg3: #262a26; --line: #2e322e; --ink: #f4f5f1; --ink2: #b4b8b2; --ink3: #7e837d;
+                  --green: #b9d957; --green-bg: #262d14; --warn: #f0b765; --warn-bg: #2b2412; --warn-line: #5a4517;
+                  --err: #ff8a85; --blue: #f4f5f1; --blue-bg: #262d14; --mark-bg: #d4f06b; --mark-ink: #0f1210;
+                  --shadow: 0 20px 56px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08); }
       * { box-sizing: border-box; font-family: inherit; }
       [hidden] { display: none !important; }
       .i { width: 18px; height: 18px; flex: none; display: block; }
-      .logo { width: 28px; height: 28px; flex: none; display: block; }
       button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
       button:focus-visible, input:focus-visible, .dz:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
       @keyframes spin { to { transform: rotate(360deg); } }
@@ -103,7 +105,6 @@
       .fab.busy .fab-r { display: block; }
       .fab.off { background: #4a4f4b; }
       .fab.off .fab-d { background: #f0b765; box-shadow: 0 0 0 2px #4a4f4b; }
-      .fab.off .logo { filter: grayscale(1); opacity: .75; }
 
       .toast { position: fixed; right: 16px; bottom: 66px; z-index: 2147483647; max-width: min(400px, calc(100vw - 32px)); display: flex; align-items: center; gap: 10px;
                padding: 10px 12px 10px 14px; border-radius: 12px; background: #101411; color: #fff; font-size: 13px; line-height: 1.4;
@@ -246,11 +247,90 @@
         .go kbd { display: none; }
         .pipe figure { width: 88px; }
       }
+
+      /* ---------------- rifinitura: superfici bianche, filetti sottili, pulsanti a pillola */
+      .mk { display: block; width: 22px; height: 22px; }
+      .brand { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: #0f1210; }
+      .brand .mk { width: 19px; height: 19px; }
+      .b { height: 36px; padding: 0 16px; border-radius: 999px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); font-weight: 550; }
+      .b:hover { background: var(--bg2); }
+      .b.pri { background: var(--ink); color: var(--bg); box-shadow: none; }
+      .b kbd { border-radius: 6px; font-weight: 500; background: rgba(127,127,127,.32); }
+      .ib { border-radius: 50%; }
+      .fab { height: 44px; padding: 0; border-radius: 22px; background: #0f1210;
+             box-shadow: 0 10px 28px rgba(15,18,16,.24), 0 2px 6px rgba(15,18,16,.16), inset 0 0 0 1px rgba(255,255,255,.1);
+             transition: padding .2s, transform .15s, box-shadow .15s; font-weight: 550; letter-spacing: -.01em; }
+      .fab:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(15,18,16,.28), 0 2px 6px rgba(15,18,16,.16), inset 0 0 0 1px rgba(255,255,255,.14); }
+      .fab-m { width: 44px; height: 44px; }
+      .fab-d { display: none; right: 10px; top: 10px; bottom: auto; width: 8px; height: 8px; background: #f0b765; box-shadow: 0 0 0 2px #0f1210; }
+      .fab-r { inset: 4px; border-width: 1.5px; }
+      .fab:hover, .fab.busy, .fab.off, .fab.say { padding-right: 16px; }
+      .fab:hover .fab-l, .fab.busy .fab-l, .fab.off .fab-l, .fab.say .fab-l { margin-left: 0; }
+      .fab.off { background: #0f1210; }
+      .fab.off .fab-d { display: block; background: #f0b765; box-shadow: 0 0 0 2px #0f1210; }
+      .fab.off .mk { filter: grayscale(1); opacity: .55; }
+      .fab.off .fab-l { color: #f0b765; }
+      .toast { border-radius: 14px; padding: 11px 12px 11px 16px; }
+      .t-act { border-radius: 999px; height: 28px; padding: 0 12px; }
+      .pop { border: 0; border-radius: 20px; width: min(384px, calc(100vw - 32px)); bottom: 72px; }
+      .toast { bottom: 72px; }
+      .pop-h { padding: 16px 14px 14px 16px; gap: 12px; }
+      .ttl b { font-size: 15px; font-weight: 600; letter-spacing: -.015em; }
+      .ttl span { font-size: 12.5px; }
+      .pop-b { padding: 0 16px 16px; gap: 14px; }
+      .dz { padding: 14px; border-radius: 16px; border: 1px dashed var(--line); background: var(--bg); gap: 14px; }
+      .dz:hover { border-color: var(--ink3); background: var(--bg2); }
+      .dz .i { width: 38px; height: 38px; padding: 10px; border-radius: 50%; background: var(--bg2); color: var(--ink); }
+      .dz:hover .i { background: var(--acc); color: var(--on-acc); }
+      .dz b { font-weight: 550; }
+      .seg { border-radius: 999px; }
+      .seg button { border-radius: 999px; height: 30px; font-weight: 550; }
+      .seg button.on { box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 0 0 1px var(--line); }
+      .out { border-radius: 16px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); padding: 12px 14px; }
+      .sc { border-radius: 14px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); padding: 8px 10px; }
+      .sc:hover { background: var(--bg2); }
+      .sw { background: var(--bg3); }
+      .sw:checked { background: var(--ink); }
+      .app.dark .sw:checked { background: var(--acc); }
+      .app.dark .sw:checked::after { background: #0f1210; }
+      .ov { background: rgba(15,18,16,.42); }
+      .dlg { border: 0; border-radius: 20px; }
+      .dlg-h { padding: 16px 14px 16px 20px; gap: 12px; }
+      .local { background: transparent; box-shadow: inset 0 0 0 1px var(--line); color: var(--ink2); font-weight: 500; height: 28px; border-radius: 14px; padding: 0 12px 0 9px; }
+      .local .i { color: var(--green); }
+      .pipe figure { border-radius: 16px; box-shadow: inset 0 0 0 1px var(--line); font-weight: 550; }
+      .pipe figure.on { box-shadow: none; }
+      .load-t b { font-weight: 600; letter-spacing: -.015em; }
+      .bar { height: 3px; }
+      .pv-bar { padding: 8px 12px 8px 14px; }
+      .pv-k { font-size: 11px; font-weight: 550; letter-spacing: .07em; }
+      .ft button { border-radius: 999px; font-weight: 550; }
+      .stage { padding: 20px; }
+      .stage img { border-radius: 6px; box-shadow: 0 1px 2px rgba(15,18,16,.06), 0 10px 28px rgba(15,18,16,.1); }
+      .txt { padding: 22px 24px; }
+      mark { border-radius: 6px; padding: 1px 6px; font-weight: 550; }
+      .cnt { padding: 18px 20px 4px; gap: 9px; }
+      .cnt b { font-size: 34px; font-weight: 600; letter-spacing: -.04em; }
+      .cnt-s { padding: 0 20px 12px; }
+      .list { padding: 0 12px 8px; }
+      .gk { padding: 12px 8px 4px; font-size: 11px; font-weight: 550; letter-spacing: .07em; }
+      .it { padding: 8px; border-radius: 12px; gap: 10px; }
+      .it-v { font-weight: 500; }
+      .it-p { background: var(--bg2); color: var(--ink2); box-shadow: inset 0 0 0 1px var(--line); font-weight: 500; padding: 3px 7px; border-radius: 7px; }
+      .it.off { background: transparent; box-shadow: none; }
+      .it.off .it-v { color: var(--ink3); }
+      .it.off .it-p { background: var(--warn-bg); color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn-line); }
+      .add { padding: 12px 14px; gap: 8px; }
+      .add input { height: 36px; border-radius: 999px; padding: 0 14px; }
+      .dlg-f { padding: 14px 16px 14px 20px; }
+      .go { height: 40px; padding: 0 12px 0 18px; }
+      .selb { border-radius: 999px; padding: 0 14px; font-weight: 550; }
+      .lb-b img { border-radius: 8px; }
     </style>
 
     <div class="app">
       <button class="fab" type="button" aria-label="Apri Clin">
-        <span class="fab-m">${LOGO}<span class="fab-d"></span><span class="fab-r"></span></span>
+        <span class="fab-m">${MARK}<span class="fab-d"></span><span class="fab-r"></span></span>
         <span class="fab-l">Clin attivo</span>
       </button>
 
@@ -578,6 +658,14 @@
     if (msg.op === "panel") { openPanel(); reply({ ok: true }); }
     else if (msg.op === "progress" && rv) setProgress(msg.step, msg.pct);
   });
+
+  // Albert Sans, il carattere di Clin, e' dentro l'estensione: arriva come byte dal service worker,
+  // cosi' non dipende da cio' che il sito permette di caricare
+  send({ op: "font" }).then((r) => {
+    if (!r?.ok) return;
+    const face = new FontFace("Clin Sans", Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)).buffer, { weight: "100 900" });
+    return face.load().then(() => document.fonts.add(face));
+  }).catch(() => {});
 
   const mount = () => { ensureMounted(); refresh(); send({ op: "warmup" }).catch(() => {}); };
   if (document.body) mount(); else document.addEventListener("DOMContentLoaded", mount);

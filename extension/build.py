@@ -85,6 +85,9 @@ if (MODEL / "model.onnx").exists():
 else:
     print(f"ATTENZIONE: modello GLiNER assente in {MODEL}: l'estensione usera' solo le regole. "
           "Esportarlo con tools/export_gliner_onnx.py")
+(DIST / "fonts").mkdir()   # Albert Sans (OFL), lo stesso carattere del sito
+for name in ("AlbertSans.woff2", "OFL-AlbertSans.txt"):
+    shutil.copy2(EXT.parent / "assets" / name, DIST / "fonts" / name)
 (DIST / "icons").mkdir()
 for size in (16, 48, 128):  # icone dal logo dell'app (sips su macOS, PySide6 altrove)
     out = DIST / "icons" / f"{size}.png"
