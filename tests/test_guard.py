@@ -246,6 +246,17 @@ class TestGuardia(unittest.TestCase):
         anonymize_engine.DATE_SHIFT = None
         self.assertIn("[DATA_", anonymize_text("Ricoverato dal 02/11/2023 per polmonite.").text)
 
+    def test_messaggi_con_dati_gia_anonimi_passano(self):
+        ask = lambda text: run({"hook_event_name": "UserPromptSubmit", "cwd": str(self.dir), "prompt": text})
+        for ok in ("Il paziente PAZ-0002, nato il 12/03/2358, e' stato operato il 14/05/2423: calcola l'eta'.",
+                   "Per [PAZIENTE_1] nato il [DATA_NASCITA_1] prepara la lettera.",
+                   "Riassumi il documento del 2024 e il documento n. 3 del registro.",
+                   "Data di nascita: 01/01/2332, carta d'identita' ID-0003."):
+            self.assertEqual(ask(ok), {}, ok)
+        for stop in ("Il paziente e' nato il 12/03/1958 a Torino.", "Carta d'identita' n. CA12345AB di Mario.",
+                     "CF RSSMRA85T10A562S"):
+            self.assertEqual(ask(stop).get("decision"), "block", stop)
+
     def test_percorsi_esclusi_dall_utente(self):
         import os
         import clin_mcp, clin_settings
