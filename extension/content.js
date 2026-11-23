@@ -166,11 +166,13 @@
       .rv-add input:focus { outline: 2px solid #3c7a4b; outline-offset: 1px; border-color: transparent; }
 
       .rv-foot { margin-top: auto; display: grid; gap: 8px; padding: 12px 16px 14px; border-top: 1px solid #eceee9; background: rgba(255,255,255,.92); border-radius: 0 0 22px 22px; }
-      .rv-foot-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-      .rv-foot .go { min-height: 44px; font-size: 14px; background: #101411; color: #fff; }
+      .rv-foot-row { display: flex; gap: 8px; }
+      .rv-foot .go { flex: 1; min-height: 44px; font-size: 14px; background: #101411; color: #fff; }
       .rv-foot .go:hover:not(:disabled) { background: #222b25; }
       .rv-foot .go:disabled { background: #e9ebe6; color: #9ba19c; cursor: default; transform: none; }
-      .rv-foot .rv-cancel { min-height: 44px; padding: 0 18px; }
+      .rv-foot .rv-dl { min-height: 44px; padding: 0 14px; background: #eef6ef; color: #2e6b3c; }
+      .rv-foot .rv-dl:hover { background: #dff0e2; }
+      .rv-foot .rv-cancel { min-height: 44px; padding: 0 16px; }
       .rv-foot .rv-retry { min-height: 40px; background: #d4f06b; color: #101411; display: none; }
       .rv-foot .rv-retry.show { display: block; }
       .rv-st { margin: 0; min-height: 1.2em; font-size: 12.5px; color: #6a706b; text-align: center; }
@@ -237,6 +239,7 @@
         <button class="rv-retry" type="button">Riprova</button>
         <div class="rv-foot-row">
           <button class="dark go" type="button" disabled>Inserisci nella chat</button>
+          <button class="rv-dl" type="button" hidden title="Salva i file anonimizzati sul computer">Scarica</button>
           <button class="rv-cancel" type="button">Annulla</button>
         </div>
         <p class="rv-st" aria-live="polite"></p>
@@ -380,29 +383,92 @@
 
   const MAX_FILE_BYTES = 35 * 1024 * 1024;  // sotto il limite IPC di Chrome (64 MiB in base64)
 
-  function fileInput(preferred, wantImage = false) {
-    if (preferred && document.contains(preferred)) return preferred;
-    const all = [...document.querySelectorAll("input[type='file']")];
-    if (wantImage) return all.find((i) => !i.accept || /image|\*\/\*/i.test(i.accept)) || all[0] || null;
-    return all.find((i) => !i.accept || /pdf|\*\/\*|application|word|sheet|csv|text|\.txt|\.md|\.xlsx/i.test(i.accept)) || all[0] || null;
+  function acceptsFile(input, wantImage) {
+    const acc = (input.accept || "").trim();
+    if (!acc || /\*\/\*/.test(acc)) return true;
+    if (wantImage) return /image|\.(png|jpe?g|webp)/i.test(acc);
+    return /pdf|application|word|sheet|csv|text|\.(pdf|docx|xlsx|csv|txt|md)/i.test(acc);
   }
 
-  function deliver(files, origin) {
+  function fileInput(preferred, wantImage = false) {
+    if (preferred && document.contains(preferred) && acceptsFile(preferred, wantImage)) return preferred;
+    const comp = composer();
+    const scopes = [
+      comp?.closest?.("form, input-area-v2, [data-testid='composer-background'], main"),
+      document,
+    ].filter(Boolean);
+    for (const scope of scopes) {
+      const all = [...scope.querySelectorAll("input[type='file']")];
+      const match = all.find((i) => !i.disabled && acceptsFile(i, wantImage));
+      if (match) return match;
+    }
+    return null;
+  }
+
+  function dropZone(originTarget) {
+    const comp = composer();
+    const candidates = [
+      originTarget && document.contains(originTarget) ? originTarget : null,
+      document.querySelector("[xapfileselectordropzone]"),
+      comp?.closest?.("input-area-v2, uploader, .input-area-container, [data-testid='composer-background'], form"),
+      comp,
+      document.querySelector("main"),
+      document.body,
+    ].filter(Boolean);
+    return candidates[0] || null;
+  }
+
+  function makeDT(files) {
     const dt = new DataTransfer();
     files.forEach((f) => dt.items.add(f));
+    return dt;
+  }
+
+  async function deliver(files, origin) {
     const allImages = files.length > 0 && files.every((f) => (f.type || "").startsWith("image/"));
     passing = true;
     try {
-      const input = origin.kind === "input" ? fileInput(origin.input, allImages) : fileInput(null, allImages);
+      // 1. Se l'utente aveva usato un input[type=file] ancora presente nel DOM, consegnamo li'
+      if (origin.kind === "input" && origin.input && document.contains(origin.input)) {
+        origin.input.files = makeDT(files).files;
+        origin.input.dispatchEvent(new Event("input", { bubbles: true }));
+        origin.input.dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+      }
+
+      // 2. Se l'origine era un incolla, proviamo prima ClipboardEvent("paste") sul composer
+      const comp = composer();
+      if (origin.kind === "paste" && comp) {
+        comp.focus();
+        const ev = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: makeDT(files) });
+        comp.dispatchEvent(ev);
+        if (ev.defaultPrevented) return true;
+      }
+
+      // 3. Input file compatibile vicino al composer (ChatGPT, Claude, Copilot, Mistral)
+      const input = fileInput(origin.input, allImages);
       if (input) {
-        input.files = dt.files;
+        input.files = makeDT(files).files;
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
         return true;
       }
-      const t = origin.target && document.contains(origin.target) ? origin.target : composer();
-      if (!t) return false;
-      for (const type of ["dragenter", "dragover", "drop"]) t.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: dt }));
+
+      // 4. Paste sul composer (Gemini supporta file/PDF via paste sul .ql-editor)
+      if (comp) {
+        comp.focus();
+        const ev = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: makeDT(files) });
+        comp.dispatchEvent(ev);
+        if (ev.defaultPrevented) return true;
+      }
+
+      // 5. Drag & drop sulla dropzone (con pausa di un tick tra dragenter e drop per Angular/React)
+      const zone = dropZone(origin.target);
+      if (!zone) return false;
+      zone.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: makeDT(files) }));
+      await new Promise((r) => setTimeout(r, 60));
+      zone.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: makeDT(files) }));
+      zone.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: makeDT(files) }));
       return true;
     } finally {
       passing = false;
@@ -474,6 +540,7 @@
     $(".rv-preview").replaceChildren(); $(".rv-list").replaceChildren();
     const isText = op === "anonymize";
     $(".rv-sel").hidden = $(".rv-selhint").hidden = !isText;
+    $(".rv-dl").hidden = true;
     rvRetry.classList.remove("show");
     rvBody.classList.add("hide");
     rvLoader.classList.add("show");
@@ -519,6 +586,7 @@
       rvBody.classList.remove("hide");
       drawReview();
       $(".go").disabled = false;
+      $(".rv-dl").hidden = mine.op !== "redact" || !(r.files && r.files.length);
       rvStatus("");
     } catch (err) {
       if (rv === mine) {
@@ -638,11 +706,23 @@
   $(".rv-cancel").addEventListener("click", cancel);
   $(".rv-x").addEventListener("click", cancel);
   root.addEventListener("keydown", (e) => { if (e.key === "Escape" && rv) cancel(); });
-  $(".go").addEventListener("click", () => {
+  $(".rv-dl").addEventListener("click", () => {
+    if (!rv?.result?.files?.length) return;
+    for (const f of rv.result.files) {
+      const blob = new Blob([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], { type: f.type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+    toast("/Clin · file anonimizzato salvato nei Download.");
+  });
+  $(".go").addEventListener("click", async () => {
     if (!rv?.result) return;
     const { result, finish } = rv;
     closeReview();
-    try { finish(result); }
+    try { await finish(result); }
     catch (err) { console.error("[Clin]", err); toast(`/Clin: inserimento non riuscito (${err.message}). Nulla è stato inviato alla chat.`, true, 10000); }
   });
 
@@ -650,9 +730,9 @@
     const items = await readItems(files);
     if (!items.length) return;
     const label = items.length === 1 ? items[0].name : `${items.length} file`;
-    await startReview("redact", items, label, (r) => {
+    await startReview("redact", items, label, async (r) => {
       const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
-      if (!deliver(out, origin)) throw new Error("allegato non accettato dal sito");
+      if (!(await deliver(out, origin))) throw new Error("allegato non accettato dal sito");
       toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.`, false, 7000);
     });
   }
