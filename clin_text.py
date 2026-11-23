@@ -221,6 +221,12 @@ class _Registry:
         return ph
 
     def get(self, kind: str, original: str, link: bool = True) -> str:
+        ph = self._get(kind, original, link)
+        if _REVIEW["found"] is not None:
+            _REVIEW["found"].append((ph, original))
+        return ph
+
+    def _get(self, kind: str, original: str, link: bool = True) -> str:
         """`link=False`: persona citata dal contesto ("la moglie Anna"), da non
         fondere per singola parola con un'altra persona (la paziente Anna Bianchi)."""
         key = _norm(original)
@@ -247,10 +253,35 @@ class _Registry:
         return self._new(kind, original)
 
 
+# Revisione dall'estensione: valori lasciati in chiaro dall'utente e parole da coprire in piu'
+_REVIEW: Dict[str, object] = {"keep": frozenset(), "add": (), "found": None}
+_TITLE_PREFIX = re.compile(r"(?i)^(dott\.ssa|dott\.?|dr\.ssa|dr\.?|prof\.ssa|prof\.?|sig\.ra|sig\.?|inf\.)\s+")
+
+
+def set_review(keep: Sequence[str] = (), add: Sequence[str] = (), record: bool = True) -> None:
+    """Scelte dell'utente per i testi che seguono; `record` annota i segnaposto assegnati."""
+    _REVIEW["keep"] = frozenset(_norm(_TITLE_PREFIX.sub("", v)) for v in keep if v and v.strip())
+    _REVIEW["add"] = tuple(v.strip() for v in add if v and v.strip())
+    _REVIEW["found"] = [] if record else None
+
+
+def review_found() -> List[Tuple[str, str]]:
+    """(segnaposto, originale) assegnati dall'ultima `set_review`, senza ripetizioni."""
+    seen, out = set(), []
+    for ph, orig in _REVIEW["found"] or []:
+        key = (ph, _norm(orig))
+        if key not in seen:
+            seen.add(key)
+            out.append((ph, orig))
+    return out
+
+
 def find_spans(text: str, level: int = DEFAULT_LEVEL, explicit: Optional[Sequence[str]] = None,
                whitelist: Optional[Sequence[str]] = None,
                names: Sequence[str] = ()) -> List[Tuple[int, int, str]]:
     """Intervalli (inizio, fine, categoria) che `anonymize_text` sostituisce."""
+    if _REVIEW["add"]:
+        explicit = list(explicit or []) + list(_REVIEW["add"])
     matches = find_matches(text, level, explicit, keep_labels=True, derived_targets=names)
     protected = protected_spans(text, whitelist or [])
     spans: List[Tuple[int, int, str]] = []
@@ -276,6 +307,9 @@ def find_spans(text: str, level: int = DEFAULT_LEVEL, explicit: Optional[Sequenc
                 chosen[-1] = (ps, e, pcat)
             continue
         chosen.append((s, e, cat))
+    keep = _REVIEW["keep"]
+    if keep:  # lasciati in chiaro dall'utente nel pannello di revisione
+        chosen = [c for c in chosen if _norm(_TITLE_PREFIX.sub("", " ".join(text[c[0]:c[1]].split()))) not in keep]
     return chosen
 
 

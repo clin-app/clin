@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Clin – anonimizzazione per le chat IA",
   "short_name": "Clin",
-  "version": "1.4.3",
+  "version": "1.4.4",
   "description": "Anonimizza sul computer documenti e testi clinici incollati o trascinati in ChatGPT, Claude e Gemini, prima che partano.",
   "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" },
   "action": { "default_title": "Clin", "default_icon": { "16": "icons/16.png", "48": "icons/48.png" } },

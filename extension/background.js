@@ -46,22 +46,22 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       if (msg.op === "anonymize") {
         const res = await serialized(async () => {
           const map = await getMap();
-          const r = await engine("anonymize", { items: msg.items, previous: map });
+          const r = await engine("anonymize", { items: msg.items, previous: map, review: msg.review });
           if (r.error) throw new Error(r.error);
           await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping } });
           return r;
         });
-        reply({ ok: true, text: res.text, count: Object.keys(res.mapping || {}).length, notes: res.notes || [] });
+        reply({ ok: true, text: res.text, count: Object.keys(res.mapping || {}).length, notes: res.notes || [], found: res.found || [] });
       } else if (msg.op === "redact") {
         const res = await serialized(async () => {
           const map = await getMap();
           const { book = {} } = await chrome.storage.session.get("book");
-          const r = await engine("redact", { items: msg.items, previous: map, book });
+          const r = await engine("redact", { items: msg.items, previous: map, book, review: msg.review });
           if (r.error) throw new Error(r.error);
           await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping }, book: r.book });
           return r;
         });
-        reply({ ok: true, files: res.files, notes: res.notes || [] });
+        reply({ ok: true, files: res.files, notes: res.notes || [], found: res.found || [] });
       } else if (msg.op === "restore") {
         const res = await engine("restore", { text: msg.text, mapping: await getMap() });
         if (res.error) throw new Error(res.error);

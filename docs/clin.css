@@ -378,3 +378,15 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
   .nav-menu { position: fixed; left: 10px; right: 10px; top: 64px; width: auto; }
 }
 .hero-copy b { color: #fff; font-weight: 600; }
+
+/* ------------------------------------------------ hero a tutto schermo, retino a pixel (hero-ascii.js) */
+.hero { min-height: 100vh; min-height: 100svh; align-items: center; background: #0a140d; }
+.hero-grid { padding: 110px 0 48px; }
+.hero::before { background: linear-gradient(90deg, rgba(8, 17, 11, .9) 0%, rgba(8, 17, 11, .62) 38%, rgba(8, 17, 11, .1) 68%, rgba(8, 17, 11, 0) 100%); }
+@media (max-width: 900px) {
+  .hero { align-items: flex-end; }
+  .hero::before { background: linear-gradient(0deg, rgba(8, 17, 11, .95) 0%, rgba(8, 17, 11, .82) 45%, rgba(8, 17, 11, .25) 78%, rgba(8, 17, 11, 0) 100%); }
+  /* sul telefono la hero sta in una schermata: la demo animata compare nella sezione seguente */
+  .hero-stage { display: none; }
+  .hero-grid { padding: 96px 0 calc(32px + env(safe-area-inset-bottom)); }
+}

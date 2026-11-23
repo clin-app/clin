@@ -69,12 +69,69 @@
                border-radius: 14px; background: #101411; color: #fff; font-size: 13px; line-height: 1.45;
                box-shadow: 0 10px 30px rgba(0,0,0,.25); }
       .toast.err { background: #c8312f; }
+      /* barra laterale di revisione: cosa viene coperto, prima che entri nella chat */
+      .rev { position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147483647; width: min(420px, 100vw); display: flex; flex-direction: column;
+             background: #fff; color: #101411; box-shadow: -16px 0 50px rgba(0,0,0,.22); font-size: 14px; animation: slide .18s ease-out; }
+      .rev[hidden] { display: none; }
+      @keyframes slide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+      .rv-head { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; border-bottom: 1px solid #eceee9; }
+      .rv-head b { font-size: 15px; }
+      .rv-head .tag { padding: 2px 8px; border-radius: 999px; background: #d4f06b; font-size: 12px; font-weight: 600; }
+      .rv-head .x { margin-left: auto; }
+      .rv-sum { padding: 12px 16px 0; margin: 0; color: #3d423e; font-size: 13.5px; line-height: 1.45; }
+      .rv-sum strong { color: #101411; }
+      .rv-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
+      .rv-k { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #6a706b; }
+      .rv-prev { max-height: 220px; overflow: auto; white-space: pre-wrap; padding: 10px 12px; border-radius: 12px; background: #f3f4f1;
+                 font-size: 13px; line-height: 1.5; user-select: text; }
+      .rv-prev mark { background: #101411; color: #d4f06b; border-radius: 4px; padding: 0 3px; font-weight: 600; font-size: 12px; }
+      .rv-files { margin: 0; padding: 10px 12px; border-radius: 12px; background: #f3f4f1; font-size: 13px; line-height: 1.5; list-style: none; }
+      .rv-list { display: grid; gap: 6px; }
+      .rv-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
+                 background: #f3f4f1; cursor: pointer; }
+      .rv-item input { width: 18px; height: 18px; margin: 0; accent-color: #3c7a4b; cursor: pointer; }
+      .rv-item .v { min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: 13.5px; }
+      .rv-item .c { display: block; font-weight: 400; font-size: 12px; color: #6a706b; }
+      .rv-item .ph { padding: 2px 7px; border-radius: 6px; background: #101411; color: #d4f06b; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+      .rv-item.off { background: #fff4e5; }
+      .rv-item.off .v { text-decoration: line-through; text-decoration-color: rgba(16,20,17,.35); }
+      .rv-item.off .ph { background: #b8640a; color: #fff; }
+      .rv-add { display: flex; gap: 6px; }
+      .rv-add input { flex: 1; min-width: 0; padding: 9px 12px; border: 1px solid #e4e6e1; border-radius: 999px; font-size: 13.5px; }
+      .rv-add input:focus { outline: 2px solid #3c7a4b; outline-offset: 1px; }
+      .rv-foot { display: grid; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid #eceee9; }
+      .rv-foot .go { min-height: 44px; font-size: 14px; }
+      .rv-foot .go:disabled { background: #e9ebe6; color: #9ba19c; cursor: default; }
+      .rv-st { margin: 0; min-height: 1.3em; font-size: 12.5px; color: #6a706b; text-align: center; }
+      .rv-st.err { color: #c8312f; }
     </style>
     <button class="pill" part="pill" title="Clin: anonimizzazione locale">
       <span class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#d4f06b"/><g transform="rotate(-8 16 16)"><path d="M10.2 7.5h8.6l4.2 4.2v12.1a1.4 1.4 0 0 1-1.4 1.4H10.2a1.4 1.4 0 0 1-1.4-1.4V8.9a1.4 1.4 0 0 1 1.4-1.4z" fill="#101411"/><path d="M18.6 7.5v4.4h4.4" fill="#3c7a4b"/><rect x="11.3" y="13.6" width="9.4" height="1.5" rx=".75" fill="#d4f06b"/><rect x="11.3" y="17" width="9.4" height="3" rx="1" fill="#d4f06b"/><rect x="11.3" y="21.8" width="5.6" height="1.5" rx=".75" fill="#d4f06b"/></g></svg><span class="state"></span><span class="ring"></span></span>
       <span class="lbl">/Clin attivo</span>
     </button>
     <div class="toast" hidden></div>
+    <aside class="rev" hidden aria-label="Revisione dei dati coperti">
+      <div class="rv-head"><span class="tag">/Clin</span><b>Controlla prima di inviare</b><button class="x rv-x" title="Annulla">×</button></div>
+      <p class="rv-sum"></p>
+      <div class="rv-body">
+        <div class="rv-preview"></div>
+        <div>
+          <p class="rv-k">Dati coperti · togliere la spunta per lasciarli in chiaro</p>
+          <div class="rv-list"></div>
+        </div>
+        <div>
+          <p class="rv-k">Manca qualcosa? Coprire anche</p>
+          <div class="rv-add"><input class="rv-word" placeholder="Parola o nome da coprire" autocomplete="off"><button class="rv-plus">Aggiungi</button></div>
+          <p class="muted rv-selhint">Oppure selezionare la parola nell'anteprima e premere «Copri selezione».</p>
+          <div class="row"><button class="rv-sel">Copri selezione</button></div>
+        </div>
+      </div>
+      <div class="rv-foot">
+        <button class="dark go">Inserisci nella chat</button>
+        <button class="rv-cancel">Annulla</button>
+        <p class="rv-st" aria-live="polite"></p>
+      </div>
+    </aside>
     <div class="panel" hidden>
       <div class="head"><span class="tag">/Clin</span><b>Anonimizzazione locale</b><button class="x" title="Chiudi">×</button></div>
       <label class="sw"><input type="checkbox" class="on" checked> Anonimizzare testi e file incollati o trascinati in questa chat</label>
@@ -242,64 +299,190 @@
     }
   }
 
-  async function handleFiles(files, origin) {
-    const items = [], refused = [], tooLarge = [];
-    for (const f of files) {
+  // ---------------------------------------------------------------- revisione prima dell'invio
+  // Ogni testo o file passa dalla barra laterale: si vede cosa viene coperto, si puo' lasciare in
+  // chiaro un dato o coprirne un altro, e solo con «Inserisci» qualcosa entra nella chat.
+  const KIND_LABEL = {
+    PAZIENTE: "Paziente", PERSONA: "Persona", MEDICO: "Medico", OPERATORE: "Operatore sanitario",
+    DATA_NASCITA: "Nascita", DATA: "Data", CONTATTO: "Recapito", ID: "Documento d'identità",
+    ID_CLINICO: "Codice clinico", STRUTTURA: "Struttura sanitaria", PROVENIENZA: "Provenienza",
+    IBAN: "Dati bancari", DOCUMENTO: "Documento", DATO: "Aggiunto da te",
+  };
+  const kindOfPh = (ph) => { const m = /^\[([A-Z_]+)_\d+\]$/.exec(ph); return m ? (KIND_LABEL[m[1]] || m[1]) : "Codice"; };
+  const addList = [];   // parole da coprire sempre in questa pagina
+  let rv = null;        // revisione aperta
+  const rev = $(".rev");
+
+  function readItems(files) {
+    const refused = [], tooLarge = [];
+    return Promise.all(files.map(async (f) => {
       const kind = kindOf(f);
-      if (!kind) { refused.push(f.name); continue; }
-      if (f.size > MAX_FILE_BYTES) { tooLarge.push(f.name); continue; }
-      items.push({ kind, name: f.name, type: f.type, data: b64(await f.arrayBuffer()) });
-    }
-    if (refused.length) toast(`Non inviati (formato non supportato): ${refused.join(", ")}`, true, 8000);
-    if (tooLarge.length) toast(`Non inviati (file oltre 35 MB): ${tooLarge.join(", ")}`, true, 8000);
-    if (!items.length) return;
+      if (!kind) { refused.push(f.name); return null; }
+      if (f.size > MAX_FILE_BYTES) { tooLarge.push(f.name); return null; }
+      return { kind, name: f.name, type: f.type, data: b64(await f.arrayBuffer()) };
+    })).then((items) => {
+      if (refused.length) toast(`Non inviati (formato non supportato): ${refused.join(", ")}`, true, 8000);
+      if (tooLarge.length) toast(`Non inviati (file oltre 35 MB): ${tooLarge.join(", ")}`, true, 8000);
+      return items.filter(Boolean);
+    });
+  }
+
+  function rvStatus(msg, err = false) { const el = $(".rv-st"); el.textContent = msg; el.classList.toggle("err", err); }
+
+  async function startReview(op, items, label, finish) {
+    if (rv) { toast("Concludere prima la revisione aperta nel pannello di Clin.", true); return; }
+    rv = { op, items, label, finish, keep: new Set(), kept: new Map(), result: null };
+    panel.hidden = true; toastEl.hidden = true;
+    $(".rv-sum").textContent = "Anonimizzazione sul computer…";
+    $(".rv-preview").replaceChildren(); $(".rv-list").replaceChildren();
+    const isText = op === "anonymize";
+    $(".rv-sel").hidden = $(".rv-selhint").hidden = !isText;
+    rev.hidden = false;
+    await rerun();
+  }
+
+  async function rerun() {
+    if (!rv) return;
+    const mine = rv;
     busy = true; render();
-    toast(`/Clin · copertura dei dati in ${items.length === 1 ? "1 file" : items.length + " file"}…`, false, 60000);
+    $(".go").disabled = true; rvStatus("Anonimizzazione sul computer…");
     try {
-      const r = await send({ op: "redact", items });
+      const r = await send({ op: mine.op, items: mine.items, review: { keep: [...mine.keep], add: addList } });
+      if (rv !== mine) return;  // revisione annullata nel frattempo
       if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
-      const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
-      if (!deliver(out, origin)) throw new Error("allegato non accettato dal sito");
-      const extra = r.notes?.length ? " " + r.notes.join(" ") : "";
-      toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.${extra} Controllare prima di inviare.`, false, 9000);
+      mine.result = r;
+      drawReview();
+      $(".go").disabled = false; rvStatus("");
     } catch (err) {
-      console.error("[Clin]", err);
-      toast(`/Clin: copertura non riuscita (${err.message}). Nessun file è stato inviato alla chat.`, true, 10000);
+      if (rv === mine) rvStatus(`Anonimizzazione non riuscita (${err.message}). Nulla è stato inviato alla chat.`, true);
     } finally {
       busy = false; render();
     }
   }
 
-  async function handle({ files = [], text = "" }, target) {
-    const items = [], refused = [], tooLarge = [];
-    for (const f of files) {
-      const kind = kindOf(f);
-      if (!kind) { refused.push(f.name); continue; }
-      if (f.size > MAX_FILE_BYTES) { tooLarge.push(f.name); continue; }
-      items.push({ kind, name: f.name, type: f.type, data: b64(await f.arrayBuffer()) });
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function drawReview() {
+    const r = rv.result;
+    const groups = new Map();
+    for (const [ph, orig] of r.found || []) {
+      if (!groups.has(ph)) groups.set(ph, new Set());
+      groups.get(ph).add(orig);
     }
+    const n = groups.size;
+    const sum = $(".rv-sum");
+    sum.replaceChildren(el("strong", "", `${n} ${n === 1 ? "dato coperto" : "dati coperti"}`), document.createTextNode(` · ${rv.label}. Nella chat entrano solo i segnaposto.`));
+
+    const pv = $(".rv-preview");
+    pv.replaceChildren();
+    if (rv.op === "anonymize") {
+      pv.append(el("p", "rv-k", "Anteprima di ciò che entra nella chat"));
+      const box = el("div", "rv-prev");
+      const text = (r.text || "").replace(/\n{3,}/g, "\n\n");
+      let last = 0;
+      for (const m of text.matchAll(/\[[A-Z_]+_\d+\]/g)) {
+        box.append(document.createTextNode(text.slice(last, m.index)), el("mark", "", m[0]));
+        last = m.index + m[0].length;
+      }
+      box.append(document.createTextNode(text.slice(last)));
+      pv.append(box);
+    } else {
+      pv.append(el("p", "rv-k", "File che verranno allegati con i dati coperti"));
+      const ul = el("ul", "rv-files");
+      for (const f of r.files || []) ul.append(el("li", "", "📎 " + f.name));
+      pv.append(ul);
+      if (r.notes?.length) pv.append(el("p", "muted", r.notes.join(" ")));
+    }
+
+    const list = $(".rv-list");
+    list.replaceChildren();
+    const row = (ph, originals, on) => {
+      const lab = el("label", "rv-item" + (on ? "" : " off"));
+      const cb = el("input"); cb.type = "checkbox"; cb.checked = on;
+      const v = el("span", "v", [...originals].join(" · "));
+      v.append(el("span", "c", on ? kindOfPh(ph) : `${kindOfPh(ph)} · resterà in chiaro`));
+      lab.append(cb, v, el("span", "ph", on ? ph : "in chiaro"));
+      cb.addEventListener("change", () => toggle(ph, originals, cb.checked));
+      list.append(lab);
+    };
+    for (const [ph, originals] of groups) row(ph, originals, true);
+    for (const [ph, originals] of rv.kept) if (!groups.has(ph)) row(ph, originals, false);
+    if (!list.children.length) list.append(el("p", "muted", "Nessun dato personale riconosciuto. Se ne manca qualcuno, aggiungerlo qui sotto."));
+  }
+
+  function toggle(ph, originals, on) {
+    if (!rv) return;
+    if (on) {
+      rv.kept.delete(ph);
+      for (const o of originals) rv.keep.delete(o);
+    } else {
+      rv.kept.set(ph, originals);
+      for (const o of originals) {
+        rv.keep.add(o);
+        // una parola aggiunta a mano e poi tolta non va piu' cercata
+        const i = addList.findIndex((a) => a.toLowerCase() === o.toLowerCase());
+        if (i >= 0) addList.splice(i, 1);
+      }
+    }
+    rerun();
+  }
+
+  function addWord(word) {
+    word = (word || "").replace(/\s+/g, " ").trim();
+    if (!rv || word.length < 2) return;
+    if (/\[[A-Z_]+_\d+\]/.test(word)) { rvStatus("Selezionare solo testo in chiaro, non un segnaposto.", true); return; }
+    if (!addList.some((a) => a.toLowerCase() === word.toLowerCase())) addList.push(word);
+    for (const o of [...rv.keep]) if (o.toLowerCase() === word.toLowerCase()) rv.keep.delete(o);
+    $(".rv-word").value = "";
+    rerun();
+  }
+
+  function closeReview() { rv = null; rev.hidden = true; rvStatus(""); }
+
+  $(".rv-plus").addEventListener("click", () => addWord($(".rv-word").value));
+  $(".rv-word").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addWord(e.target.value); } });
+  $(".rv-sel").addEventListener("click", () => {
+    const sel = (root.getSelection ? root.getSelection() : getSelection());
+    addWord(String(sel || ""));
+  });
+  const cancel = () => { if (rv) { closeReview(); toast("/Clin · annullato: nulla è stato inserito nella chat."); } };
+  $(".rv-cancel").addEventListener("click", cancel);
+  $(".rv-x").addEventListener("click", cancel);
+  root.addEventListener("keydown", (e) => { if (e.key === "Escape" && rv) cancel(); });
+  $(".go").addEventListener("click", () => {
+    if (!rv?.result) return;
+    const { result, finish } = rv;
+    closeReview();
+    try { finish(result); }
+    catch (err) { console.error("[Clin]", err); toast(`/Clin: inserimento non riuscito (${err.message}). Nulla è stato inviato alla chat.`, true, 10000); }
+  });
+
+  async function handleFiles(files, origin) {
+    const items = await readItems(files);
+    if (!items.length) return;
+    const label = items.length === 1 ? items[0].name : `${items.length} file`;
+    await startReview("redact", items, label, (r) => {
+      const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
+      if (!deliver(out, origin)) throw new Error("allegato non accettato dal sito");
+      toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.`, false, 7000);
+    });
+  }
+
+  async function handle({ files = [], text = "" }, target) {
+    const items = await readItems(files);
     const fileCount = items.length;
     if (text.trim()) items.push({ kind: "testo incollato", text });
-    if (refused.length) toast(`Non inviati (formato non supportato): ${refused.join(", ")}`, true, 8000);
-    if (tooLarge.length) toast(`Non inviati (file oltre 35 MB): ${tooLarge.join(", ")}`, true, 8000);
     if (!items.length) return;
-    busy = true; render();
-    try {
-      const r = await send({ op: "anonymize", items });
-      if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
+    const label = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"}${text.trim() ? " e testo incollato" : ""}` : "testo incollato";
+    await startReview("anonymize", items, label, (r) => {
       const el = target && editable(target) && document.contains(target) ? target : composer();
       if (!el) throw new Error("campo della chat non trovato");
       const filled = (el.value ?? el.innerText ?? "").trim().length > 0;
       let body = (filled ? "\n\n" : "") + r.text.replace(/\n{3,}/g, "\n\n");
       if (el.isContentEditable) body = body.replace(/\n\n/g, "\n");
       insert(el, body);
-      const docs = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"} anonimizzat${fileCount === 1 ? "o" : "i"}` : "Testo anonimizzato";
-      toast(`/Clin · ${docs} sul computer: nella chat entrano solo segnaposto. Controllare prima di inviare.`);
-    } catch (err) {
-      toast(`/Clin: anonimizzazione non riuscita (${err.message}). Nulla è stato inviato alla chat.`, true, 9000);
-    } finally {
-      busy = false; render();
-    }
+      toast("/Clin · testo anonimizzato inserito: nella chat entrano solo segnaposto.");
+    });
   }
 
   const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); };
@@ -307,7 +490,7 @@
   // incolla: intercetta anche quando il fuoco e' sul corpo della pagina (ChatGPT/Claude/Gemini hanno
   // listener globali su window/document che altrimenti invierebbero testo o screenshot non anonimizzati)
   window.addEventListener("paste", (e) => {
-    if (passing || !active || e.target === host) return;
+    if (passing || !active || e.target === host || e.composedPath?.().includes(host)) return;
     const ed = e.target?.closest?.("[contenteditable],textarea,input") || (editable(e.target) ? e.target : null);
     if (ed && ed.tagName === "INPUT" && !/^(text|search)$/.test(ed.type)) return;
     const dt = e.clipboardData;

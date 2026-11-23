@@ -423,8 +423,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.target !== "offscreen") return false;
   (async () => {
     try {
-      if (msg.op === "anonymize") reply(await anonymize(msg.items, msg.previous || {}));
-      else if (msg.op === "redact") reply(await redact(msg.items, { map: msg.previous || {}, book: msg.book || {} }));
+      if (msg.op === "anonymize" || msg.op === "redact") {
+        // scelte del pannello di revisione: valori lasciati in chiaro e parole da coprire in piu'
+        await boot();
+        const rv = msg.review || {};
+        py.review(JSON.stringify(rv.keep || []), JSON.stringify(rv.add || []));
+        try {
+          const res = msg.op === "anonymize"
+            ? await anonymize(msg.items, msg.previous || {})
+            : await redact(msg.items, { map: msg.previous || {}, book: msg.book || {} });
+          res.found = JSON.parse(py.review_found());
+          reply(res);
+        } finally {
+          py.review_end();
+        }
+      }
       else if (msg.op === "debug") reply({ step });
       else if (msg.op === "restore") { await boot(); reply({ text: py.restore(msg.text, JSON.stringify(msg.mapping || {})) }); }
       else reply({ error: "operazione sconosciuta" });

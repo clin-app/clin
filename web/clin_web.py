@@ -201,3 +201,20 @@ def table_text(path):
     from tabular_engine import load_table
     doc = load_table(Path(path), max_rows=200)
     return "\n".join(" ; ".join(str(c) for c in row if c is not None) for s in doc.sheets for row in s.rows)
+
+
+def review(keep_json="[]", add_json="[]"):
+    """Revisione nell'estensione: valori da lasciare in chiaro e parole da coprire in piu'."""
+    from clin_text import set_review
+    set_review(json.loads(keep_json or "[]"), json.loads(add_json or "[]"))
+
+
+def review_found():
+    """Segnaposto assegnati dall'ultima `review`, per il pannello: [[segnaposto, originale]]."""
+    from clin_text import review_found as _found
+    return json.dumps([list(t) for t in _found()], ensure_ascii=False)
+
+
+def review_end():
+    from clin_text import set_review
+    set_review((), (), record=False)

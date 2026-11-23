@@ -131,6 +131,10 @@ Per chi usa le chat IA nel browser (per esempio sul PC del reparto), l'estension
 - testo incollato, file trascinati e file scelti con la graffetta vengono fermati
   **prima** che il sito li riceva, anonimizzati sul computer e inseriti nel campo
   della chat come testo con segnaposto (PDF, Word, TXT, CSV e foto con OCR);
+- prima che qualcosa entri nella chat si apre la **barra laterale di revisione**:
+  anteprima con i segnaposto ed elenco dei dati coperti; si toglie la spunta per
+  lasciare in chiaro un dato, si aggiunge una parola sfuggita (anche selezionandola
+  nell'anteprima) e solo con «Inserisci nella chat» testo o file arrivano al sito;
 - la pillola **/Clin attivo** in basso a destra apre il pannello: l'ultima risposta
   dell'IA (o il testo selezionato) con i dati reali, e «Copia con i dati reali»;
 - il pannello è in uno shadow DOM chiuso: il sito della chat non può leggere i nomi
@@ -615,7 +619,7 @@ trovare le parole e i loro riquadri, non ricostruire il documento.
 python3 -m unittest discover -s tests -v
 ```
 
-I test (91, di cui 3 dell'OCR saltati se il modello OCR non è installato) usano
+I test (94, di cui 3 dell'OCR saltati se il modello OCR non è installato) usano
 solo documenti sintetici generati al momento e girano senza modello linguistico
 (`CLIN_LLM=0`); nessun dato reale è incluso nel repository.
 

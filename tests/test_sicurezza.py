@@ -407,5 +407,40 @@ class TestNominativoGestionaliPS(unittest.TestCase):
         self.assertIn("nato a termine", self._anon("Paziente: ROSSINI MARCO\nnato a termine da parto eutocico"))
 
 
+class TestRevisioneEstensione(unittest.TestCase):
+    """Pannello di revisione: dati lasciati in chiaro, parole aggiunte, elenco dei segnaposto."""
+
+    TXT = "Paziente: ROSSINI MARCO, nato il 03/05/2014. Dott. Verdi Luca. Ricoverato a MONTEROTONDO."
+
+    def tearDown(self):
+        clin_web.review_end()
+
+    def test_elenco_lasciare_in_chiaro_e_aggiungere(self):
+        clin_web.review("[]", "[]")
+        out = json.loads(clin_web.run_text(self.TXT, 10, "{}"))["text"]
+        found = dict((o, ph) for ph, o in json.loads(clin_web.review_found()))
+        self.assertIn("ROSSINI MARCO", found)
+        self.assertIn("Verdi Luca", found)
+        self.assertNotIn("Verdi", out)
+        clin_web.review(json.dumps(["Verdi Luca"]), json.dumps(["MONTEROTONDO"]))
+        out = json.loads(clin_web.run_text(self.TXT, 10, "{}"))["text"]
+        self.assertIn("Dott. Verdi Luca", out)
+        self.assertNotIn("MONTEROTONDO", out)
+        self.assertNotIn("ROSSINI", out)
+        self.assertIn("MONTEROTONDO", [o for _, o in json.loads(clin_web.review_found())])
+
+    def test_file_coperti_rispettano_la_revisione(self):
+        clin_web.review(json.dumps(["Verdi Luca"]), "[]")
+        plan = json.loads(clin_web.plan_pages(json.dumps([self.TXT]), "{}", "[false]"))
+        covered = [self.TXT[s:e] for s, e, _ in plan["spans"][0]]
+        self.assertNotIn("Verdi Luca", covered)
+        self.assertIn("ROSSINI MARCO", covered)
+
+    def test_senza_revisione_nessun_effetto(self):
+        clin_web.review(json.dumps(["Verdi Luca"]), "[]")
+        clin_web.review_end()
+        self.assertNotIn("Verdi", json.loads(clin_web.run_text(self.TXT, 10, "{}"))["text"])
+
+
 if __name__ == "__main__":
     unittest.main()
