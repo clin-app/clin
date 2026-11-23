@@ -206,11 +206,17 @@ def anonymized_copy(path: Path) -> Path:
     # stessa tabella segnaposto della modalita' appunti: [PAZIENTE_1] e' la stessa
     # persona in ogni file letto nella sessione
     previous = clin.load_mapping()
+    import anonymize_engine
+    import clin_settings
+    anonymize_engine.DATE_SHIFT = clin_settings.date_shift()
     res = anonymize_file(path, allowed_roots=None, previous=previous)
     clin.save_mapping(res.mapping)
     READS_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     header = (f"[Documento anonimizzato in locale da Clin. {res.summary()} "
-              "I segnaposto tra parentesi quadre sostituiscono dati personali.]\n")
+              "I segnaposto tra parentesi quadre sostituiscono dati personali."
+              + (" Le date sono spostate di 400 anni esatti (2023 diventa 2423): giorno, mese e intervalli sono "
+                 "veri; scriverle cosi' come sono, Clin le riporta a quelle vere."
+                 if anonymize_engine.DATE_SHIFT == clin_settings.CALENDAR_SHIFT else "") + "]\n")
     notes = "".join(f"[{n}]\n" for n in res.notes)
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:

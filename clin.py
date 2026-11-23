@@ -118,7 +118,10 @@ def load_mapping() -> dict:
 # Comandi
 # --------------------------------------------------------------------------
 def cmd_testo(a) -> int:
+    import anonymize_engine
+    import clin_settings
     from clin_text import anonymize_file
+    anonymize_engine.DATE_SHIFT = clin_settings.date_shift()
     res = anonymize_file(Path(a.file))
     if a.salva_tabella:
         save_mapping(res.mapping)

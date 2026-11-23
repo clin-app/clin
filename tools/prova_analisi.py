@@ -169,7 +169,7 @@ def run(mode: str, base: Path, n: int, seed: int = 7) -> dict:
     analyse(reg, fu, study / "analisi")                      # l'agente: lavora solo sulle copie
     subprocess.run(clin + ["risultati", str(study)], env=env, capture_output=True, text=True, check=True)
     real = study / "Clin_risultati" / "analisi"
-    report = {"_note": [l for l in out.splitlines() if l.startswith("Date dei fogli")][0][:110] + "…",
+    report = {"_note": [l for l in out.splitlines() if l.startswith("Date (")][0][:110] + "…",
               "_dati personali nelle copie": "nessuno" if not leak else ", ".join(leak)}
     for f in sorted(truth.iterdir()):
         got = real / f.name

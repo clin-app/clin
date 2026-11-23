@@ -190,6 +190,34 @@ def shift_whole_date(value: str, days: int):
     return moved if moved != v else None
 
 
+_REAL_Y = r"(?:18[5-9]\d|19\d\d|20\d\d)"
+_REAL_MONTH_YEAR = re.compile(r"(?i)(?<![\w/])" + _MONTH_RX + r"(\.?,?(?:\s+|-))(" + _REAL_Y + r")(?!\d)")
+_REAL_YEAR = re.compile(r"(?<![\d/.\-])(" + _REAL_Y + r")(?![\d/\-]|\.\d)")
+_SHIFTED_YEAR = re.compile(r"(?<!\d)" + _CAL_Y + r"(?!\d)")
+
+
+def shift_span(text: str, days: int):
+    """Per un tratto che il motore ha riconosciuto come data: (inizio, fine, data spostata) della data
+    che contiene, o None se non c'e' una data che si possa spostare (giorno e mese senza anno)."""
+    for key in ("iso", "dmy", "words", "words_en"):
+        m = _REAL[key].search(text)
+        if m:
+            return m.start(), m.end(), _move_dates(m[0], days, _REAL, compact_too=False)
+    if days == CALENDAR_SHIFT:   # date parziali: con i 400 anni cambia solo l'anno
+        m = _REAL_MONTH_YEAR.search(text)
+        if m:
+            return m.start(), m.end(), m[1] + m[2] + str(int(m[3]) + 400)
+        m = _REAL_YEAR.search(text)
+        if m:
+            return m.start(), m.end(), str(int(m[1]) + 400)
+    return None
+
+
+def already_shifted(text: str) -> bool:
+    """Vero se il tratto contiene un anno che esiste solo dopo lo spostamento (testo gia' anonimizzato)."""
+    return bool(_SHIFTED_YEAR.search(text))
+
+
 def unshift_dates(text: str, days: int) -> str:
     """Rimette le date vere al posto di quelle traslate, in qualunque forma siano scritte."""
     text = _move_dates(text, -days, _SHIFTED)

@@ -43,6 +43,8 @@ class TestGuardia(unittest.TestCase):
 
     def tearDown(self):
         unittest.mock.patch.stopall()
+        import anonymize_engine
+        anonymize_engine.DATE_SHIFT = None   # le date spostate valgono solo per i punti d'ingresso degli agenti
 
     def pre(self, tool, tool_input):
         return run({"hook_event_name": "PreToolUse", "tool_name": tool, "cwd": str(self.dir),
@@ -138,7 +140,7 @@ class TestGuardia(unittest.TestCase):
         wb.active.append(["ROSSI MARIO", datetime.datetime(1950, 3, 12), datetime.datetime(2023, 5, 14), "20/11/2023", "ok"])
         wb.save(self.dir / "registro.xlsx")
         out = clin_mcp.tool_crea_copie_anonime({"percorso": str(self.dir)})
-        self.assertIn("Date dei fogli", out)
+        self.assertIn("spostate di 400 anni esatti", out)
         days = clin_settings.date_shift(create=False)
         self.assertGreaterEqual(days, 80000)
         row = [c.value for c in load_workbook(self.dir / "Clin_anonimizzati" / "registro_ANONIMIZZATO.xlsx").active[2]]
@@ -206,6 +208,43 @@ class TestGuardia(unittest.TestCase):
         self.assertEqual(len(clin_results.reidentify(self.dir)), 1)
         self.assertEqual((clin_settings.results_dir(self.dir) / "analisi" / "per_anno.csv").read_text().split(),
                          ["anno,interventi,leucociti", "2022,2400,2400", "2023,41,2350"])
+
+    def test_date_nei_documenti_spostate_e_ricondotte(self):
+        import os, zipfile
+        import anonymize_engine, clin_mcp, clin_results, clin_settings
+        from clin_text import _docx_text
+        unittest.mock.patch.object(clin_settings, "DATA_DIR", Path(self.home)).start()
+        unittest.mock.patch.dict(os.environ, {"CLIN_CARTELLE": str(self.dir)}).start()
+        letter = ("Paziente: Mario Rossi, nato il 12/03/1958 a Torino\nRicoverato dal 02/11/2023 al 09/11/2023.\n"
+                  "Toracentesi il 4 novembre 2023. In terapia da marzo 2021. Leucociti 2400.\n")
+        (self.dir / "lettera.txt").write_text(letter, encoding="utf-8")
+        body = "".join(f'<w:p><w:r><w:t xml:space="preserve">{l}</w:t></w:r></w:p>' for l in letter.splitlines())
+        with zipfile.ZipFile(self.dir / "lettera.docx", "w") as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("word/document.xml", f'<w:document xmlns:w="x"><w:body>{body}</w:body></w:document>')
+        clin_mcp.tool_crea_copie_anonime({"percorso": str(self.dir)})
+        copies = self.dir / "Clin_anonimizzati"
+        for text in (next(copies.glob("lettera*.txt")).read_text(), _docx_text(next(copies.glob("lettera*.docx")))):
+            for moved in ("12/03/2358", "02/11/2423", "09/11/2423", "4 novembre 2423", "marzo 2421", "Leucociti 2400"):
+                self.assertIn(moved, text)
+            for gone in ("1958", "2023", "2021", "Torino", "Rossi", "[DATA_1]"):
+                self.assertNotIn(gone, text)
+        # la lettura diretta passa dalla stessa regola e lo dice all'agente
+        read = self.pre("Read", {"file_path": "lettera.txt"})["hookSpecificOutput"]["updatedInput"]["file_path"]
+        self.assertIn("02/11/2423", Path(read).read_text())
+        self.assertIn("400 anni", Path(read).read_text())
+        # un testo gia' spostato non viene spostato una seconda volta
+        from clin_text import anonymize_text
+        self.assertIn("02/11/2423", anonymize_text("Ricoverato dal 02/11/2423 per polmonite.").text)
+        # ritorno
+        (self.dir / "analisi").mkdir()
+        (self.dir / "analisi" / "degenza.md").write_text("Degenza di 7 giorni, dal 02/11/2423 al giovedì 9 novembre 2423.\n")
+        clin_results.reidentify(self.dir)
+        self.assertEqual((clin_settings.results_dir(self.dir) / "analisi" / "degenza.md").read_text(),
+                         "Degenza di 7 giorni, dal 02/11/2023 al giovedì 9 novembre 2023.\n")
+        # fuori dai punti d'ingresso degli agenti (applicazione, estensione) le date restano segnaposto
+        anonymize_engine.DATE_SHIFT = None
+        self.assertIn("[DATA_", anonymize_text("Ricoverato dal 02/11/2023 per polmonite.").text)
 
     def test_percorsi_esclusi_dall_utente(self):
         import os

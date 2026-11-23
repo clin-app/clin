@@ -88,12 +88,18 @@ def allowed_roots() -> List[Path]:
 
 
 def tool_anonimizza_documento(args: Dict[str, Any]) -> str:
+    import anonymize_engine
+    import clin_settings
+    anonymize_engine.DATE_SHIFT = clin_settings.date_shift()   # le date restano date, spostate
     res = anonymize_file(Path(str(args.get("percorso", ""))), allowed_roots=allowed_roots())
     head = [
         "[Documento anonimizzato in locale da Clin. I segnaposto tra parentesi "
         "quadre sostituiscono dati personali: non tentare di ricostruirli.]",
         res.summary(),
     ]
+    if anonymize_engine.DATE_SHIFT == clin_settings.CALENDAR_SHIFT:
+        head.append("[Le date sono spostate di 400 anni esatti (2023 diventa 2423): giorno, mese e intervalli sono "
+                    "veri. Scriverle cosi' come sono: Clin le riporta a quelle vere.]")
     head.extend(res.notes)
     # Il dizionario segnaposto -> originale (res.mapping) non viene MAI restituito.
     return "\n".join(head) + "\n\n" + res.text
@@ -206,6 +212,8 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
         return ("Nessun documento supportato (PDF, Word, PowerPoint, TXT, JPG, PNG, CSV, TSV, Excel, SPSS, Stata, SAS) "
                 "nel percorso indicato.")
     shift = clin_settings.date_shift()
+    import anonymize_engine
+    anonymize_engine.DATE_SHIFT = shift   # anche in PDF, Word, PowerPoint e testi le date restano date
     batch, reused = BatchResult(), 0
     for folder, files in groups.items():
         todo = []
@@ -272,12 +280,12 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     if batch.warnings:
         lines.append(f"Avvisi da verificare manualmente: {len(batch.warnings)}.")
     if shift == clin_settings.CALENDAR_SHIFT:
-        lines.append("Date dei fogli: spostate di 400 anni esatti (2023 diventa 2423). Giorno, mese, giorno della "
+        lines.append("Date (fogli, PDF, Word, PowerPoint, testi): spostate di 400 anni esatti (2023 diventa 2423). Giorno, mese, giorno della "
                      "settimana, stagione, intervalli ed eta' sono quelli veri: ogni analisi e' possibile, anche per "
                      "anno e per stagione. Scrivere date e anni cosi' come risultano (2423): Clin li riporta a quelli "
                      "veri. Con pandas < 3 convertire con .astype('datetime64[s]').")
     elif shift:
-        lines.append("Date dei fogli: spostate tutte dello stesso numero segreto di giorni nel futuro (anni 2100-2260). "
+        lines.append("Date (fogli, PDF, Word, PowerPoint, testi): spostate tutte dello stesso numero segreto di giorni nel futuro (anni 2100-2260). "
                      "Intervalli, durate ed eta' sono esatti e si possono calcolare. Anno, mese, stagione e giorno della "
                      "settimana NON sono quelli veri: non fare analisi per anno di calendario o per stagione e non "
                      "riportarli come fatti. Se servono, l'utente puo' attivarle dal proprio terminale con "

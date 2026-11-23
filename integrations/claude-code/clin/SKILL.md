@@ -49,15 +49,20 @@ Percorso: quello indicato dall'utente, altrimenti la cartella di lavoro corrente
    nella cartella dei risultati dell'utente. Quella cartella non e' accessibile: non
    leggerla, non cercarla, non elencarla.
 
-### Date nei fogli di calcolo
+### Date
 
-Nelle copie di Excel, CSV e dataset statistici le date non sono oscurate: sono spostate
-di **400 anni esatti** (14/05/2023 diventa 14/05/2423). Il calendario si ripete
+In tutte le copie (PDF, Word, PowerPoint, testi, Excel, CSV, dataset statistici) e nei
+documenti letti con `Read` le date non sono oscurate: sono spostate di **400 anni
+esatti** (14/05/2023 diventa 14/05/2423). Vale anche dentro i PDF, dove la data
+spostata e' scritta al posto dell'originale. Il calendario si ripete
 identico ogni 400 anni, quindi giorno, mese, giorno della settimana, stagione, anni
 bisestili, intervalli ed eta' sono quelli veri: solo l'anno e' aumentato di 400.
 
-- Fare ogni analisi normalmente: sopravvivenza, follow-up, eta', andamento per anno,
-  per mese, per stagione, per giorno della settimana. I risultati sono corretti.
+- Fare ogni analisi normalmente: sopravvivenza, follow-up, eta', durata dei ricoveri
+  ricavata dalle lettere, andamento per anno, per mese, per stagione, per giorno della
+  settimana. I risultati sono corretti.
+- Una data senza anno ("il 14 maggio") o illeggibile in una scansione resta un
+  segnaposto `[DATA_1]`: non e' sbagliata, manca. Il luogo di nascita resta un segnaposto.
 - Scrivere date e anni **cosi' come risultano dai dati** (2423, non 2023): a fine
   risposta Clin li riporta a quelli veri in ogni forma, `2423-05-14`, `14/05/2423`,
   `14 maggio 2423`, `May 14, 2423`, `maggio 2423`, `2423-05`, `Q2 2423`, `nel 2423`,

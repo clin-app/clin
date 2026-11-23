@@ -313,6 +313,23 @@ def find_spans(text: str, level: int = DEFAULT_LEVEL, explicit: Optional[Sequenc
     return chosen
 
 
+def _date_replacement(registry: _Registry, cat: str, original: str) -> Optional[str]:
+    """Con le date spostate (agenti) una data non diventa un segnaposto: resta una data, 400 anni dopo.
+    None: il tratto va trattato come sempre."""
+    import anonymize_engine as ae
+    if not ae.DATE_SHIFT or cat not in ae.DATE_CATEGORIES:
+        return None
+    from clin_results import already_shifted, shift_span
+    hit = shift_span(original, ae.DATE_SHIFT)
+    if not hit:
+        return original if already_shifted(original) else None
+    s, e, moved = hit
+    kind = _PLACEHOLDER.get(cat, "DATO")
+    # cio' che nel tratto non e' la data (il luogo in "12/03/1958 a Torino") resta un segnaposto
+    pre, post = original[:s].strip(" ,;.:()-"), original[e:].strip(" ,;.:()-")
+    return ((registry.get(kind, pre) + " ") if pre else "") + moved + ((" " + registry.get(kind, post)) if post else "")
+
+
 def _replace(text: str, registry: _Registry, level: int,
              explicit: Optional[Sequence[str]], whitelist: Optional[Sequence[str]],
              names: Sequence[str], counts: Dict[str, int]) -> str:
@@ -328,7 +345,8 @@ def _replace(text: str, registry: _Registry, level: int,
             prefix, original = title.group(0), original[title.end():]
         kind = _PLACEHOLDER.get(cat, "DATO")
         out.append(text[cursor:s])
-        out.append(prefix + registry.get(kind, original, link=cat != "Persone"))
+        moved = _date_replacement(registry, cat, original)
+        out.append(prefix + (moved if moved is not None else registry.get(kind, original, link=cat != "Persone")))
         counts[cat] = counts.get(cat, 0) + 1
         cursor = e
     out.append(text[cursor:])
@@ -545,7 +563,9 @@ def redact_docx_file(
                     s += 1
             if e <= s or not original:
                 continue
-            ph = reg.get(_PLACEHOLDER.get(cat, "DATO"), original, link=cat != "Persone")
+            ph = _date_replacement(reg, cat, original)
+            if ph is None:
+                ph = reg.get(_PLACEHOLDER.get(cat, "DATO"), original, link=cat != "Persone")
             counts[cat] = counts.get(cat, 0) + 1
             spans_all.append((s, e, ph))
 

@@ -239,7 +239,7 @@ CONTACT_PATTERNS = [
     r'(?i)\b(?:residente|domiciliat[oa]|abitante|vive|nat[oa])[ \t]+(?:a|ad|in)[ \t]+(?P<v>(?-i:[A-ZÀ-Ö][a-zà-öø-ÿ\']+(?:[ \t]+[A-ZÀ-Ö][a-zà-öø-ÿ\']+){0,2}))',
     # telefoni senza etichetta (cellulari, fissi, internazionali)
     r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?3\d{2}(?:[ \t.\-/]?\d){6,7}(?!\d|[.,]\d)',
-    r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?0\d{1,3}[ \t.\-/]\d{2,4}(?:[ \t.\-]?\d{2,5}){0,2}(?!\d|[.,]\d)',
+    r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?0\d{1,3}[ \t.\-/]\d{2,4}(?:[ \t.\-]?\d{2,5}){0,2}(?!\d|[.,/]\d)',
     r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?0\d{8,9}(?!\d|[.,]\d)',  # compatto: 9-10 cifre (P.IVA ne ha 11)
     r'(?<![\w+])\+(?!39)\d{1,3}[ \t.\-]?\(?\d{1,4}\)?(?:[ \t.\-]?\d{2,4}){2,4}\b',
 ]
@@ -1478,6 +1478,82 @@ def _redact_offpage_text(page: "fitz.Page") -> bool:
     return True
 
 
+# Giorni di cui spostare le date nei documenti (impostato dai punti d'ingresso per gli agenti).
+# None: le date vengono oscurate o sostituite da un segnaposto, come nell'applicazione e nell'estensione.
+DATE_SHIFT: Optional[int] = None
+DATE_CATEGORIES = ("Date", "Data di nascita")
+
+
+def _pdf_date(det: "Detection"):
+    """Testo con cui sostituire nel PDF una data riconosciuta: la stessa data spostata, con la sua
+    etichetta; "" se il testo e' gia' spostato (non va toccato); None se va oscurata come il resto."""
+    if not DATE_SHIFT or det.category not in DATE_CATEGORIES:
+        return None
+    from clin_results import already_shifted, shift_span
+    hit = shift_span(det.text, DATE_SHIFT)
+    if not hit:
+        return "" if already_shifted(det.text) else None
+    return det.text[:hit[0]] + hit[2]   # cio' che segue la data (luogo di nascita) non viene riscritto
+
+
+def _date_plan(detections: list) -> list:
+    """(rilevazione, testo) per ogni rilevazione: testo della data spostata, "" se gia' spostata,
+    None se va oscurata, False se non va toccata perche' sta dentro una data gia' riscritta
+    ("novembre 2023" dentro "4 novembre 2023", oppure "02/11" scambiato per un recapito)."""
+    plan, taken, written = [], [], []
+    for det in sorted(detections, key=lambda d: -len(d.text)):
+        moved = _pdf_date(det)
+        if moved:
+            ok = [fitz.Rect(r) for r in det.rects if not (r.is_empty or r.is_infinite)]
+            if ok and any((ok[0] & t).get_area() > 0.3 * ok[0].get_area() for t in taken):
+                moved = False
+            else:
+                taken.extend(ok)
+                written.append(det.text)
+        plan.append((det, moved))
+    for i, (det, moved) in enumerate(plan):
+        if moved is None and taken and any(det.text in w for w in written):
+            ok = [fitz.Rect(r) for r in det.rects if not (r.is_empty or r.is_infinite)]
+            if ok and all(any((r & t).get_area() > 0.5 * r.get_area() for t in taken) for r in ok):
+                plan[i] = (det, False)
+    return plan
+
+
+def _write_date(page: "fitz.Page", rects: list, text: str, raster: bool, pending: list) -> None:
+    """Prepara la data spostata al posto dell'originale: fondo bianco, e in `pending` il testo da
+    scrivere dopo le redazioni, alla stessa altezza e con lo stesso corpo dell'originale.
+    `raster`: la pagina e' gia' un'immagine coperta (scansione), si disegna sopra."""
+    line = fitz.Rect(rects[0])
+    rest = []
+    for r in rects[1:]:
+        if abs(r.y0 - line.y0) < line.height * 0.6:
+            line |= r
+        else:
+            rest.append(r)
+    size, base = line.height * 0.8, line.y1 - line.height * 0.2
+    if raster:
+        for r in [line] + rest:
+            page.draw_rect(r + (-5, -3, 3, 3), color=None, fill=(1, 1, 1))
+    else:
+        spans = [sp for bl in page.get_text("dict", clip=line).get("blocks", []) for ln in bl.get("lines", [])
+                 for sp in ln.get("spans", []) if sp.get("text", "").strip()]
+        if spans:   # corpo e linea di base del testo che si sostituisce
+            size, base = min(sp["size"] for sp in spans), spans[0]["origin"][1]
+        for r in [line] + rest:
+            page.add_redact_annot(r, fill=(1, 1, 1))
+    width = fitz.get_text_length(text, fontsize=size)
+    room = line.width * (1.2 if raster else 1.0) + 2   # i riquadri dell'OCR sono piu' stretti del testo
+    if width > room:   # "14/5/23" diventa "14/05/2423": si stringe per non coprire cio' che segue
+        size = max(5.0, size * room / width)
+    pending.append((fitz.Point(line.x0, base), text, size))
+
+
+def _flush_dates(page: "fitz.Page", pending: list) -> None:
+    for point, text, size in pending:
+        page.insert_text(point, text, fontsize=size, color=(0, 0, 0))
+    pending.clear()
+
+
 def _apply_redactions(page: "fitz.Page", remove_images: bool) -> None:
     """Applica le redazioni gestendo le differenze fra versioni di PyMuPDF."""
     image_mode = getattr(fitz, "PDF_REDACT_IMAGE_REMOVE", None) if remove_images else None
@@ -1579,12 +1655,19 @@ def anonymize_document(
                     keep_labels=keep_labels, derived_targets=derived,
                     words=ocr_pages[page.number],
                 )
-                rects = [r for d in detections for r in d.rects
+                dates = _date_plan(detections)
+                rects = [r for d, moved in dates if moved != "" and moved is not False for r in d.rects
                          if not (r.is_empty or r.is_infinite)]
                 for det in detections:
                     result.per_category[det.category] = result.per_category.get(det.category, 0) + 1
                 result.redactions += len(rects)
                 clin_ocr.replace_with_redacted_image(page, rects, fill_color)
+                pending: list = []
+                for det, moved in dates:   # le date tornano leggibili, spostate, sopra il riquadro
+                    ok = [r for r in det.rects if not (r.is_empty or r.is_infinite)]
+                    if moved and ok:
+                        _write_date(page, ok, moved, True, pending)
+                _flush_dates(page, pending)
                 continue
 
             if remove_images and "Immagini e loghi" not in excluded_categories():
@@ -1614,12 +1697,18 @@ def anonymize_document(
                 derived_targets=derived,
             )
 
-            for det in detections:
-                for rect in det.rects:
-                    if rect.is_empty or rect.is_infinite:
-                        continue
-                    page.add_redact_annot(rect, fill=fill_color)
+            pending = []
+            for det, moved in _date_plan(detections):
+                ok = [r for r in det.rects if not (r.is_empty or r.is_infinite)]
+                if moved == "" or moved is False:
+                    continue   # data gia' spostata, o dentro una data piu' lunga gia' riscritta
+                if moved and ok:
+                    _write_date(page, ok, moved, False, pending)
                     result.redactions += 1
+                else:
+                    for rect in ok:
+                        page.add_redact_annot(rect, fill=fill_color)
+                        result.redactions += 1
                 result.per_category[det.category] = result.per_category.get(det.category, 0) + 1
 
             if _redact_offpage_text(page):
@@ -1628,6 +1717,7 @@ def anonymize_document(
                 )
 
             _apply_redactions(page, remove_images)
+            _flush_dates(page, pending)
 
         if sanitize_metadata:
             _sanitize_document(doc, result.warnings)
@@ -1720,6 +1810,10 @@ def _residual_check(
                                       derived_targets=derived):
                     if m.category not in _RESIDUAL_CATEGORIES:
                         continue
+                    if DATE_SHIFT and m.category in DATE_CATEGORIES:
+                        from clin_results import already_shifted
+                        if already_shifted(text[m.start:m.end]):
+                            continue   # la data spostata che Clin stesso ha scritto
                     if subtract_protected(m.start, m.end, protected):
                         found.append(f"pag. {page.number + 1}: {m.category}")
     except Exception:

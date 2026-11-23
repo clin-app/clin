@@ -50,8 +50,10 @@ Che cosa copre `/clin`:
   l'installazione prova ad aggiungere). In Word e PowerPoint immagini, oggetti
   incorporati, autori di commenti e revisioni vengono svuotati. DICOM, posta e i
   vecchi `.doc`/`.xls`/`.ppt` restano chiusi e `/clin` lo segnala.
-- **Date nei fogli**: invece di essere oscurate vengono spostate di 400 anni esatti
-  (14/05/2023 diventa 14/05/2423). Il calendario gregoriano si ripete identico ogni
+- **Date**: in fogli, dataset, PDF, Word, PowerPoint e testi, invece di essere
+  oscurate vengono spostate di 400 anni esatti (14/05/2023 diventa 14/05/2423); nei
+  PDF la data spostata è scritta al posto dell'originale, anche sulle scansioni.
+  `python3 tools/prova_documenti.py` verifica la stessa lettera in quattro formati. Il calendario gregoriano si ripete identico ogni
   400 anni (146097 giorni, 20871 settimane): giorno, mese, giorno della settimana,
   stagione, anni bisestili, intervalli ed età restano quelli veri, anche tra file
   diversi, quindi ogni analisi è corretta. Nei risultati Clin riporta date e anni a
