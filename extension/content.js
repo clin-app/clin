@@ -260,7 +260,12 @@
   const pill = $(".pill"), panel = $(".panel"), toastEl = $(".toast"), out = $(".out");
   let toastTimer = 0;
 
+  const ensureMounted = () => {
+    if (!host.isConnected) (document.body || document.documentElement).appendChild(host);
+  };
+
   function toast(msg, err = false, ms = 5000) {
+    ensureMounted();
     toastEl.textContent = msg;
     toastEl.classList.toggle("err", err);
     toastEl.hidden = false;
@@ -377,7 +382,7 @@
   function b64(buf) {
     const bytes = new Uint8Array(buf);
     let s = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    for (let i = 0; i < bytes.length; i += 0x2000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x2000));
     return btoa(s);
   }
 
@@ -529,6 +534,7 @@
   function rvStatus(msg, err = false) { const el = $(".rv-st"); el.textContent = msg; el.classList.toggle("err", err); }
 
   async function startReview(op, items, label, finish) {
+    ensureMounted();
     if (rv) {
       if (collapsed) setCollapsed(false);
       toast("Concludere prima la revisione aperta nel pannello di Clin.", true);
@@ -727,34 +733,53 @@
   });
 
   async function handleFiles(files, origin) {
-    const items = await readItems(files);
-    if (!items.length) return;
-    const label = items.length === 1 ? items[0].name : `${items.length} file`;
-    await startReview("redact", items, label, async (r) => {
-      const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
-      if (!(await deliver(out, origin))) throw new Error("allegato non accettato dal sito");
-      toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.`, false, 7000);
-    });
+    try {
+      const items = await readItems(files);
+      if (!items.length) return;
+      const label = items.length === 1 ? items[0].name : `${items.length} file`;
+      await startReview("redact", items, label, async (r) => {
+        const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
+        if (!(await deliver(out, origin))) throw new Error("allegato non accettato dal sito");
+        toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.`, false, 7000);
+      });
+    } catch (err) {
+      console.error("[Clin handleFiles]", err);
+      toast(`/Clin: impossibile leggere il file (${err?.message || err}).`, true, 8000);
+    }
   }
 
   async function handle({ files = [], text = "" }, target) {
-    const items = await readItems(files);
-    const fileCount = items.length;
-    if (text.trim()) items.push({ kind: "testo incollato", text });
-    if (!items.length) return;
-    const label = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"}${text.trim() ? " e testo incollato" : ""}` : "testo incollato";
-    await startReview("anonymize", items, label, (r) => {
-      const el = target && editable(target) && document.contains(target) ? target : composer();
-      if (!el) throw new Error("campo della chat non trovato");
-      const filled = (el.value ?? el.innerText ?? "").trim().length > 0;
-      let body = (filled ? "\n\n" : "") + r.text.replace(/\n{3,}/g, "\n\n");
-      if (el.isContentEditable) body = body.replace(/\n\n/g, "\n");
-      insert(el, body);
-      toast("/Clin · testo anonimizzato inserito: nella chat entrano solo segnaposto.");
-    });
+    try {
+      const items = await readItems(files);
+      const fileCount = items.length;
+      if (text.trim()) items.push({ kind: "testo incollato", text });
+      if (!items.length) return;
+      const label = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"}${text.trim() ? " e testo incollato" : ""}` : "testo incollato";
+      await startReview("anonymize", items, label, (r) => {
+        const el = target && editable(target) && document.contains(target) ? target : composer();
+        if (!el) throw new Error("campo della chat non trovato");
+        const filled = (el.value ?? el.innerText ?? "").trim().length > 0;
+        let body = (filled ? "\n\n" : "") + r.text.replace(/\n{3,}/g, "\n\n");
+        if (el.isContentEditable) body = body.replace(/\n\n/g, "\n");
+        insert(el, body);
+        toast("/Clin · testo anonimizzato inserito: nella chat entrano solo segnaposto.");
+      });
+    } catch (err) {
+      console.error("[Clin handle]", err);
+      toast(`/Clin: errore (${err?.message || err}).`, true, 8000);
+    }
   }
 
   const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); };
+
+  function droppedFiles(dt) {
+    if (!dt) return [];
+    if (dt.files && dt.files.length) return [...dt.files];
+    if (dt.items && dt.items.length) {
+      return [...dt.items].filter((it) => it.kind === "file").map((it) => it.getAsFile()).filter(Boolean);
+    }
+    return [];
+  }
 
   window.addEventListener("paste", (e) => {
     if (passing || !active || e.target === host || e.composedPath?.().includes(host)) return;
@@ -762,7 +787,7 @@
     if (ed && ed.tagName === "INPUT" && !/^(text|search)$/.test(ed.type)) return;
     const dt = e.clipboardData;
     if (!dt) return;
-    const files = [...(dt.files || [])];
+    const files = droppedFiles(dt);
     const text = files.length ? "" : dt.getData("text/plain");
     if (!files.length && !text) return;
     stop(e);
@@ -772,8 +797,10 @@
   }, true);
 
   window.addEventListener("drop", (e) => {
-    if (passing || !active || !e.dataTransfer?.files?.length) return;
-    const files = [...e.dataTransfer.files], target = e.target;
+    if (passing || !active) return;
+    const files = droppedFiles(e.dataTransfer);
+    if (!files.length) return;
+    const target = e.target;
     stop(e);
     for (const t of ["dragleave", "dragend"]) {
       try { target.dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() })); } catch (_) {}
