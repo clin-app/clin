@@ -62,7 +62,16 @@ function wire() {
     if (!DONA_URL || e.metaKey || e.ctrlKey || e.shiftKey) return;
     e.preventDefault();
     await chiediDonazione();
-    location.href = a.href;  // il download parte dopo la scelta, in ogni caso
+    if (a.hasAttribute("download")) {
+      const tmp = document.createElement("a");
+      tmp.href = a.href;
+      tmp.download = a.getAttribute("download") || "";
+      document.body.appendChild(tmp);
+      tmp.click();
+      tmp.remove();
+    } else {
+      location.href = a.href;  // il download parte dopo la scelta, in ogni caso
+    }
   }));
   document.querySelectorAll("button[data-dona]").forEach((b) => b.addEventListener("click", () => {
     setTimeout(() => chiediDonazione(b.dataset.donaTesto || "Comando copiato"), 400);

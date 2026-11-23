@@ -77,6 +77,12 @@ step "Modello OCR italiano (2,6 MB)"
 "$VPY" "$DEST/scripts/fetch_ocr_model.py" >/dev/null 2>&1 && echo "  pronto" \
   || echo "  non scaricato (facoltativo): le scansioni verranno solo segnalate"
 
+# --- 4-bis. Icona app desktop (se CLIN_GUI=1) -----------------------------------
+if [ "${CLIN_GUI:-0}" = "1" ] && [ "$(uname -s)" = "Darwin" ] && [ -f "$DEST/build_app.py" ]; then
+  step "Creazione di Clin.app sulla Scrivania"
+  "$VPY" "$DEST/build_app.py" "$HOME/Desktop" || echo "  icona non creata: puoi avviare con \"$VPY\" \"$DEST/clin_gui.py\""
+fi
+
 # --- 5. Agenti -------------------------------------------------------------------
 step "Collegamento agli agenti IA"
 "$VPY" "$DEST/clin.py" installa --agente "$AGENTI" || fail "Collegamento non riuscito (vedi messaggio sopra)."

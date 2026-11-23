@@ -1,9 +1,10 @@
 // Clin - nella pagina della chat (ChatGPT, Claude, Gemini...).
 //
 // Quando Clin e' attivo, testo incollato, file trascinati e file scelti con la graffetta
-// vengono fermati PRIMA che il sito li riceva: si anonimizzano sul computer e nel campo
-// della chat entra solo il testo con i segnaposto. Le risposte si rileggono con i dati
-// reali nel pannello di Clin, dentro uno shadow DOM chiuso: il sito non puo' leggerle.
+// vengono fermati PRIMA che il sito li riceva: si anonimizzano sul computer, si aprono
+// nella barra laterale di revisione (collassabile) e solo con «Inserisci nella chat»
+// entrano nella chat come testo o file con i segnaposto. Le risposte si rileggono con
+// i dati reali nel pannello di Clin, dentro uno shadow DOM chiuso.
 (() => {
   if (window.__clin) return;
   window.__clin = true;
@@ -48,13 +49,16 @@
       .ring { position: absolute; inset: -3px; border-radius: 50%; border: 2px solid transparent; border-top-color: #d4f06b; display: none; animation: spin .9s linear infinite; }
       .pill.busy .ring { display: block; }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+      @keyframes pulse { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
+
       .panel { position: fixed; right: 18px; bottom: 72px; z-index: 2147483647; width: min(420px, calc(100vw - 36px));
                max-height: min(640px, calc(100vh - 100px)); display: flex; flex-direction: column; gap: 10px; padding: 16px;
-               border-radius: 18px; background: #fff; color: #101411; box-shadow: 0 18px 50px rgba(0,0,0,.25); font-size: 14px; }
+               border-radius: 20px; background: #fff; color: #101411; box-shadow: 0 18px 50px rgba(0,0,0,.22); font-size: 14px; }
       .panel[hidden], .toast[hidden] { display: none; }
       .head { display: flex; align-items: center; gap: 10px; }
       .head b { font-size: 15px; }
-      .head .tag { padding: 2px 8px; border-radius: 999px; background: #d4f06b; font-size: 12px; font-weight: 600; }
+      .head .tag, .rv-head .tag { padding: 3px 9px; border-radius: 999px; background: #d4f06b; color: #101411; font-size: 12px; font-weight: 700; letter-spacing: -.01em; }
       .head button { margin-left: auto; }
       label.sw { display: flex; align-items: center; gap: 8px; color: #3d423e; }
       .muted { color: #6a706b; font-size: 12.5px; line-height: 1.45; margin: 0; }
@@ -62,58 +66,160 @@
              background: #f3f4f1; font-size: 13.5px; line-height: 1.5; }
       .row { display: flex; flex-wrap: wrap; gap: 8px; }
       button { border: 0; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
-               background: #f3f4f1; color: #101411; }
+               background: #f3f4f1; color: #101411; transition: background .15s, transform .08s, color .15s; }
+      button:hover { background: #e8ebe4; }
+      button:active { transform: scale(.98); }
       button.dark { background: #101411; color: #fff; }
-      button.x { padding: 4px 10px; background: transparent; font-size: 18px; line-height: 1; }
+      button.dark:hover { background: #262c28; }
+      button.x { padding: 5px 10px; background: transparent; font-size: 18px; line-height: 1; color: #4c524d; }
+      button.x:hover { background: #f3f4f1; color: #101411; }
       .toast { position: fixed; right: 18px; bottom: 72px; z-index: 2147483647; max-width: 360px; padding: 10px 14px;
                border-radius: 14px; background: #101411; color: #fff; font-size: 13px; line-height: 1.45;
                box-shadow: 0 10px 30px rgba(0,0,0,.25); }
       .toast.err { background: #c8312f; }
-      /* barra laterale di revisione: cosa viene coperto, prima che entri nella chat */
-      .rev { position: fixed; top: 0; right: 0; bottom: 0; z-index: 2147483647; width: min(420px, 100vw); display: flex; flex-direction: column;
-             background: #fff; color: #101411; box-shadow: -16px 0 50px rgba(0,0,0,.22); font-size: 14px; animation: slide .18s ease-out; }
-      .rev[hidden] { display: none; }
-      @keyframes slide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-      .rv-head { display: flex; align-items: center; gap: 10px; padding: 16px 16px 12px; border-bottom: 1px solid #eceee9; }
-      .rv-head b { font-size: 15px; }
-      .rv-head .tag { padding: 2px 8px; border-radius: 999px; background: #d4f06b; font-size: 12px; font-weight: 600; }
-      .rv-head .x { margin-left: auto; }
-      .rv-sum { padding: 12px 16px 0; margin: 0; color: #3d423e; font-size: 13.5px; line-height: 1.45; }
+
+      /* ---------------- barra laterale di revisione (animata e collassabile) */
+      .rev { position: fixed; top: 10px; right: 10px; bottom: 10px; z-index: 2147483647; width: min(440px, calc(100vw - 20px));
+             display: flex; flex-direction: column; border-radius: 22px; background: rgba(255,255,255,.97); color: #101411;
+             backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+             border: 1px solid rgba(16,20,17,.08); box-shadow: -14px 12px 48px rgba(16,20,17,.22); font-size: 14px;
+             transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; visibility: hidden;
+             transition: transform .36s cubic-bezier(.16, 1, .3, 1), opacity .24s ease, visibility 0s linear .36s; }
+      .rev.open { transform: translateX(0); opacity: 1; pointer-events: auto; visibility: visible;
+                  transition: transform .36s cubic-bezier(.16, 1, .3, 1), opacity .24s ease, visibility 0s linear 0s; }
+      .rev.collapsed { transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; visibility: hidden;
+                       transition: transform .3s cubic-bezier(.4, 0, .2, 1), opacity .2s ease, visibility 0s linear .3s; }
+
+      /* linguetta laterale quando la sidebar e' collassata */
+      .rv-tab { position: fixed; right: 0; top: 50%; z-index: 2147483647; display: flex; align-items: center; gap: 8px;
+                padding: 10px 14px 10px 12px; border-radius: 16px 0 0 16px; background: #101411; color: #fff;
+                box-shadow: -8px 8px 28px rgba(16,20,17,.26); font-size: 13px; font-weight: 600;
+                transform: translate(110%, -50%); opacity: 0; pointer-events: none; visibility: hidden;
+                transition: transform .32s cubic-bezier(.16, 1, .3, 1), opacity .2s ease, background .15s, visibility 0s linear .32s; }
+      .rv-tab.show { transform: translate(0, -50%); opacity: 1; pointer-events: auto; visibility: visible;
+                     transition: transform .32s cubic-bezier(.16, 1, .3, 1), opacity .2s ease, background .15s, visibility 0s linear 0s; }
+      .rv-tab:hover { background: #1e2621; }
+      .rv-tab .arr { font-size: 15px; color: #d4f06b; line-height: 1; }
+      .rv-tab .badge { padding: 2px 7px; border-radius: 999px; background: #d4f06b; color: #101411; font-size: 11.5px; font-weight: 700; }
+      .rv-tab .spin-sm { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); border-top-color: #d4f06b; animation: spin .8s linear infinite; display: none; }
+      .rv-tab.loading .spin-sm { display: block; }
+      .rv-tab.loading .badge { display: none; }
+
+      .rv-head { display: flex; align-items: center; gap: 8px; padding: 14px 14px 12px 16px; border-bottom: 1px solid #eceee9; }
+      .rv-head b { font-size: 15px; letter-spacing: -.01em; }
+      .rv-head-act { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+      .rv-icobtn { width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border-radius: 10px;
+                   background: #f3f4f1; color: #2b312d; font-size: 16px; line-height: 1; }
+      .rv-icobtn:hover { background: #e6e9e2; color: #101411; }
+
+      .rv-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px 0; }
+      .rv-sum { margin: 0; color: #3d423e; font-size: 13px; line-height: 1.4; }
       .rv-sum strong { color: #101411; }
+      .rv-local { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px;
+                  background: #eef6ef; color: #2e6b3c; font-size: 11.5px; font-weight: 600; }
+      .rv-local::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #3c7a4b; }
+
+      /* caricamento con spinner, fase live e barra progresso */
+      .rv-loader { margin: 12px 16px 0; padding: 16px; border-radius: 16px; background: #f6f7f4; border: 1px solid #eceee9; display: none; flex-direction: column; gap: 12px; }
+      .rv-loader.show { display: flex; }
+      .rv-ld-top { display: flex; align-items: center; gap: 12px; }
+      .rv-spin { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 3px solid #e4e7df; border-top-color: #101411; border-right-color: #3c7a4b; animation: spin .75s linear infinite; }
+      .rv-ld-txt { flex: 1; min-width: 0; }
+      .rv-ld-step { font-size: 13.5px; font-weight: 600; color: #101411; margin: 0; }
+      .rv-ld-sub { font-size: 12px; color: #6a706b; margin: 2px 0 0; }
+      .rv-ld-pct { font-size: 12.5px; font-weight: 700; color: #2e6b3c; font-variant-numeric: tabular-nums; }
+      .rv-bar { height: 7px; border-radius: 999px; background: #e5e8e0; overflow: hidden; }
+      .rv-bar-fill { height: 100%; width: 12%; border-radius: 999px; background: linear-gradient(90deg, #3c7a4b, #9fd94b, #d4f06b);
+                     background-size: 200% 100%; animation: shimmer 1.8s linear infinite; transition: width .35s cubic-bezier(.16, 1, .3, 1); }
+      .rv-skels { display: grid; gap: 8px; margin-top: 2px; }
+      .rv-skel { height: 42px; border-radius: 12px; background: #ebede7; animation: pulse 1.3s ease-in-out infinite; }
+      .rv-skel:nth-child(2) { animation-delay: .15s; opacity: .75; }
+      .rv-skel:nth-child(3) { animation-delay: .3s; opacity: .55; }
+
+      /* barra compatta di aggiornamento durante toggle/aggiunta */
+      .rv-updating { margin: 8px 16px 0; padding: 7px 12px; border-radius: 10px; background: #eef6ef; color: #2e6b3c;
+                     font-size: 12.5px; font-weight: 600; display: none; align-items: center; gap: 8px; }
+      .rv-updating.show { display: flex; }
+      .rv-updating .u-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(46,107,60,.25); border-top-color: #2e6b3c; animation: spin .75s linear infinite; }
+
       .rv-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
-      .rv-k { margin: 0 0 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #6a706b; }
-      .rv-prev { max-height: 220px; overflow: auto; white-space: pre-wrap; padding: 10px 12px; border-radius: 12px; background: #f3f4f1;
-                 font-size: 13px; line-height: 1.5; user-select: text; }
-      .rv-prev mark { background: #101411; color: #d4f06b; border-radius: 4px; padding: 0 3px; font-weight: 600; font-size: 12px; }
-      .rv-files { margin: 0; padding: 10px 12px; border-radius: 12px; background: #f3f4f1; font-size: 13px; line-height: 1.5; list-style: none; }
+      .rv-body.hide { display: none; }
+      .rv-k { margin: 0 0 7px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6a706b; }
+      .rv-prev { max-height: 210px; overflow: auto; white-space: pre-wrap; padding: 12px 13px; border-radius: 14px; background: #f6f7f4;
+                 border: 1px solid #eceee9; font-size: 13px; line-height: 1.55; user-select: text; }
+      .rv-prev mark { background: #101411; color: #d4f06b; border-radius: 5px; padding: 1px 4px; font-weight: 600; font-size: 12px; }
+      .rv-files { margin: 0; padding: 10px 12px; border-radius: 14px; background: #f6f7f4; border: 1px solid #eceee9; font-size: 13px; line-height: 1.5; list-style: none; display: grid; gap: 4px; }
       .rv-list { display: grid; gap: 6px; }
-      .rv-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
-                 background: #f3f4f1; cursor: pointer; }
+      .rv-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 13px;
+                 background: #f6f7f4; border: 1px solid transparent; cursor: pointer; transition: background .15s, border-color .15s; }
+      .rv-item:hover { background: #eff1ec; border-color: #e1e4dc; }
       .rv-item input { width: 18px; height: 18px; margin: 0; accent-color: #3c7a4b; cursor: pointer; }
-      .rv-item .v { min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: 13.5px; }
-      .rv-item .c { display: block; font-weight: 400; font-size: 12px; color: #6a706b; }
-      .rv-item .ph { padding: 2px 7px; border-radius: 6px; background: #101411; color: #d4f06b; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
-      .rv-item.off { background: #fff4e5; }
-      .rv-item.off .v { text-decoration: line-through; text-decoration-color: rgba(16,20,17,.35); }
+      .rv-item .v { min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: 13.5px; color: #101411; }
+      .rv-item .c { display: block; font-weight: 400; font-size: 12px; color: #6a706b; margin-top: 1px; }
+      .rv-item .ph { padding: 3px 8px; border-radius: 7px; background: #101411; color: #d4f06b; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+      .rv-item.off { background: #fff6e8; border-color: #f3dfbd; }
+      .rv-item.off .v { text-decoration: line-through; text-decoration-color: rgba(16,20,17,.35); color: #5c5140; }
       .rv-item.off .ph { background: #b8640a; color: #fff; }
+
       .rv-add { display: flex; gap: 6px; }
-      .rv-add input { flex: 1; min-width: 0; padding: 9px 12px; border: 1px solid #e4e6e1; border-radius: 999px; font-size: 13.5px; }
-      .rv-add input:focus { outline: 2px solid #3c7a4b; outline-offset: 1px; }
-      .rv-foot { display: grid; gap: 8px; padding: 12px 16px 16px; border-top: 1px solid #eceee9; }
-      .rv-foot .go { min-height: 44px; font-size: 14px; }
-      .rv-foot .go:disabled { background: #e9ebe6; color: #9ba19c; cursor: default; }
-      .rv-st { margin: 0; min-height: 1.3em; font-size: 12.5px; color: #6a706b; text-align: center; }
-      .rv-st.err { color: #c8312f; }
+      .rv-add input { flex: 1; min-width: 0; padding: 9px 13px; border: 1px solid #dde0d8; border-radius: 999px; font-size: 13.5px; background: #fff; color: #101411; }
+      .rv-add input:focus { outline: 2px solid #3c7a4b; outline-offset: 1px; border-color: transparent; }
+
+      .rv-foot { margin-top: auto; display: grid; gap: 8px; padding: 12px 16px 14px; border-top: 1px solid #eceee9; background: rgba(255,255,255,.92); border-radius: 0 0 22px 22px; }
+      .rv-foot-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+      .rv-foot .go { min-height: 44px; font-size: 14px; background: #101411; color: #fff; }
+      .rv-foot .go:hover:not(:disabled) { background: #222b25; }
+      .rv-foot .go:disabled { background: #e9ebe6; color: #9ba19c; cursor: default; transform: none; }
+      .rv-foot .rv-cancel { min-height: 44px; padding: 0 18px; }
+      .rv-foot .rv-retry { min-height: 40px; background: #d4f06b; color: #101411; display: none; }
+      .rv-foot .rv-retry.show { display: block; }
+      .rv-st { margin: 0; min-height: 1.2em; font-size: 12.5px; color: #6a706b; text-align: center; }
+      .rv-st.err { color: #c8312f; font-weight: 500; }
     </style>
     <button class="pill" part="pill" title="Clin: anonimizzazione locale">
       <span class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#d4f06b"/><g transform="rotate(-8 16 16)"><path d="M10.2 7.5h8.6l4.2 4.2v12.1a1.4 1.4 0 0 1-1.4 1.4H10.2a1.4 1.4 0 0 1-1.4-1.4V8.9a1.4 1.4 0 0 1 1.4-1.4z" fill="#101411"/><path d="M18.6 7.5v4.4h4.4" fill="#3c7a4b"/><rect x="11.3" y="13.6" width="9.4" height="1.5" rx=".75" fill="#d4f06b"/><rect x="11.3" y="17" width="9.4" height="3" rx="1" fill="#d4f06b"/><rect x="11.3" y="21.8" width="5.6" height="1.5" rx=".75" fill="#d4f06b"/></g></svg><span class="state"></span><span class="ring"></span></span>
       <span class="lbl">/Clin attivo</span>
     </button>
     <div class="toast" hidden></div>
-    <aside class="rev" hidden aria-label="Revisione dei dati coperti">
-      <div class="rv-head"><span class="tag">/Clin</span><b>Controlla prima di inviare</b><button class="x rv-x" title="Annulla">×</button></div>
-      <p class="rv-sum"></p>
-      <div class="rv-body">
+
+    <button class="rv-tab" type="button" title="Riapri la revisione di Clin">
+      <span class="arr" aria-hidden="true">«</span>
+      <span>/Clin</span>
+      <span class="spin-sm" aria-hidden="true"></span>
+      <span class="badge">0</span>
+    </button>
+
+    <aside class="rev" aria-label="Revisione dei dati coperti">
+      <div class="rv-head">
+        <span class="tag">/Clin</span>
+        <b>Controlla prima di inviare</b>
+        <div class="rv-head-act">
+          <button class="rv-icobtn rv-col" type="button" title="Riduci a icona lateralmente">»</button>
+          <button class="rv-icobtn rv-x" type="button" title="Annulla e chiudi">×</button>
+        </div>
+      </div>
+
+      <div class="rv-meta">
+        <p class="rv-sum"></p>
+        <span class="rv-local">Locale</span>
+      </div>
+
+      <div class="rv-loader">
+        <div class="rv-ld-top">
+          <div class="rv-spin" aria-hidden="true"></div>
+          <div class="rv-ld-txt">
+            <p class="rv-ld-step">Avvio del motore locale…</p>
+            <p class="rv-ld-sub">Nessun dato lascia questo computer</p>
+          </div>
+          <span class="rv-ld-pct">10%</span>
+        </div>
+        <div class="rv-bar"><div class="rv-bar-fill"></div></div>
+        <div class="rv-skels"><div class="rv-skel"></div><div class="rv-skel"></div><div class="rv-skel"></div></div>
+      </div>
+
+      <div class="rv-updating"><span class="u-spin" aria-hidden="true"></span><span class="u-txt">Aggiornamento anteprima…</span></div>
+
+      <div class="rv-body hide">
         <div class="rv-preview"></div>
         <div>
           <p class="rv-k">Dati coperti · togliere la spunta per lasciarli in chiaro</p>
@@ -121,17 +227,22 @@
         </div>
         <div>
           <p class="rv-k">Manca qualcosa? Coprire anche</p>
-          <div class="rv-add"><input class="rv-word" placeholder="Parola o nome da coprire" autocomplete="off"><button class="rv-plus">Aggiungi</button></div>
-          <p class="muted rv-selhint">Oppure selezionare la parola nell'anteprima e premere «Copri selezione».</p>
-          <div class="row"><button class="rv-sel">Copri selezione</button></div>
+          <div class="rv-add"><input class="rv-word" placeholder="Parola o nome da coprire" autocomplete="off"><button class="rv-plus" type="button">Aggiungi</button></div>
+          <p class="muted rv-selhint" style="margin-top:6px">Oppure selezionare la parola nell'anteprima e premere «Copri selezione».</p>
+          <div class="row" style="margin-top:6px"><button class="rv-sel" type="button">Copri selezione</button></div>
         </div>
       </div>
+
       <div class="rv-foot">
-        <button class="dark go">Inserisci nella chat</button>
-        <button class="rv-cancel">Annulla</button>
+        <button class="rv-retry" type="button">Riprova</button>
+        <div class="rv-foot-row">
+          <button class="dark go" type="button" disabled>Inserisci nella chat</button>
+          <button class="rv-cancel" type="button">Annulla</button>
+        </div>
         <p class="rv-st" aria-live="polite"></p>
       </div>
     </aside>
+
     <div class="panel" hidden>
       <div class="head"><span class="tag">/Clin</span><b>Anonimizzazione locale</b><button class="x" title="Chiudi">×</button></div>
       <label class="sw"><input type="checkbox" class="on" checked> Anonimizzare testi e file incollati o trascinati in questa chat</label>
@@ -194,7 +305,6 @@
       const all = [...document.querySelectorAll(sel)].filter((e) => !isUser(e));
       if (all.length) return answerText(all[all.length - 1]);
     }
-    // criterio generale: l'ultimo blocco di testo con segnaposto che non sia il messaggio inviato
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let last = null, n;
     while ((n = walker.nextNode())) if (PH.test(n.nodeValue) && !n.parentElement.closest("[contenteditable='true'],textarea")) last = n;
@@ -217,7 +327,9 @@
   }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
   chrome.runtime.onMessage.addListener((msg) => {
-    if (msg.target === "content" && msg.op === "panel") { panel.hidden = false; refresh(); restoreLast(); }
+    if (!msg || msg.target !== "content") return;
+    if (msg.op === "panel") { panel.hidden = false; refresh(); restoreLast(); }
+    else if (msg.op === "progress" && rv) { setProgress(msg.step, msg.pct); }
   });
 
   const mount = () => { (document.body || document.documentElement).appendChild(host); refresh(); send({ op: "warmup" }).catch(() => {}); };
@@ -243,7 +355,6 @@
       el.dispatchEvent(new Event("input", { bubbles: true }));
       return;
     }
-    // editor ProseMirror/Quill: l'inserimento come digitazione resta compatibile con il sito
     if (!document.execCommand("insertText", false, text)) {
       el.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: text, bubbles: true, cancelable: true }));
     }
@@ -269,7 +380,6 @@
 
   const MAX_FILE_BYTES = 35 * 1024 * 1024;  // sotto il limite IPC di Chrome (64 MiB in base64)
 
-  // input file del sito a cui consegnare i documenti coperti
   function fileInput(preferred, wantImage = false) {
     if (preferred && document.contains(preferred)) return preferred;
     const all = [...document.querySelectorAll("input[type='file']")];
@@ -300,8 +410,6 @@
   }
 
   // ---------------------------------------------------------------- revisione prima dell'invio
-  // Ogni testo o file passa dalla barra laterale: si vede cosa viene coperto, si puo' lasciare in
-  // chiaro un dato o coprirne un altro, e solo con «Inserisci» qualcosa entra nella chat.
   const KIND_LABEL = {
     PAZIENTE: "Paziente", PERSONA: "Persona", MEDICO: "Medico", OPERATORE: "Operatore sanitario",
     DATA_NASCITA: "Nascita", DATA: "Data", CONTATTO: "Recapito", ID: "Documento d'identità",
@@ -311,7 +419,32 @@
   const kindOfPh = (ph) => { const m = /^\[([A-Z_]+)_\d+\]$/.exec(ph); return m ? (KIND_LABEL[m[1]] || m[1]) : "Codice"; };
   const addList = [];   // parole da coprire sempre in questa pagina
   let rv = null;        // revisione aperta
-  const rev = $(".rev");
+  let collapsed = false;
+  const rev = $(".rev"), rvTab = $(".rv-tab"), rvLoader = $(".rv-loader"), rvBody = $(".rv-body"), rvUpd = $(".rv-updating"), rvRetry = $(".rv-retry");
+
+  function setProgress(stepText, pct) {
+    if (stepText) {
+      $(".rv-ld-step").textContent = stepText;
+      $(".u-txt").textContent = stepText;
+    }
+    if (typeof pct === "number") {
+      const p = Math.max(5, Math.min(100, Math.round(pct)));
+      $(".rv-ld-pct").textContent = p + "%";
+      $(".rv-bar-fill").style.width = p + "%";
+    }
+  }
+
+  function setCollapsed(val) {
+    collapsed = !!val;
+    if (!rv) {
+      rev.classList.remove("open", "collapsed");
+      rvTab.classList.remove("show", "loading");
+      return;
+    }
+    rev.classList.toggle("open", !collapsed);
+    rev.classList.toggle("collapsed", collapsed);
+    rvTab.classList.toggle("show", collapsed);
+  }
 
   function readItems(files) {
     const refused = [], tooLarge = [];
@@ -330,33 +463,77 @@
   function rvStatus(msg, err = false) { const el = $(".rv-st"); el.textContent = msg; el.classList.toggle("err", err); }
 
   async function startReview(op, items, label, finish) {
-    if (rv) { toast("Concludere prima la revisione aperta nel pannello di Clin.", true); return; }
+    if (rv) {
+      if (collapsed) setCollapsed(false);
+      toast("Concludere prima la revisione aperta nel pannello di Clin.", true);
+      return;
+    }
     rv = { op, items, label, finish, keep: new Set(), kept: new Map(), result: null };
     panel.hidden = true; toastEl.hidden = true;
-    $(".rv-sum").textContent = "Anonimizzazione sul computer…";
+    $(".rv-sum").textContent = label;
     $(".rv-preview").replaceChildren(); $(".rv-list").replaceChildren();
     const isText = op === "anonymize";
     $(".rv-sel").hidden = $(".rv-selhint").hidden = !isText;
-    rev.hidden = false;
+    rvRetry.classList.remove("show");
+    rvBody.classList.add("hide");
+    rvLoader.classList.add("show");
+    rvUpd.classList.remove("show");
+    setProgress("Avvio del motore locale…", 8);
+    setCollapsed(false);
     await rerun();
+  }
+
+  function sendWithTimeout(msg, ms = 120000) {
+    return Promise.race([
+      send(msg),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("tempo massimo superato: riprovare o ricaricare la scheda")), ms)),
+    ]);
   }
 
   async function rerun() {
     if (!rv) return;
     const mine = rv;
+    const firstLoad = !mine.result;
     busy = true; render();
-    $(".go").disabled = true; rvStatus("Anonimizzazione sul computer…");
+    rvTab.classList.add("loading");
+    rvRetry.classList.remove("show");
+    $(".go").disabled = true;
+    if (firstLoad) {
+      rvLoader.classList.add("show");
+      rvBody.classList.add("hide");
+      setProgress("Avvio del motore locale…", 10);
+      rvStatus("");
+    } else {
+      rvUpd.classList.add("show");
+      $(".u-txt").textContent = "Aggiornamento anteprima…";
+      rvStatus("");
+    }
     try {
-      const r = await send({ op: mine.op, items: mine.items, review: { keep: [...mine.keep], add: addList } });
-      if (rv !== mine) return;  // revisione annullata nel frattempo
-      if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
+      const r = await sendWithTimeout({ op: mine.op, items: mine.items, review: { keep: [...mine.keep], add: addList } });
+      if (rv !== mine) return;
+      if (!r?.ok) throw new Error(r?.error || "motore non disponibile (ricaricare la pagina se hai aggiornato l'estensione)");
       mine.result = r;
+      setProgress("Pronto.", 100);
+      rvLoader.classList.remove("show");
+      rvUpd.classList.remove("show");
+      rvBody.classList.remove("hide");
       drawReview();
-      $(".go").disabled = false; rvStatus("");
+      $(".go").disabled = false;
+      rvStatus("");
     } catch (err) {
-      if (rv === mine) rvStatus(`Anonimizzazione non riuscita (${err.message}). Nulla è stato inviato alla chat.`, true);
+      if (rv === mine) {
+        rvLoader.classList.remove("show");
+        rvUpd.classList.remove("show");
+        rvRetry.classList.add("show");
+        const msg = String(err?.message || err);
+        const hint = /Extension context invalidated/i.test(msg)
+          ? "Estensione aggiornata: ricarica questa pagina (Cmd+R / F5) e riprova."
+          : `Anonimizzazione non riuscita (${msg}). Nulla è stato inviato alla chat.`;
+        rvStatus(hint, true);
+      }
     } finally {
       busy = false; render();
+      rvTab.classList.remove("loading");
     }
   }
 
@@ -370,8 +547,9 @@
       groups.get(ph).add(orig);
     }
     const n = groups.size;
+    $(".rv-tab .badge").textContent = `${n} ${n === 1 ? "dato" : "dati"}`;
     const sum = $(".rv-sum");
-    sum.replaceChildren(el("strong", "", `${n} ${n === 1 ? "dato coperto" : "dati coperti"}`), document.createTextNode(` · ${rv.label}. Nella chat entrano solo i segnaposto.`));
+    sum.replaceChildren(el("strong", "", `${n} ${n === 1 ? "dato coperto" : "dati coperti"}`), document.createTextNode(` · ${rv.label}`));
 
     const pv = $(".rv-preview");
     pv.replaceChildren();
@@ -419,7 +597,6 @@
       rv.kept.set(ph, originals);
       for (const o of originals) {
         rv.keep.add(o);
-        // una parola aggiunta a mano e poi tolta non va piu' cercata
         const i = addList.findIndex((a) => a.toLowerCase() === o.toLowerCase());
         if (i >= 0) addList.splice(i, 1);
       }
@@ -437,8 +614,20 @@
     rerun();
   }
 
-  function closeReview() { rv = null; rev.hidden = true; rvStatus(""); }
+  function closeReview() {
+    rv = null;
+    collapsed = false;
+    rev.classList.remove("open", "collapsed");
+    rvTab.classList.remove("show", "loading");
+    rvLoader.classList.remove("show");
+    rvUpd.classList.remove("show");
+    rvRetry.classList.remove("show");
+    rvStatus("");
+  }
 
+  $(".rv-col").addEventListener("click", () => setCollapsed(true));
+  rvTab.addEventListener("click", () => setCollapsed(false));
+  rvRetry.addEventListener("click", () => rerun());
   $(".rv-plus").addEventListener("click", () => addWord($(".rv-word").value));
   $(".rv-word").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addWord(e.target.value); } });
   $(".rv-sel").addEventListener("click", () => {
@@ -487,8 +676,6 @@
 
   const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); };
 
-  // incolla: intercetta anche quando il fuoco e' sul corpo della pagina (ChatGPT/Claude/Gemini hanno
-  // listener globali su window/document che altrimenti invierebbero testo o screenshot non anonimizzati)
   window.addEventListener("paste", (e) => {
     if (passing || !active || e.target === host || e.composedPath?.().includes(host)) return;
     const ed = e.target?.closest?.("[contenteditable],textarea,input") || (editable(e.target) ? e.target : null);
@@ -504,7 +691,6 @@
     else handle({ text }, target);
   }, true);
 
-  // trascinamento di file sulla chat
   window.addEventListener("drop", (e) => {
     if (passing || !active || !e.dataTransfer?.files?.length) return;
     const files = [...e.dataTransfer.files], target = e.target;
@@ -515,7 +701,6 @@
     handleFiles(files, { kind: "drop", target });
   }, true);
 
-  // graffetta / "Carica file": il file non arriva al sito (alcuni siti ascoltano "input", altri "change")
   const onPick = (e) => {
     const input = e.target;
     if (passing || !active || input?.tagName !== "INPUT" || input.type !== "file" || !input.files?.length) return;

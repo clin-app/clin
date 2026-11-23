@@ -2,10 +2,19 @@
 // eseguito con Pyodide. Riceve testi e file dalla pagina della chat tramite il service worker
 // e restituisce il testo con i segnaposto. Nessuna connessione di rete.
 
-let py = null, fs = null, pdfjs = null, tess = null, booting = null, step = "";
+let py = null, fs = null, pdfjs = null, tess = null, booting = null, step = "", activeTabId = null;
+
+function report(msg, pct) {
+  step = msg;
+  if (!activeTabId) return;
+  try {
+    chrome.runtime.sendMessage({ target: "background", op: "progress", tabId: activeTabId, step: msg, pct }).catch(() => {});
+  } catch (_) {}
+}
 
 async function boot() {
   if (py) return;
+  report("Avvio del motore locale…", 10);
   if (!booting) booting = (async () => {
     const { loadPyodide } = await import("./vendor/pyodide/pyodide.mjs");
     const pyodide = await loadPyodide({ indexURL: new URL("vendor/pyodide/", location.href).href });
@@ -25,6 +34,7 @@ async function boot() {
 let nerNote = "";
 async function withNer(texts) {
   try {
+    report("Analisi nomi con modello GLiNER locale…", 62);
     const ner = await import("./ner.js");
     const found = await ner.entities(texts.filter(Boolean));
     py.set_ner(found ? JSON.stringify(found) : "");
@@ -97,6 +107,7 @@ async function ocr(data, type, prepareOnly = false) {
 
 async function anonymize(items, previous) {
   await boot();
+  report("Lettura del contenuto…", 22);
   const bundle = [], tables = [], notes = [];
   let n = 0;
   const many = items.length > 1;
@@ -114,6 +125,7 @@ async function anonymize(items, previous) {
   let mapping = { ...previous }, text = "";
   try {
     await withNer(bundle.flatMap((b) => b.pagine).concat(tables.map((t) => viaFS(t.data, t.ext, (p) => py.table_text(p)))));
+    report("Applicazione segnaposto…", 84);
     if (nerNote) notes.push(nerNote);
     if (bundle.length) {
       const res = JSON.parse(py.run_bundle(JSON.stringify(bundle), 10, JSON.stringify(mapping)));
@@ -313,7 +325,8 @@ async function redactPdf(data, state) {
   const doc = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
   const pages = [];
   for (let i = 1; i <= doc.numPages; i++) {
-    step = "pagina " + i;
+    const basePct = 18 + Math.round(((i - 1) / Math.max(1, doc.numPages)) * 38);
+    report(`Lettura PDF (pagina ${i} di ${doc.numPages})…`, basePct);
     const page = await doc.getPage(i);
     const vp1 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: SCALE });
     const canvas = document.createElement("canvas");
@@ -325,13 +338,16 @@ async function redactPdf(data, state) {
     await page.render({ canvasContext: ctx, viewport: vp, intent: "print" }).promise;
     step = "testo " + i;
     let segs = await pdfSegments(page, vp), ocrUsed = false;
-    if (!segs.some((s) => s.str.trim())) { segs = await ocrSegments(canvas); ocrUsed = true; }  // scansione
+    if (!segs.some((s) => s.str.trim())) {
+      report(`OCR pagina scansionata (${i} di ${doc.numPages})…`, basePct + 8);
+      segs = await ocrSegments(canvas);
+      ocrUsed = true;
+    }  // scansione
     pages.push({ canvas, ctx, segs, text: joinSegs(segs), w: vp1.width, h: vp1.height, ocrUsed });
   }
   await doc.destroy();
-  step = "segnaposto";
-  step = "nomi";
   await withNer(pages.map((p) => p.text));
+  report("Copertura dati sensibili nel PDF…", 80);
   const plan = JSON.parse(py.plan_pages(
     JSON.stringify(pages.map((p) => p.text)),
     JSON.stringify(state.map),
@@ -346,12 +362,13 @@ async function redactPdf(data, state) {
       return { str: sg.anon, x: sg.box[0] / SCALE, y: p.h - sg.box[3] / SCALE + hpx * 0.2 / SCALE, size: Math.max(4, hpx * 0.8 / SCALE) };
     });
   });
-  step = "jpeg";
+  report("Creazione PDF protetto…", 92);
   for (const p of pages) out.push({ w: p.w, h: p.h, iw: p.canvas.width, ih: p.canvas.height, jpeg: await jpegOf(p.canvas), texts: p.texts });
   return { bytes: buildPdf(out), ocr: pages.some((p) => p.ocrUsed) };
 }
 
 async function redactImage(data, type, state) {
+  report("Lettura testo dalla foto (OCR)…", 32);
   const bitmap = await createImageBitmap(new Blob([data], { type }), { imageOrientation: "from-image" });
   const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
@@ -425,6 +442,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     try {
       if (msg.op === "anonymize" || msg.op === "redact") {
         // scelte del pannello di revisione: valori lasciati in chiaro e parole da coprire in piu'
+        activeTabId = msg.tabId || null;
         await boot();
         const rv = msg.review || {};
         py.review(JSON.stringify(rv.keep || []), JSON.stringify(rv.add || []));
@@ -433,9 +451,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
             ? await anonymize(msg.items, msg.previous || {})
             : await redact(msg.items, { map: msg.previous || {}, book: msg.book || {} });
           res.found = JSON.parse(py.review_found());
+          report("Pronto.", 100);
           reply(res);
         } finally {
           py.review_end();
+          activeTabId = null;
         }
       }
       else if (msg.op === "debug") reply({ step });

@@ -1,7 +1,8 @@
 // Clin - service worker dell'estensione.
 // Tiene la tabella dei segnaposto in chrome.storage.session (solo in memoria, cancellata
 // alla chiusura del browser, invisibile ai siti) e inoltra il lavoro al documento offscreen,
-// dove gira il motore (Pyodide). Nessuna richiesta di rete: connect-src 'self'.
+// dove gira il motore (Pyodide + GLiNER). Mantiene vivo il service worker durante le
+// elaborazioni lunghe (PDF/OCR) e inoltra lo stato di avanzamento alla scheda.
 
 const MAP_KEY = "map";
 
@@ -24,12 +25,21 @@ async function getMap() {
 
 async function engine(op, payload) {
   await ensureEngine();
-  for (let i = 0; i < 3; i++) {  // il documento appena creato puo' non ascoltare ancora
-    const res = await chrome.runtime.sendMessage({ target: "offscreen", op, ...payload }).catch(() => null);
-    if (res) return res;
-    await new Promise((r) => setTimeout(r, 300));
+  // In Manifest V3 il service worker puo' essere sospeso dopo ~30s di attesa:
+  // un ping periodico all'API Chrome lo mantiene attivo finche' offscreen non risponde.
+  const keepAlive = setInterval(() => {
+    try { chrome.runtime.getPlatformInfo(() => {}); } catch (_) {}
+  }, 15000);
+  try {
+    for (let i = 0; i < 6; i++) {  // il documento appena creato puo' non ascoltare ancora
+      const res = await chrome.runtime.sendMessage({ target: "offscreen", op, ...payload }).catch(() => null);
+      if (res) return res;
+      await new Promise((r) => setTimeout(r, 350));
+    }
+    throw new Error("motore non disponibile");
+  } finally {
+    clearInterval(keepAlive);
   }
-  throw new Error("motore non disponibile");
 }
 
 let queue = Promise.resolve();
@@ -41,12 +51,24 @@ function serialized(fn) {
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (!msg || msg.target !== "background" || sender.id !== chrome.runtime.id) return false;
+  if (msg.op === "progress") {
+    if (msg.tabId) {
+      chrome.tabs.sendMessage(msg.tabId, {
+        target: "content",
+        op: "progress",
+        step: msg.step || "",
+        pct: typeof msg.pct === "number" ? msg.pct : null,
+      }).catch(() => {});
+    }
+    return false;
+  }
+  const tabId = sender.tab?.id || null;
   (async () => {
     try {
       if (msg.op === "anonymize") {
         const res = await serialized(async () => {
           const map = await getMap();
-          const r = await engine("anonymize", { items: msg.items, previous: map, review: msg.review });
+          const r = await engine("anonymize", { items: msg.items, previous: map, review: msg.review, tabId });
           if (r.error) throw new Error(r.error);
           await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping } });
           return r;
@@ -56,7 +78,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const res = await serialized(async () => {
           const map = await getMap();
           const { book = {} } = await chrome.storage.session.get("book");
-          const r = await engine("redact", { items: msg.items, previous: map, book, review: msg.review });
+          const r = await engine("redact", { items: msg.items, previous: map, book, review: msg.review, tabId });
           if (r.error) throw new Error(r.error);
           await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping }, book: r.book });
           return r;

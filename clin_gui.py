@@ -120,8 +120,8 @@ class ContextAnalysisWorker(QThread):
 
     finished_signal = Signal(str, bool)  # stato del motore, almeno un'entita' trovata
 
-    def __init__(self, texts: List[str]):
-        super().__init__()
+    def __init__(self, texts: List[str], parent=None):
+        super().__init__(parent)
         self.texts = texts
 
     def run(self):
@@ -1115,22 +1115,41 @@ class PDFPreviewWidget(QWidget):
 
     def start_context_analysis(self):
         """Il modello locale lavora in background; l'anteprima si aggiorna alla fine."""
+        if not hasattr(self, "_context_workers"):
+            self._context_workers = set()
         if getattr(self, "_context_worker", None) is not None:
             self._context_worker.requestInterruption()
         try:
             texts = [_PageIndex(page).text for page in self.current_doc]
         except Exception:
             return
-        worker = ContextAnalysisWorker(texts)
+        worker = ContextAnalysisWorker(texts, self)
+        self._context_workers.add(worker)
         worker.finished_signal.connect(self._on_context_ready)
-        worker.finished.connect(worker.deleteLater)
+        # Il riferimento Python va tenuto vivo finche' il QThread C++ non ha terminato
+        # (segnale nativo `finished`), altrimenti Shiboken distrugge il QThread mentre
+        # `run()` sta ancora uscendo -> SIGABRT ("QThread: Destroyed while thread is still running").
+        worker.finished.connect(lambda w=worker: self._release_context_worker(w))
         self._context_worker = worker
         worker.start()
+
+    def _release_context_worker(self, worker: QThread):
+        if hasattr(self, "_context_workers"):
+            self._context_workers.discard(worker)
+        if getattr(self, "_context_worker", None) is worker:
+            self._context_worker = None
+        worker.deleteLater()
+
+    def stop_context_workers(self):
+        for w in list(getattr(self, "_context_workers", ())):
+            w.requestInterruption()
+        for w in list(getattr(self, "_context_workers", ())):
+            if w.isRunning():
+                w.wait(3000)
 
     def _on_context_ready(self, status: str, found: bool):
         if self.sender() is not getattr(self, "_context_worker", None):
             return  # documento cambiato nel frattempo
-        self._context_worker = None
         self.status_signal.emit(f"Riconoscimento contestuale: {status}")
         if found:
             self._names_key = None  # i nomi trovati dal modello entrano nella propagazione
@@ -2356,6 +2375,11 @@ class ClinMainWindow(QMainWindow):
         self.worker.batch_signal.connect(self.on_batch_ready)
         self.worker.error_signal.connect(lambda m: self.log(f"Errore interno: {m}", "error"))
         self.worker.finished_signal.connect(self.on_finished)
+        if not hasattr(self, "_retired_workers"):
+            self._retired_workers = set()
+        w_ref = self.worker
+        self._retired_workers.add(w_ref)
+        w_ref.finished.connect(lambda w=w_ref: (self._retired_workers.discard(w), w.deleteLater()))
         self.worker.start()
 
     def cancel_anonymization(self):
@@ -2454,6 +2478,10 @@ class ClinMainWindow(QMainWindow):
             self.worker.wait(5000)
 
         self.save_preferences()
+        self.preview_widget.stop_context_workers()
+        for w in list(getattr(self, "_retired_workers", ())):
+            if w.isRunning():
+                w.wait(3000)
         self.preview_widget.close_document()
         event.accept()
 
