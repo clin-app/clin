@@ -66,13 +66,18 @@ OUTPUT_SUFFIX = "_ANONIMIZZATO"
 # e non permettono piu' di risalire all'originale
 ORIGINS: Dict[Path, Path] = {}
 
-SUPPORTED_SUFFIXES = {".pdf"} | TABLE_SUFFIXES
+# Word e PowerPoint: anonimizzati dal motore (segnaposto nel testo, immagini svuotate), senza anteprima
+OFFICE_SUFFIXES = {".docx", ".pptx"}
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png"}   # foto e scansioni: lette con l'OCR, in uscita un PDF
+SUPPORTED_SUFFIXES = {".pdf"} | TABLE_SUFFIXES | OFFICE_SUFFIXES | IMAGE_SUFFIXES
 FILE_DIALOG_FILTER = (
-    "Documenti supportati (*.pdf *.csv *.tsv *.txt *.xlsx *.xlsm);;"
-    "PDF (*.pdf);;Fogli di calcolo (*.csv *.tsv *.txt *.xlsx *.xlsm)"
+    "Documenti supportati (*.pdf *.docx *.pptx *.jpg *.jpeg *.png *.csv *.tsv *.txt *.xlsx *.xlsm);;"
+    "PDF (*.pdf);;Word e PowerPoint (*.docx *.pptx);;Foto e scansioni (*.jpg *.jpeg *.png);;"
+    "Fogli di calcolo (*.csv *.tsv *.txt *.xlsx *.xlsm)"
 )
 FILE_ICONS = {".pdf": "page", ".csv": "list", ".tsv": "list", ".txt": "list",
-              ".xlsx": "list", ".xlsm": "list"}
+              ".xlsx": "list", ".xlsm": "list", ".docx": "page", ".pptx": "page",
+              ".jpg": "page", ".jpeg": "page", ".png": "page"}
 
 FILL_COLORS = [
     ("Nero pieno (standard)", (0.0, 0.0, 0.0)),
@@ -1087,6 +1092,14 @@ class PDFPreviewWidget(QWidget):
 
     # ---------------- documento ----------------
     def load_pdf(self, file_path: Path) -> bool:
+        if file_path.suffix.lower() in OFFICE_SUFFIXES:
+            self.close_document()
+            self.img_label.setPixmap(QPixmap())
+            self.img_label.setText("Word e PowerPoint non hanno anteprima.\n\nIl documento viene anonimizzato "
+                                   "all'avvio: segnaposto al posto dei dati personali,\nimmagini e oggetti "
+                                   "incorporati svuotati. Il risultato resta nello stesso formato.")
+            self.status_signal.emit(f"{file_path.name}: pronto per l'anonimizzazione (senza anteprima)")
+            return False
         try:
             doc = fitz.open(str(file_path))
             if doc.is_encrypted and not doc.authenticate(""):
