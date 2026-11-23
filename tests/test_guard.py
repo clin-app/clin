@@ -77,6 +77,55 @@ class TestGuardia(unittest.TestCase):
         self.assertEqual(self.pre("Bash", {"command": "cat analisi/nuovo_originale.csv"})
                          ["hookSpecificOutput"]["permissionDecision"], "deny")
 
+    def test_comandi_riservati_all_utente(self):
+        clin_py = ROOT / "clin.py"
+        for cmd in (f"python3 {clin_py} originale PAZ-0001", f'"/usr/bin/python3" "{clin_py}" ripristina',
+                    f"python3 {clin_py} impostazioni categorie_escluse Date", f"cd . && python3 {clin_py} disinstalla"):
+            self.assertEqual(self.pre("Bash", {"command": cmd})["hookSpecificOutput"]["permissionDecision"], "deny", cmd)
+        for cmd in (f"python3 {clin_py} avvia .", f"python3 {clin_py} stato", f"python3 {clin_py} impostazioni"):
+            self.assertEqual(self.pre("Bash", {"command": cmd}), {}, cmd)
+
+    def test_formati_non_anonimizzabili_chiusi(self):
+        for name in ("caso_clinico.pptx", "registro.sav", "coorte.dta"):
+            (self.dir / name).write_bytes(b"ROSSI MARIO")
+            self.assertEqual(self.pre("Read", {"file_path": name})["hookSpecificOutput"]["permissionDecision"], "deny", name)
+            self.assertEqual(self.pre("Bash", {"command": f"strings {name}"})["hookSpecificOutput"]["permissionDecision"],
+                             "deny", name)
+
+    def test_word_e_powerpoint_ricondotti(self):
+        import zipfile
+        import clin, clin_results
+        clin.save_mapping({"[PAZIENTE_1]": "ROSSI & MARIO", "[MEDICO_1]": "Giulia Bianchi"})
+        (self.dir / "analisi").mkdir()
+        parts = {
+            "analisi/lettera.docx": ("word/document.xml",
+                '<w:document xmlns:w="x"><w:body><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Paziente [PAZIENTE</w:t></w:r>'
+                '<w:r><w:t>_1] dimesso.</w:t></w:r></w:p><w:p><w:r><w:t>Firma: [MEDICO_1]</w:t></w:r></w:p></w:body></w:document>'),
+            "analisi/slide.pptx": ("ppt/slides/slide1.xml",
+                '<p:sld xmlns:a="x" xmlns:p="y"><a:p><a:r><a:rPr b="1"/><a:t>Caso di [PAZIENTE_1]</a:t></a:r></a:p></p:sld>'),
+        }
+        for rel, (member, xml) in parts.items():
+            with zipfile.ZipFile(self.dir / rel, "w") as z:
+                z.writestr("[Content_Types].xml", "<Types/>")
+                z.writestr(member, xml)
+        written = clin_results.reidentify(self.dir)
+        self.assertEqual(len(written), 2)
+        out = clin_results.clin_settings.results_dir(self.dir) / "analisi" if hasattr(clin_results, "clin_settings") else None
+        import clin_settings
+        out = clin_settings.results_dir(self.dir) / "analisi"
+        doc = zipfile.ZipFile(out / "lettera.docx").read("word/document.xml").decode()
+        self.assertIn("Paziente ROSSI &amp; MARIO dimesso.", doc)      # segnaposto spezzato tra due run
+        self.assertIn("Firma: Giulia Bianchi", doc)
+        self.assertIn("<w:rPr><w:b/></w:rPr>", doc)                     # formattazione intatta
+        sld = zipfile.ZipFile(out / "slide.pptx").read("ppt/slides/slide1.xml").decode()
+        self.assertIn('<a:rPr b="1"/><a:t>Caso di ROSSI &amp; MARIO</a:t>', sld)
+        self.assertEqual(zipfile.ZipFile(out / "slide.pptx").read("[Content_Types].xml"), b"<Types/>")
+        # i file dell'agente con segnaposto restano leggibili dall'agente; l'originale no
+        import os, time
+        later = time.time() + 5
+        os.utime(self.dir / "analisi" / "slide.pptx", (later, later))
+        self.assertEqual(self.pre("Bash", {"command": "python3 aggiorna.py analisi/slide.pptx"}), {})
+
     def test_bash_permesso(self):
         for cmd in ("ls -la *.csv", "wc -l coorte.csv", "cat Clin_anonimizzati/*.csv",
                     "python3 analisi.py", f"python3 {ROOT / 'clin.py'} copie .",

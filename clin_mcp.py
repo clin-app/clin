@@ -202,6 +202,20 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     if batch.warnings:
         lines.append(f"Avvisi da verificare manualmente: {len(batch.warnings)}.")
     # elenco delle copie (nomi gia' anonimi): l'agente sa subito su che cosa lavorare
+    # formati che Clin non anonimizza: restano chiusi, e l'agente deve dirlo all'utente
+    if target.is_dir():
+        from clin_guard import PROTECTED
+        closed: Dict[str, int] = {}
+        for dirpath, dirs, names in os.walk(target):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS]
+            for n in names:
+                ext = Path(n).suffix.lower()
+                if ext in PROTECTED and ext not in SUPPORTED_SUFFIXES and not n.startswith((".", "~$")):
+                    closed[ext] = closed.get(ext, 0) + 1
+        if closed:
+            lines.append("Formati non anonimizzabili, lasciati chiusi: "
+                         + ", ".join(f"{n} {e}" for e, n in sorted(closed.items()))
+                         + ". Chiedere all'utente di esportarli in PDF, Word, Excel o CSV.")
     copies = sorted(str(c.relative_to(out_dir)) for c in out_dir.rglob("*") if c.is_file() and c.name != INDEX_NAME)
     if copies:
         lines.append("File su cui lavorare:")

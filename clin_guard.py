@@ -41,7 +41,11 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 PROTECTED = {".pdf", ".docx", ".doc", ".xlsx", ".xlsm", ".xls", ".csv", ".tsv", ".txt", ".rtf",
-             ".odt", ".ods", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff", ".bmp"}
+             ".odt", ".ods", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff", ".bmp",
+             # formati che Clin non sa anonimizzare ma che portano dati di pazienti: restano chiusi
+             # (presentazioni, dataset statistici, immagini DICOM, posta, database e documenti Apple)
+             ".pptx", ".ppt", ".odp", ".sav", ".zsav", ".por", ".dta", ".sas7bdat", ".xpt", ".dcm",
+             ".eml", ".msg", ".mdb", ".accdb", ".numbers", ".pages", ".key"}
 READS_DIR = Path(os.path.expanduser(os.environ.get("CLIN_DATI") or "~/.clin")) / "letture"
 MARKER = ".clin-protetto"
 RESULTS_MARKER = ".clin-risultati"
@@ -54,6 +58,8 @@ _SAFE_CMDS = {"ls", "find", "stat", "file", "du", "mkdir", "touch", "wc",
               "basename", "dirname", "realpath", "echo", "cd", "pwd", "chmod", "mdls", "xattr"}
 _SEARCH_CMDS = {"grep", "egrep", "fgrep", "rg", "ripgrep", "ag", "ack"}
 _SHELL_WRAPPERS = {"sh", "bash", "zsh", "dash", "ksh"}
+# sottocomandi di clin.py riservati all'utente: rivelano dati reali o smontano la protezione
+_USER_ONLY = {"originale", "ripristina", "dimentica", "disinstalla"}
 
 
 def is_anonymized(path: Path) -> bool:
@@ -92,7 +98,7 @@ def is_agent_output(path: Path) -> bool:
         root = protected_root(path.parent)
         if root is None or path.stat().st_mtime <= (root / MARKER).stat().st_mtime:
             return False
-        if path.suffix.lower() in {".xlsx", ".xlsm"}:
+        if path.suffix.lower() in {".xlsx", ".xlsm", ".docx", ".pptx"}:
             import zipfile
             chunks = []
             budget = 2_000_000
@@ -100,7 +106,7 @@ def is_agent_output(path: Path) -> bool:
                 for n in z.namelist():
                     if budget <= 0:
                         break
-                    if n.endswith(("sharedStrings.xml",)) or n.startswith("xl/worksheets/"):
+                    if n.endswith(("sharedStrings.xml",)) or n.startswith(("xl/worksheets/", "word/", "ppt/slides/")):
                         with z.open(n) as zf:
                             part = zf.read(min(budget, 500_000))
                             chunks.append(part)
@@ -112,7 +118,7 @@ def is_agent_output(path: Path) -> bool:
         else:
             return False
         return bool(_TOKEN.search(data))
-    except (OSError, ValueError, KeyError):
+    except Exception:  # archivio non valido o illeggibile: non e' un file dell'agente, resta protetto
         return False
 
 
@@ -364,6 +370,14 @@ def bash_reason(command: str, cwd: str) -> str:
         return RESULTS_DENIED
     if "segnaposto.json" in command or "pseudonimi.json" in command:
         return DATA_DENIED
+    for words in _segments(command):
+        # i comandi di Clin che mostrano dati reali o cambiano la protezione li esegue solo l'utente
+        for i, w in enumerate(words[:-1]):
+            if Path(w.strip("'\"")).name == "clin.py":
+                sub, rest = words[i + 1], words[i + 2:]
+                if sub in _USER_ONLY or (sub == "impostazioni" and len(rest) >= 2):
+                    return (f"Clin: `clin.py {sub}` mostra dati reali o cambia la protezione: puo' eseguirlo "
+                            "solo l'utente, nel proprio terminale.")
     for words in _segments(command):
         for w in words:
             if w.startswith("-"):
@@ -629,7 +643,15 @@ def main() -> int:
     if fn is on_bash_output and not settings["ripulisci_output"]:
         return 0
     if fn:
-        fn(data)
+        try:
+            fn(data)
+        except Exception as exc:
+            # Un errore della guardia non deve mai lasciar passare l'originale: per l'agente un hook
+            # fallito non blocca nulla, quindi prima dell'uso di uno strumento si nega esplicitamente.
+            if event != "PreToolUse":
+                raise
+            _deny(f"Clin: errore interno della guardia ({exc.__class__.__name__}). Accesso negato per "
+                  "proteggere i dati del paziente; eseguire `clin.py stato` e riferirlo all'utente.")
     return 0
 
 

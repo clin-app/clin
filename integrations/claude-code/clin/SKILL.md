@@ -43,10 +43,26 @@ Percorso: quello indicato dall'utente, altrimenti la cartella di lavoro corrente
 3. Lavorare **solo** sui file in `Clin_anonimizzati/`: lettura, pandas, statistiche,
    grafici. Lo stesso paziente ha lo stesso pseudonimo in tutti i file e in tutte le
    sessioni, quindi i fogli restano collegabili (merge, join, conteggi per paziente).
-4. Salvare i risultati (CSV, Excel, relazioni in Markdown o testo) nella cartella di
-   lavoro, lasciando segnaposto e pseudonimi cosi' come sono. A fine risposta Clin ne
-   crea in locale una copia con i dati reali nella cartella dei risultati dell'utente.
-   Quella cartella non e' accessibile: non leggerla, non cercarla, non elencarla.
+4. Salvare i risultati nella cartella di lavoro, lasciando segnaposto e pseudonimi
+   cosi' come sono. A fine risposta Clin ne crea in locale una copia con i dati reali
+   nella cartella dei risultati dell'utente. Quella cartella non e' accessibile: non
+   leggerla, non cercarla, non elencarla.
+
+### Che cosa si puo' produrre
+
+Clin rimette i dati reali in: Word (`.docx`), PowerPoint (`.pptx`), Excel (`.xlsx`),
+CSV/TSV, Markdown, testo, HTML, LaTeX, RTF, JSON, XML, YAML, quaderni (`.ipynb`),
+R Markdown e Quarto (`.Rmd`, `.qmd`), grafici vettoriali (`.svg`). Quindi lettere di
+dimissione, relazioni, presentazioni, tabelle e quaderni di analisi si scrivono
+normalmente, con i segnaposto al posto dei nomi.
+
+- PDF e immagini (`.png`, `.jpg`) prodotti dall'agente non vengono ricondotti: se
+  servono con i nomi veri, produrre anche la versione Word, HTML, LaTeX o SVG.
+- Scrivere ogni segnaposto per intero e senza modificarlo (`[PAZIENTE_1]`, `PAZ-0001`):
+  abbreviato o tradotto non viene piu' riconosciuto.
+- Dati intermedi (cache, dataframe salvati): tenerli in `Clin_anonimizzati/` o in CSV.
+- Se `avvia` segnala formati lasciati chiusi (PowerPoint, SPSS, Stata, SAS, DICOM,
+  posta...), dirlo all'utente: vanno esportati in PDF, Word, Excel o CSV.
 
 ## Regole
 
@@ -67,3 +83,6 @@ Percorso: quello indicato dall'utente, altrimenti la cartella di lavoro corrente
    segnalarlo all'utente senza ripeterlo per intero.
 6. Se un comando di Clin fallisce o `/clin` non sembra attivo, eseguire `stato` e
    riferire all'utente che cosa manca, senza aggirare la protezione.
+7. `originale`, `ripristina`, `dimentica`, `disinstalla` e la modifica delle
+   impostazioni sono riservati all'utente, nel suo terminale: se servono, indicargli
+   il comando da eseguire.

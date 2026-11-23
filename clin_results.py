@@ -2,7 +2,7 @@
 Clin - riconduce ai dati reali i risultati prodotti dall'agente IA.
 
 L'agente lavora sulle copie anonimizzate e produce file (tabelle, relazioni,
-elenchi) con segnaposto ([PAZIENTE_1]) e pseudonimi (PAZ-0001). Qui ogni file
+elenchi, documenti Word e presentazioni PowerPoint) con segnaposto ([PAZIENTE_1]) e pseudonimi (PAZ-0001). Qui ogni file
 della cartella protetta che li contiene viene copiato, con i dati reali, nella
 cartella dei risultati (predefinita: Clin_risultati/). La guardia nega
 all'agente l'accesso a quella cartella: i dati reali restano in locale.
@@ -20,8 +20,11 @@ from pathlib import Path
 from typing import Dict, List
 
 PLACEHOLDER = re.compile(r"\[\s*[A-Z]+(?:_[A-Z]+)*_\d+\s*\]|\b[A-Z]{2,4}-\d{4}\b")
-TEXT_EXT = {".csv", ".tsv", ".txt", ".md", ".json", ".html", ".htm", ".tex", ".rtf"}
+TEXT_EXT = {".csv", ".tsv", ".txt", ".md", ".json", ".html", ".htm", ".tex", ".rtf",
+            # quaderni, relazioni riproducibili, grafici vettoriali e dati strutturati
+            ".ipynb", ".rmd", ".qmd", ".rst", ".svg", ".xml", ".yaml", ".yml"}
 SHEET_EXT = {".xlsx", ".xlsm"}
+OOXML_EXT = {".docx", ".pptx"}  # Word e PowerPoint: archivi zip con il testo in parti XML
 _SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", ".claude", ".codex", ".agents",
               "clin_anonimizzati"}
 MAX_BYTES = 20 * 1024 * 1024
@@ -60,7 +63,7 @@ def candidates(root: Path, out_dir: Path) -> List[Path]:
                    and (here / d).resolve() != out_dir]
         for name in files:
             p = here / name
-            if (p.is_symlink() or p.suffix.lower() not in TEXT_EXT | SHEET_EXT
+            if (p.is_symlink() or p.suffix.lower() not in TEXT_EXT | SHEET_EXT | OOXML_EXT
                     or "_anonimizzato" in p.stem.casefold()):
                 continue
             try:
@@ -104,8 +107,81 @@ def _write_private(path: Path, data: bytes) -> None:
         fh.write(data)
 
 
+# testo di un run (<w:t> in Word, <a:t> in PowerPoint) e paragrafo che lo contiene
+_OOXML_T = re.compile(r"(<(a:t|w:t)(?:\s[^>]*)?>)([^<]*)(</\2>)")
+_OOXML_P = re.compile(r"<(a:p|w:p)[\s>].*?</\1>", re.S)
+
+
+def restore_ooxml(xml: str, seg: Dict[str, str], pseudo: Dict[str, str]) -> str:
+    """Rimette i dati reali nel testo di una parte XML di Word o PowerPoint, senza toccare il resto.
+
+    Si lavora sul testo dell'XML e non su un albero: riscrivere l'albero cambierebbe i prefissi dei
+    namespace e Word segnalerebbe il file come danneggiato."""
+    import html
+    from xml.sax.saxutils import escape
+
+    def node(n, text):
+        head = n.group(1)
+        if n.group(2) == "w:t" and "xml:space" not in head:
+            head = '<w:t xml:space="preserve">'  # il valore reale puo' iniziare o finire con uno spazio
+        return head + escape(text) + n.group(4)
+
+    def each(n):
+        text = html.unescape(n.group(3))
+        return node(n, restore(text, seg, pseudo)) if PLACEHOLDER.search(text) else n.group(0)
+
+    def paragraph(pm):
+        block = pm.group(0)
+        joined = "".join(html.unescape(n.group(3)) for n in _OOXML_T.finditer(block))
+        if not PLACEHOLDER.search(joined):
+            return block
+        full = restore(joined, seg, pseudo)
+        done = _OOXML_T.sub(each, block)  # run per run: la formattazione resta com'e'
+        if "".join(html.unescape(n.group(3)) for n in _OOXML_T.finditer(done)) == full:
+            return done
+        # un segnaposto spezzato tra due run ("[PAZIENTE" + "_1]"): tutto il testo nel primo run
+        first = [True]
+
+        def merged(n):
+            text, first[0] = (full if first[0] else ""), False
+            return node(n, text)
+        return _OOXML_T.sub(merged, block)
+
+    return _OOXML_T.sub(each, _OOXML_P.sub(paragraph, xml))  # ultimo passaggio: testo fuori dai paragrafi
+
+
+def _restore_ooxml_file(src: Path, dst: Path, seg: Dict[str, str], pseudo: Dict[str, str]) -> bool:
+    import zipfile
+    folder = "word/" if src.suffix.lower() == ".docx" else "ppt/"
+    changed = False
+    dst.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    tmp = dst.with_suffix(dst.suffix + ".tmp")
+    if tmp.is_symlink():
+        return False
+    try:
+        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
+            for item in zin.infolist():
+                data = zin.read(item)
+                if item.filename.startswith(folder) and item.filename.endswith(".xml"):
+                    xml = data.decode("utf-8")
+                    new = restore_ooxml(xml, seg, pseudo)
+                    if new != xml:
+                        data, changed = new.encode("utf-8"), True
+                zout.writestr(item, data)
+        if not changed:
+            return False
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, dst)
+        return True
+    finally:
+        if tmp.exists() and not tmp.is_symlink():
+            tmp.unlink()
+
+
 def restore_file(src: Path, dst: Path, seg: Dict[str, str], pseudo: Dict[str, str]) -> bool:
     """Scrive in `dst` la versione con i dati reali; False se `src` non ha segnaposto."""
+    if src.suffix.lower() in OOXML_EXT:
+        return _restore_ooxml_file(src, dst, seg, pseudo)
     if src.suffix.lower() in SHEET_EXT:
         from openpyxl import load_workbook
         wb = load_workbook(src, keep_vba=src.suffix.lower() == ".xlsm")
