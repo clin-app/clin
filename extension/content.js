@@ -544,10 +544,18 @@
   $(".sel").addEventListener("click", () => { mode = "sel"; restore(lastSelection, "Selezionare prima un testo nella chat, poi premere «Selezione»."); });
   $(".last").addEventListener("click", restoreLast);
 
+  // Alcuni siti (Gemini) inseriscono nella risposta il riferimento alla fonte: il nome del file
+  // allegato, seguito da "+ 2". Non fa parte del testo da riportare in cartella.
+  const UUID_FILE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\.[a-z0-9]{2,5}";
+  function withoutSources(text) {
+    const names = sentDocs.filter((d) => d.file).map((d) => d.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const rx = new RegExp(`(?:${[...names, UUID_FILE].join("|")})(?:\\s*\\+ ?\\d+(?![\\w,.]))?`, "gi");
+    return text.replace(rx, "").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
   function answerText(el) {
     const blocks = [...el.querySelectorAll(MARKDOWN)].filter((b) => !b.parentElement.closest(MARKDOWN));
-    if (blocks.length) return blocks.map((b) => b.innerText.trim()).join("\n\n");
-    return el.innerText.replace(/^\s*\S+ (ha detto|ha risposto|said|says):?\s*\n/i, "");
+    if (blocks.length) return withoutSources(blocks.map((b) => b.innerText.trim()).join("\n\n"));
+    return withoutSources(el.innerText.replace(/^\s*\S+ (ha detto|ha risposto|said|says):?\s*\n/i, ""));
   }
   const isUser = (el) => el.closest("[data-message-author-role='user'],[data-testid='user-message'],user-query");
   function lastAnswer() {

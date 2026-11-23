@@ -487,9 +487,10 @@ RECORD_PATTERNS.append(
 )
 # "COGNOME, Nome": cognome tutto maiuscolo, virgola, nome con l'iniziale maiuscola
 _ACRONYMS = r"(?!(?:ECG|EKG|TAC|TC|RM|RMN|MRI|CT|NYHA|BMI|BPCO|COPD|HIV|HCV|HBV|PCR|VES|INR|ICD|DRG|ASA|PA|FC|SAT|EGA|ECO|RX|ICU|PS|UO|UOC|SOR|OR|ER|AIDS|COVID)\b)"
-PATIENT_LABEL_PATTERNS.append(
+_SURNAME_COMMA = (
     r'(?<![\w])(?P<v>' + _ACRONYMS + r'[' + _UP + r']{3,}(?:[ \-\'’][' + _UP + r']{2,}){0,2},[ \t]+[' + _UP + r'][' + _LETTER + r'\'’\-]+(?:[ \t]+[' + _UP + r'][' + _LETTER + r'\'’\-]+)?)'
 )
+PATIENT_LABEL_PATTERNS.append(_SURNAME_COMMA)
 
 
 _PATTERN_GROUPS: List[Tuple[str, List[str], int]] = [
@@ -969,6 +970,9 @@ def find_matches(
         for rx in patterns:
             for m in rx.finditer(text):
                 has_value = "v" in (rx.groupindex or {}) and m.group("v") is not None
+                if has_value and category in ("Nome paziente", "Persone", "Medici", "Personale sanitario") \
+                        and _false_name(rx, m, text):
+                    continue
                 if has_value:
                     v_start, v_end = _value_bounds(text, *m.span("v"))
                     if v_end <= v_start:
@@ -1105,6 +1109,33 @@ def _is_cap_stem(tok: str) -> bool:
     return bool(m and m.group(1)[:1].isupper())
 
 
+def _false_name(rx: "re.Pattern", m: "re.Match", text: str) -> bool:
+    """Vero se il valore trovato da un pattern di nome e' testo comune e non un nominativo."""
+    value = m.group("v")
+    tokens = _NAME_TOKEN.findall(value)
+    if not tokens:
+        return False
+    if rx.pattern != _SURNAME_COMMA:
+        # dopo un'etichetta: si scarta solo se non resta nessuna parola che possa essere un nome
+        # ("MEDICO CURANTE, VISTI I SINTOMI": "CURANTE" non e' il nome del medico)
+        return all(clin_llm.not_a_name(t) for t in tokens)
+    # "COGNOME, Nome" non ha etichetta: basta una parola comune a escluderlo
+    if any(clin_llm.not_a_name(t) for t in tokens):
+        return True
+    if any(c.islower() for c in value):
+        return False
+    # Tutto maiuscolo ("ROSSI, MARIO"): in un referto scritto in maiuscolo anche "ALVO REGOLARE,
+    # DIURESI" ha questa forma. Vale solo se occupa un campo: a inizio riga, dopo i due punti o
+    # una spaziatura da colonna, e fino a fine riga, a una spaziatura da colonna o a una parentesi.
+    line_start = text.rfind("\n", 0, m.start("v")) + 1
+    line_end = text.find("\n", m.end("v"))
+    before = text[line_start:m.start("v")]
+    after = text[m.end("v"):line_end if line_end != -1 else len(text)]
+    opens = not before.strip() or bool(re.search(r"(?::[ \t]*|[ \t]{2,}|\t)$", before))
+    closes = not after.strip() or bool(re.match(r"[ \t]{2,}|\t|[ \t]*\(", after))
+    return not (opens and closes)
+
+
 def collect_names(text: str) -> List[str]:
     """
     Estrae da un testo i nominativi del paziente che compaiono dopo
@@ -1124,7 +1155,7 @@ def collect_names(text: str) -> List[str]:
     sources = [(rx, False) for rx in _NAME_SOURCES] + [(rx, True) for rx in _STRONG_NAME_SOURCES]
     for rx, strong in sources:
         for m in rx.finditer(text):
-            if "v" not in rx.groupindex or m.group("v") is None:
+            if "v" not in rx.groupindex or m.group("v") is None or _false_name(rx, m, text):
                 continue
             label = text[m.start():m.start("v")]
             v_start, v_end = _value_bounds(text, *m.span("v"), max_len=60)

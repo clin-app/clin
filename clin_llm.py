@@ -201,11 +201,49 @@ _PARTICLES = {"de", "di", "da", "del", "della", "van", "von", "el", "al", "bin",
               "uí", "mac", "mc", "an"}
 
 
+# Parole comuni e del linguaggio clinico che non sono mai nomi di persona, nemmeno con la maiuscola
+# o in un referto scritto tutto in maiuscolo ("CONDIZIONI GENERALI BUONE, VIGILE", "Urgente
+# Differibile"): li' il modello non ha piu' le maiuscole per distinguere un nome da una frase.
+# Solo parole senza omonimi tra nomi e cognomi (niente "Vitali", "Ronchi", "Segni", "Nella", "Dal").
+_NOT_NAMES = frozenset("""
+    non che come dove quando mentre anche ancora già più meno molto poco tutto tutti tutta tutte ogni
+    altro altra altri altre questo questa questi queste quello quella due tre quattro cinque prima dopo
+    durante senza sotto sopra presso circa oggi ieri domani con per tra nel nei nelle sul sulla
+    paziente pazienti condizioni generali generale buone buona discrete discreta scadute vigile
+    orientato orientata collaborante cosciente apiretico apiretica eupnoico eupnoica torace emitorace
+    addome addominale cute mucose rosee idratato idratata milza fegato cuore polmone polmoni polmonare
+    cardiaco cardiaca ritmo ritmici validi murmure vescicolare rantoli sibili ipofonesi dolente
+    palpazione arco margine destra sinistra sinistro bilaterale bilateralmente superiore inferiore
+    superiori inferiori anteriore posteriore visita visite controllo controlli esame esami urgente
+    urgenza programmata programmato breve curante visti visto vista padre madre fratello sorella figlio
+    figlia nonno nonna familiare anamnesi negativa negativo positiva positivo normale normali assenza
+    assente assenti presenza presente presenti lieve lievi moderato moderata acuto acuta cronico
+    cronica febbre dolore tosse dispnea nausea vomito diarrea terapia farmaco farmaci dose dosi
+    compressa compresse mattina giorno giorni settimana settimane mese mesi diagnosi dimissione
+    ricovero accesso triage codice colore neurologico neurologica obiettivo esito referto conclusioni
+    richiesta motivo inviato inviata accompagnato accompagnata giunge riferisce nega sintomi parametri
+    pressione arteriosa frequenza saturazione temperatura peso altezza linfonodi edemi polsi periferici
+    arti occhi orecchie faringe tonsille
+    """.split())
+_NOT_NAME_SUFFIX = re.compile(r"(?i)^[^\W\d_]{3,}(?:zion[ei]|ment[oi]|ità|[ai]bil[ei]|patia|scopia|grafia|tomia|logia|algia)$")
+
+
+def not_a_name(token: str) -> bool:
+    """Vero per una parola comune o clinica che non puo' far parte del nome di una persona."""
+    t = token.strip(" .,;:()[]\"'«»").casefold()
+    return t in _NOT_NAMES or bool(_NOT_NAME_SUFFIX.match(t))
+
+
 def plausible_person(value: str) -> Optional[str]:
     """Ripulisce un nome proposto; None se non sembra il nome di una persona."""
     value = _TITLE.sub("", " ".join(value.split())).strip(" .,;:()[]\"'«»")
     tokens = value.split()
     if not tokens or len(value) < 2 or len(tokens) > 6 or re.search(r"\d", value):
+        return None
+    # una virgola sta solo in "ROSSI, MARIO" o "DE LUCA, ANNA MARIA": mai in una frase
+    if value.count(",") > 1 or ("," in value and len(tokens) > 4) or re.search(r"[;:.!?]\s", value):
+        return None
+    if any(not_a_name(t) for t in tokens):
         return None
     if not all(t[0].isupper() or t.lower() in _PARTICLES or re.match(r"(?:h|n|t|bh|mb|gc|nd|ng|bp|dt)-?[^\W\d_]", t)
                and t.lstrip("hntbmgcdp-")[:1].isupper()

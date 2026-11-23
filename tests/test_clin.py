@@ -355,5 +355,38 @@ class TestServerMcp(unittest.TestCase):
         self.assertTrue(replies[4]["result"]["isError"])
 
 
+class TestRefertoTuttoMaiuscolo(unittest.TestCase):
+    """In un referto scritto in maiuscolo le frasi cliniche non sono nominativi."""
+    TESTO = ("Paziente: ROSSI MARIO  nato il 12/03/1958\n"
+             "ANAMNESI: INVIATO DAL MEDICO CURANTE, VISTI I SINTOMI. PADRE, MADRE PRIMA VISITA NEGATIVA.\n"
+             "ESAME OBIETTIVO: CONDIZIONI GENERALI BUONE, VIGILE E ORIENTATO.\n"
+             "TORACE: IPOFONESI EMITORACE DESTRA, DUE RANTOLI BASALI.\n"
+             "ADDOME: TRATTABILE, NON DOLORABILE, MILZA ALL'ARCO. ALVO REGOLARE, DIURESI CONSERVATA.\n")
+
+    def test_frasi_cliniche_restano(self):
+        import anonymize_engine as ae
+        with mock.patch("clin_llm.entities", return_value=[]):
+            covered = " ".join(m.text for m in ae.find_matches(self.TESTO))
+            names = ae.collect_names(self.TESTO)
+        for clinical in ("CONDIZIONI", "CURANTE", "EMITORACE", "DOLORABILE", "PADRE", "ALVO", "DAL"):
+            self.assertNotIn(clinical, covered)
+            self.assertNotIn(clinical, " ".join(names))
+        self.assertIn("ROSSI MARIO", covered)
+
+    def test_cognome_virgola_nome_resta_coperto(self):
+        import anonymize_engine as ae
+        with mock.patch("clin_llm.entities", return_value=[]):
+            for text in ("ROSSI, MARIO\nPRONTO SOCCORSO\n", "Nominativo: DE LUCA, ANNA MARIA   Letto 12\n",
+                         "Visitato BIANCHI, Giulia per dispnea.\n"):
+                self.assertTrue(any(m.category == "Nome paziente" for m in ae.find_matches(text)), text)
+
+    def test_proposte_del_modello(self):
+        import clin_llm
+        for junk in ("Urgente Differibile", "CONDIZIONI GENERALI BUONE, VIGILE", "Emitorace Destra, Due"):
+            self.assertIsNone(clin_llm.plausible_person(junk), junk)
+        for name in ("ROSSI, MARIO", "Mario Dal Pozzo", "Clemente Ambrosi", "Nella Vitali", "Elira Shehu"):
+            self.assertEqual(clin_llm.plausible_person(name), name)
+
+
 if __name__ == "__main__":
     unittest.main()
