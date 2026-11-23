@@ -56,12 +56,12 @@
       :host { all: initial; }
       .app { --bg: #fff; --bg2: #f5f6f3; --bg3: #ebede7; --line: #e2e5dd; --ink: #101411; --ink2: #4a504b; --ink3: #767c77;
              --acc: #d4f06b; --on-acc: #101411; --green: #2e6b3c; --green-bg: #e9f4ec; --warn: #9a5407; --warn-bg: #fff3df; --warn-line: #f1d9ad;
-             --err: #c0302e; --blue: #2f5fd0; --blue-bg: #eaf0fb; --mark-bg: #101411; --mark-ink: #d4f06b;
+             --err: #c0302e; --blue: #3c7a4b; --blue-bg: #f1f9d2; --mark-bg: #101411; --mark-ink: #d4f06b;
              --shadow: 0 24px 64px rgba(16,20,17,.24), 0 2px 8px rgba(16,20,17,.08);
              font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); letter-spacing: -.005em; }
       .app.dark { --bg: #181b19; --bg2: #212622; --bg3: #2b312d; --line: #353c37; --ink: #f1f3ee; --ink2: #bcc1bb; --ink3: #8a908a;
                   --green: #8fd39b; --green-bg: #1d2e22; --warn: #f0b765; --warn-bg: #33290f; --warn-line: #5a4517;
-                  --err: #ff8a85; --blue: #8fb0ff; --blue-bg: #1c2540; --mark-bg: #d4f06b; --mark-ink: #101411;
+                  --err: #ff8a85; --blue: #d4f06b; --blue-bg: #283016; --mark-bg: #d4f06b; --mark-ink: #101411;
                   --shadow: 0 24px 64px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); }
       * { box-sizing: border-box; font-family: inherit; }
       [hidden] { display: none !important; }
@@ -172,8 +172,8 @@
       .pipe figure { margin: 0; display: grid; justify-items: center; gap: 8px; width: 112px; padding: 14px 8px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; transition: background .3s, color .3s; }
       .pipe .stk { width: 48px; }
       .stk path { fill: var(--bg); }
-      .pipe figure.on .stk path { fill: var(--blue-bg); }
-      .pipe figure.on { background: var(--blue-bg); color: var(--blue); }
+      .pipe figure.on .stk path { fill: var(--acc); }
+      .pipe figure.on { background: var(--acc); color: var(--on-acc); }
       .pipe figure.on .stk { animation: bob 1.2s ease-in-out infinite; }
       .pipe figure.done { color: var(--ink); }
       .pipe .i { width: 20px; height: 20px; opacity: .6; }
