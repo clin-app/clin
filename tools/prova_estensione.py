@@ -111,7 +111,7 @@ async def main():
         await page.screenshot(path=str(SP / "shot_toast_.png"))
         # D: pannello
         await page.locator(".fab").click(); await asyncio.sleep(2.5)
-        print("D pannello:", (await page.locator(".out").inner_text())[:90], "|", await page.locator(".eng-t").inner_text())
+        print("D pannello:", (await page.locator(".out").inner_text())[:90], "|", await page.locator(".pop-s").inner_text())
         await page.screenshot(path=str(SP / "shot_panel_.png"))
         await page.locator(".seg button").nth(1).click(); await asyncio.sleep(.3)
         await page.screenshot(path=str(SP / "shot_sent_.png"))

@@ -275,16 +275,11 @@
             <div class="row">
               <button class="b pri copy" type="button">${I.copy}Copia</button>
               <button class="b last" type="button">Ultima risposta</button>
-              <button class="b sel" type="button">Selezione</button>
+              <button class="b forget" type="button" title="Dimentica i segnaposto e i documenti inviati">Reset</button>
             </div>
-            <p class="hint">I nomi veri compaiono solo qui: la pagina della chat non può leggerli.</p>
           </div>
           <div class="tab tab-sent" hidden><div class="sent"></div></div>
         </div>
-        <footer class="pop-f">
-          <span class="eng"><i></i><span class="eng-t">Motore in avvio…</span></span>
-          <button class="lnk forget" type="button">Dimentica tutto</button>
-        </footer>
       </section>
 
       <div class="ov" hidden>
@@ -396,22 +391,21 @@
     fab.classList.toggle("say", Boolean(said));
     $(".fab-l").textContent = busy ? "Clin al lavoro…" : said || (active ? "Clin attivo" : "Clin in pausa: nulla viene coperto");
     $(".on").checked = active;
-    $(".pop-s").textContent = active ? "Protezione attiva su questa chat" : "In pausa: testi e file passano in chiaro";
+    $(".pop-s").textContent = !active ? "In pausa: testi e file passano in chiaro" : engineNote || "Protezione attiva su questa chat";
   }
 
-  let pollTimer = 0;
+  let pollTimer = 0, engineNote = "";
   async function refresh() {
     const s = await send({ op: "status" }).catch(() => null);
     if (s?.ok) {
       active = s.attivo;
       const ner = s.ner?.state;
-      const ready = s.engine && ner === "ready";
-      $(".eng").classList.toggle("ok", ready);
-      $(".eng-t").textContent = !s.engine ? "Motore in avvio…"
-        : ner === "ready" ? `Motore pronto${s.n ? ` · ${s.n} segnaposto` : ""}`
+      // lo stato del motore compare solo finche' non e' pronto, al posto del sottotitolo
+      engineNote = !s.engine ? "Motore in avvio…"
+        : ner === "ready" ? ""
         : ner === "downloading" ? `Modello dei nomi: download ${s.ner.progress}%`
         : ner === "loading" ? "Modello dei nomi in caricamento…"
-        : "Attivo con le regole (modello dei nomi assente)";
+        : "Attivo con le sole regole (modello dei nomi assente)";
       clearTimeout(pollTimer);
       if (!pop.hidden && (!s.engine || ner === "loading" || ner === "downloading")) pollTimer = setTimeout(refresh, 1500);
     }
@@ -529,6 +523,7 @@
   $(".forget").addEventListener("click", async () => {
     await send({ op: "forget" }).catch(() => {});
     sentDocs.length = 0; drawSent();
+    lastShown = "";
     showOut("Segnaposto e documenti inviati dimenticati.", true);
     refresh();
   });
@@ -536,12 +531,6 @@
     try { await navigator.clipboard.writeText(out.textContent); toast("Copiato con i dati reali: si può incollare nella cartella clinica."); }
     catch (_) { toast("Copia non riuscita: selezionare il testo nel pannello e copiarlo.", true); }
   });
-  let lastSelection = "";
-  document.addEventListener("selectionchange", () => {
-    const t = String(getSelection() || "");
-    if (t.trim()) lastSelection = t;
-  });
-  $(".sel").addEventListener("click", () => { mode = "sel"; restore(lastSelection, "Selezionare prima un testo nella chat, poi premere «Selezione»."); });
   $(".last").addEventListener("click", restoreLast);
 
   // Alcuni siti (Gemini) inseriscono nella risposta il riferimento alla fonte: il nome del file
@@ -576,10 +565,10 @@
     const r = await send({ op: "restore", text }).catch(() => null);
     if (r?.ok) showOut(r.text); else showOut("Ripristino non riuscito: ricaricare la pagina e riprovare.", true);
   }
-  let mode = "last", lastShown = "", watchTimer = 0;
-  function restoreLast() { mode = "last"; const t = lastAnswer(); lastShown = t; restore(t); }
+  let lastShown = "", watchTimer = 0;
+  function restoreLast() { const t = lastAnswer(); lastShown = t; restore(t); }
   new MutationObserver(() => {
-    if (pop.hidden || mode !== "last") return;
+    if (pop.hidden) return;
     clearTimeout(watchTimer);
     watchTimer = setTimeout(() => { const t = lastAnswer(); if (t !== lastShown) { lastShown = t; restore(t); } }, 900);
   }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
