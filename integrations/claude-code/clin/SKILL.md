@@ -91,6 +91,11 @@ normalmente, con i segnaposto al posto dei nomi.
 - Scrivere ogni segnaposto per intero e senza modificarlo (`[PAZIENTE_1]`, `PAZ-0001`):
   abbreviato o tradotto non viene piu' riconosciuto.
 - Dati intermedi (cache, dataframe salvati): tenerli in `Clin_anonimizzati/` o in CSV.
+- **Controllo visivo** di cio' che si produce (diapositive esportate in PDF o PNG, grafici,
+  pagine di una relazione): salvare le anteprime in `Clin_anonimizzati/anteprime/` e
+  aprirle da li' con `Read`, dove si vedono come immagini. Altrove un PDF o un'immagine
+  viene mostrato com'e' solo se Clin vi riconosce segnaposto, pseudonimi o date spostate
+  e nessun dato personale; negli altri casi restituisce il solo testo, per prudenza.
 - Se `avvia` segnala formati lasciati chiusi (DICOM, posta, vecchi `.doc`/`.xls`/`.ppt`,
   documenti Apple...), dirlo all'utente: vanno esportati in PDF, Word, Excel o CSV.
 - Se nella cartella ci sono articoli o linee guida che non contengono dati di pazienti

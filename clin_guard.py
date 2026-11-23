@@ -91,6 +91,56 @@ _TOKEN = re.compile(rb"\[\s*[A-Z]+(?:_[A-Z]+)*_\d+\s*\]|\b[A-Z]{2,4}-\d{4}\b"
                     rb"|(?<!\d)2[1-5]\d\d-\d\d-\d\d(?!\d)|(?<!\d)\d{1,2}[/.\-]\d{1,2}[/.\-]2[1-5]\d\d(?!\d)")
 
 
+VISUAL = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".bmp"}
+# segni che solo un file nato dalle copie anonime contiene: segnaposto, pseudonimi di Clin, date spostate
+_ANON_MARK = re.compile(r"\[\s*[A-Z]+(?:_[A-Z]+)*_\d+\s*\]|\b(?:PAZ|ID|IDC|MED|OPE|PER|DOC|STR)-\d{4}\b"
+                        r"|(?<!\d)2[3-5]\d\d-\d\d-\d\d(?!\d)|(?<!\d)\d{1,2}[/.\-]\d{1,2}[/.\-]2[3-5]\d\d(?!\d)"
+                        r"|(?i:\b\d{1,2}\s+[a-zà-ú]{3,9}\s+2[3-5]\d\d\b)")
+# in un file dell'agente non deve restare nessun dato personale, nemmeno un nome
+_VISUAL_BLOCK = frozenset(PROMPT_BLOCK | {"Persone", "Medici", "Personale sanitario", "Dati bancari"})
+
+
+def _visual_text(path: Path) -> str:
+    """Testo di un PDF o di un'immagine: quello del file, altrimenti letto con l'OCR."""
+    import clin_ocr
+    import fitz
+    parts = []
+    with fitz.open(str(path)) as doc:
+        for page in list(doc)[:40]:
+            text = page.get_text()
+            if not text.strip() and clin_ocr.available():
+                text = " ".join(w[4] for w in clin_ocr.ocr_words(page))
+            parts.append(text)
+    return "\n".join(parts)
+
+
+def agent_made_visual(path: Path) -> bool:
+    """PDF o immagine che l'agente ha prodotto dalle copie anonime (diapositive esportate, grafici,
+    relazioni): contiene segnaposto, pseudonimi o date spostate e nessun dato personale. Solo allora
+    l'agente puo' guardarlo com'e'. L'esito si conserva: l'OCR di un'immagine costa un secondo."""
+    st = path.stat()
+    key = hashlib.sha256(f"{path.resolve()}|{st.st_size}|{st.st_mtime_ns}".encode()).hexdigest()[:24]
+    cache = READS_DIR / "prodotti.json"
+    try:
+        known = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        known = {}
+    if key not in known:
+        try:
+            text = _visual_text(path)
+            known[key] = bool(_ANON_MARK.search(text)) and not personal_categories(text, _VISUAL_BLOCK)
+        except Exception:
+            known[key] = False
+        try:
+            READS_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+            fd = os.open(cache, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(dict(list(known.items())[-2000:]), fh)
+        except OSError:
+            pass
+    return bool(known[key])
+
+
 def is_agent_output(path: Path) -> bool:
     """
     File prodotto dall'agente dopo /clin: creato dopo l'attivazione della cartella
@@ -102,6 +152,8 @@ def is_agent_output(path: Path) -> bool:
         root = protected_root(path.parent)
         if root is None or path.stat().st_mtime <= (root / MARKER).stat().st_mtime:
             return False
+        if path.suffix.lower() in VISUAL:
+            return agent_made_visual(path)
         if path.suffix.lower() in {".xlsx", ".xlsm", ".docx", ".pptx"}:
             import zipfile
             chunks = []
@@ -254,7 +306,10 @@ def on_read(data: dict) -> None:
     _out({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "allow",
-        "permissionDecisionReason": f"Clin: letta la copia anonimizzata di {path.name}",
+        "permissionDecisionReason": f"Clin: letta la copia anonimizzata di {path.name}" + (
+            " (solo testo). Se e' un PDF o un'immagine che hai prodotto tu (diapositive esportate, grafici) e "
+            "vuoi guardarlo, salvalo in Clin_anonimizzati/anteprime/: li' si vede com'e'."
+            if path.suffix.lower() in VISUAL else ""),
         "updatedInput": tool_input,
     }})
 
@@ -487,15 +542,14 @@ def on_bash_output(data: dict) -> None:
         _out({"hookSpecificOutput": {"hookEventName": "PostToolUse", "updatedToolOutput": new}})
 
 
-def on_prompt(data: dict) -> None:
+def personal_categories(text: str, block: frozenset = None) -> List[str]:
+    """Categorie di dati personali presenti in un testo, senza contare cio' che Clin ha gia' reso
+    anonimo (segnaposto, pseudonimi, date spostate) ne' cio' che non identifica (un'eta')."""
     from anonymize_engine import find_matches
-    prompt = data.get("prompt") or ""
-    if "[clin:ok]" in prompt:
-        return
     from clin_results import already_shifted, has_real_date
-    # segnaposto, pseudonimi e date spostate vengono tolti prima del controllo: "nato il [DATA_NASCITA_1]"
-    # e "paziente PAZ-0002" non contengono nulla da proteggere
-    checked = re.sub(_TOKEN.pattern.decode(), lambda t: " " * len(t.group()), prompt)
+    block = block or PROMPT_BLOCK
+    # "nato il [DATA_NASCITA_1]" e "paziente PAZ-0002" non contengono nulla da proteggere
+    checked = re.sub(_TOKEN.pattern.decode(), lambda t: " " * len(t.group()), text)
     cats = set()
     for m in find_matches(checked, 10):
         # cio' che Clin ha gia' reso anonimo non e' un dato personale: date spostate, segnaposto e
@@ -506,11 +560,18 @@ def on_prompt(data: dict) -> None:
             continue   # un'eta' ("di 67 anni"), il nome di una colonna, o un'etichetta rimasta senza data
         if m.category == "Documenti" and len(re.sub(r"\D", "", m.text)) < 5:
             continue   # "il documento del 2024", "documento n. 3": non e' un numero di documento
-        if m.category in PROMPT_BLOCK:
+        if m.category in block:
             cats.add(m.category)
         elif m.category == "Contatti" and ("@" in m.text or len(re.sub(r"\D", "", m.text)) >= 8):
             cats.add("Contatti")  # telefoni ed email; non "via Slack"
-    cats = sorted(cats)
+    return sorted(cats)
+
+
+def on_prompt(data: dict) -> None:
+    prompt = data.get("prompt") or ""
+    if "[clin:ok]" in prompt:
+        return
+    cats = personal_categories(prompt)
     if cats:
         _out({"decision": "block",
               "reason": ("Clin ha fermato il messaggio prima dell'invio: contiene dati personali "

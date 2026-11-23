@@ -261,6 +261,44 @@ class TestGuardia(unittest.TestCase):
                      "CF RSSMRA85T10A562S"):
             self.assertEqual(ask(stop).get("decision"), "block", stop)
 
+    def test_pdf_e_immagini_prodotti_dall_agente_si_possono_guardare(self):
+        import os, time
+        import fitz
+        import clin_ocr
+        later = time.time() + 5
+
+        def page_pdf(name, lines):
+            doc = fitz.open()
+            page = doc.new_page()
+            for i, line in enumerate(lines):
+                page.insert_text((60, 90 + i * 30), line, fontsize=16)
+            doc.save(self.dir / name)
+            os.utime(self.dir / name, (later, later))   # creato dopo /clin
+            return page
+
+        slide = page_pdf("slide.pdf", ["Caso clinico PAZ-0002", "Ricovero dal 02/11/2423 al 09/11/2423",
+                                       "Seguito dalla Dott.ssa [MEDICO_1], 67 anni, NYHA III"])
+        page_pdf("nuovo_referto.pdf", ["Paziente: Mario Rossi, nato il 12/03/1958", "CF RSSMRA58C12L219X"])
+        page_pdf("misto.pdf", ["PAZ-0002 operato il 02/11/2423", "Paziente: Mario Rossi, nato il 12/03/1958"])
+        page_pdf("grafico.pdf", ["Mortalita' per classe NYHA", "II 10%  III 22%  IV 45%"])
+        # la diapositiva dell'agente si legge com'e' (nessun reindirizzamento), anche dai comandi
+        self.assertEqual(self.pre("Read", {"file_path": "slide.pdf"}), {})
+        self.assertEqual(self.pre("Bash", {"command": "python3 controlla.py slide.pdf"}), {})
+        # un originale aggiunto dopo, o un file che mescola dati veri, resta protetto
+        for name in ("nuovo_referto.pdf", "misto.pdf"):
+            out = self.pre("Read", {"file_path": name})["hookSpecificOutput"]
+            self.assertNotEqual(out.get("updatedInput", {}).get("file_path"), name)
+            self.assertNotIn("Rossi", Path(out["updatedInput"]["file_path"]).read_text())
+        # senza segni di anonimizzazione non c'e' prova che sia dell'agente: resta la copia di testo
+        self.assertIn("updatedInput", self.pre("Read", {"file_path": "grafico.pdf"})["hookSpecificOutput"])
+        if clin_ocr.available():   # la stessa diapositiva esportata come immagine
+            slide.get_pixmap(dpi=150).save(str(self.dir / "slide.png"))
+            os.utime(self.dir / "slide.png", (later, later))
+            self.assertEqual(self.pre("Read", {"file_path": "slide.png"}), {})
+        # un file precedente all'attivazione non e' mai dell'agente
+        os.utime(self.dir / "slide.pdf", (1, 1))
+        self.assertIn("hookSpecificOutput", self.pre("Read", {"file_path": "slide.pdf"}))
+
     def test_percorsi_esclusi_dall_utente(self):
         import os
         import clin_mcp, clin_settings

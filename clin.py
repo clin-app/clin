@@ -353,6 +353,8 @@ def activate(folder: Path) -> str:
     from datetime import date
     folder = folder.expanduser().resolve()
     marker = folder / ".clin-protetto"
+    if marker.is_file():   # gia' attiva: la data di attivazione resta quella, e' cio' che distingue
+        return f"Protezione Clin attiva su {folder}."   # gli originali dai file prodotti dopo dall'agente
     marker.write_text(f"Cartella protetta da Clin dal {date.today().isoformat()}.\n"
                       "Gli agenti IA leggono solo copie anonimizzate. Per disattivare: "
                       "/clin off oppure `clin.py disattiva`.\n", encoding="utf-8")
