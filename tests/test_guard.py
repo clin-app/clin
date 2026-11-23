@@ -216,7 +216,7 @@ class TestGuardia(unittest.TestCase):
         unittest.mock.patch.object(clin_settings, "DATA_DIR", Path(self.home)).start()
         unittest.mock.patch.dict(os.environ, {"CLIN_CARTELLE": str(self.dir)}).start()
         letter = ("Paziente: Mario Rossi, nato il 12/03/1958 a Torino\nRicoverato dal 02/11/2023 al 09/11/2023.\n"
-                  "Toracentesi il 4 novembre 2023. In terapia da marzo 2021. Leucociti 2400.\n")
+                  "Toracentesi il 4 novembre 2023. In terapia da marzo 2021. Leucociti 2400.\nUomo di 65 anni, iperteso.\n")
         (self.dir / "lettera.txt").write_text(letter, encoding="utf-8")
         body = "".join(f'<w:p><w:r><w:t xml:space="preserve">{l}</w:t></w:r></w:p>' for l in letter.splitlines())
         with zipfile.ZipFile(self.dir / "lettera.docx", "w") as z:
@@ -227,6 +227,7 @@ class TestGuardia(unittest.TestCase):
         for text in (next(copies.glob("lettera*.txt")).read_text(), _docx_text(next(copies.glob("lettera*.docx")))):
             for moved in ("12/03/2358", "02/11/2423", "09/11/2423", "4 novembre 2423", "marzo 2421", "Leucociti 2400"):
                 self.assertIn(moved, text)
+            self.assertIn("di 65 anni", text)   # l'eta' resta: con le date spostate si ricava comunque
             for gone in ("1958", "2023", "2021", "Torino", "Rossi", "[DATA_1]"):
                 self.assertNotIn(gone, text)
         # la lettura diretta passa dalla stessa regola e lo dice all'agente
@@ -251,9 +252,12 @@ class TestGuardia(unittest.TestCase):
         for ok in ("Il paziente PAZ-0002, nato il 12/03/2358, e' stato operato il 14/05/2423: calcola l'eta'.",
                    "Per [PAZIENTE_1] nato il [DATA_NASCITA_1] prepara la lettera.",
                    "Riassumi il documento del 2024 e il documento n. 3 del registro.",
-                   "Data di nascita: 01/01/2332, carta d'identita' ID-0003."):
+                   "Data di nascita: 01/01/2332, carta d'identita' ID-0003.",
+                   "Paziente di 67 anni, eta 54, donna 45enne, bambino di 5 mesi: eta' media 71,3 anni.",
+                   "La colonna Data di nascita ha 3 valori mancanti. Nato nel 2358, operato il 14 maggio 2423."):
             self.assertEqual(ask(ok), {}, ok)
         for stop in ("Il paziente e' nato il 12/03/1958 a Torino.", "Carta d'identita' n. CA12345AB di Mario.",
+                     "Nato nel 1958.", "Data di nascita: 12 marzo",
                      "CF RSSMRA85T10A562S"):
             self.assertEqual(ask(stop).get("decision"), "block", stop)
 

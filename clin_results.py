@@ -213,6 +213,23 @@ def shift_span(text: str, days: int):
     return None
 
 
+_DAY_MONTH = re.compile(r"(?i)(?<![\w/])\d{1,2}[°º]?\s+" + _MONTH_RX + r"\b|(?<![\d/.\-])\d{1,2}[/.\-]\d{1,2}(?![\d/.\-]|\w)")
+_AGE = re.compile(r"(?i)\s*(?:di\s+|et[àa]\s*[:=]?\s*|age\s*[:=]?\s*|anni\s*[:=]?\s*)?\d{1,3}\s*-?\s*"
+                  r"(?:anni(?:\s+compiuti)?|aa|mesi|enne|y|yrs|years?(?:[\s\-]old)?)?\s*")
+
+
+def has_real_date(text: str) -> bool:
+    """Vero se nel tratto c'e' una data vera, anche parziale (anno, mese e anno, giorno e mese)."""
+    return bool(any(_REAL[k].search(text) for k in ("iso", "dmy", "words", "words_en"))
+                or _REAL_MONTH_YEAR.search(text) or _REAL_YEAR.search(text) or _DAY_MONTH.search(text))
+
+
+def is_age(text: str) -> bool:
+    """Vero per un'eta' ("di 67 anni", "eta' 54", "45enne"): il motore la mette con le date di nascita,
+    ma con le date spostate l'eta' si ricava comunque e all'agente serve."""
+    return bool(_AGE.fullmatch(text))
+
+
 def already_shifted(text: str) -> bool:
     """Vero se il tratto contiene un anno che esiste solo dopo lo spostamento (testo gia' anonimizzato)."""
     return bool(_SHIFTED_YEAR.search(text))

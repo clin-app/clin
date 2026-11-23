@@ -492,7 +492,7 @@ def on_prompt(data: dict) -> None:
     prompt = data.get("prompt") or ""
     if "[clin:ok]" in prompt:
         return
-    from clin_results import already_shifted
+    from clin_results import already_shifted, has_real_date
     # segnaposto, pseudonimi e date spostate vengono tolti prima del controllo: "nato il [DATA_NASCITA_1]"
     # e "paziente PAZ-0002" non contengono nulla da proteggere
     checked = re.sub(_TOKEN.pattern.decode(), lambda t: " " * len(t.group()), prompt)
@@ -502,8 +502,8 @@ def on_prompt(data: dict) -> None:
         # pseudonimi sono proprio cio' che l'utente e l'agente devono potersi scambiare
         if already_shifted(m.text):
             continue
-        if m.category == "Data di nascita" and not re.search(r"\d", m.text):
-            continue   # resta solo l'etichetta ("nato il"): la data era gia' anonima
+        if m.category == "Data di nascita" and not has_real_date(m.text):
+            continue   # un'eta' ("di 67 anni"), il nome di una colonna, o un'etichetta rimasta senza data
         if m.category == "Documenti" and len(re.sub(r"\D", "", m.text)) < 5:
             continue   # "il documento del 2024", "documento n. 3": non e' un numero di documento
         if m.category in PROMPT_BLOCK:
