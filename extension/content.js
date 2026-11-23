@@ -785,10 +785,10 @@
         toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.`, false, 7000);
       });
     } catch (err) {
-      console.error("[Clin handleFiles]", err);
+      console.warn("[Clin handleFiles]", err);
       const raw = String(err?.message || err);
       const msg = /could not be found|NotFoundError/i.test(raw)
-        ? "File non leggibile (se è su iCloud o in un'altra app, salvalo prima sul computer o caricalo col tasto +)."
+        ? "Chrome blocca la lettura dei file trascinati dalla bolla dei Download: clicca sulla pillola /Clin › «Carica file da anonimizzare» oppure trascinalo dal Finder."
         : `impossibile leggere il file (${raw}).`;
       toast(`/Clin: ${msg}`, true, 9000);
     }
