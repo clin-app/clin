@@ -361,7 +361,11 @@ def shift_date(value: str, days: int) -> Optional[str]:
             return (d + timedelta(days=days)).isoformat() + v[m.end():]  # l'eventuale orario resta
         m = _DATE_DMY.match(v)
         if not m:
-            return None
+            try:  # altre forme: 2023/05/14, 14 maggio 2023, May 14, 2023 (non nell'app web, che non trasla)
+                from clin_results import shift_whole_date
+            except ImportError:
+                return None
+            return shift_whole_date(v, days)
         a, b, year = int(m[1]), int(m[3]), int(m[4])
         if len(m[4]) == 2:
             year += 2000 if year <= 30 else 1900

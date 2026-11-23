@@ -162,6 +162,51 @@ class TestGuardia(unittest.TestCase):
         self.assertIsNone(tabular_engine.shift_date("Hb 13,5", days))
         self.assertIsNone(tabular_engine.shift_date("12-05", days))
 
+    def test_date_a_parole_e_modalita_calendario(self):
+        import datetime
+        import clin_results, clin_settings
+        days = 80123
+        moved = lambda y, m, d: datetime.date(y, m, d) + datetime.timedelta(days=days)
+        a, b = moved(2023, 5, 14), moved(2024, 1, 3)
+        it, en = clin_results._IT, clin_results._EN
+        text = (f"Operato il {a.day} {it[a.month - 1]} {a.year}, rivisto il {b.day:02d} {it[b.month - 1][:3].capitalize()}. {b.year}; "
+                f"{en[a.month - 1].capitalize()} {a.day}, {a.year}. PCR 2243 mg/L, relazione del 23 novembre 2026.")
+        self.assertEqual(clin_results.unshift_dates(text, days),
+                         "Operato il 14 maggio 2023, rivisto il 03 Gen. 2024; May 14, 2023. "
+                         "PCR 2243 mg/L, relazione del 23 novembre 2026.")
+        # ogni forma in cui un agente puo' scrivere una data, con il giorno della settimana ricalcolato
+        for shifted_form, real_form in (
+                ("{0:%Y/%m/%d}", "2023/05/14"), ("{0:%d.%m.%Y}", "14.05.2023"), ("{0:%d-%m-%Y}", "14-05-2023"),
+                ("{0:%Y%m%d}", "20230514"), ("{0:%Y-%m-%d} 08:30:00", "2023-05-14 08:30:00"),
+                ("{0.day}-" + it[a.month - 1][:3] + "-{0.year}", "14-mag-2023"),
+                (clin_results._DAYS_IT[a.weekday()] + " {0.day} " + it[a.month - 1] + " {0.year}", "domenica 14 maggio 2023"),
+                (clin_results._DAYS_EN[a.weekday()].capitalize() + ", " + en[a.month - 1][:3].capitalize() + " {0.day}th, {0.year}",
+                 "Sunday, May 14th, 2023"),
+                ("{0.day}th of " + en[a.month - 1].capitalize() + " {0.year}", "14th of May 2023")):
+            self.assertEqual(clin_results.unshift_dates(shifted_form.format(a), days), real_form)
+        # 400 anni esatti: stesso giorno della settimana, stessi intervalli, 29 febbraio compreso
+        cal = clin_settings.CALENDAR_SHIFT
+        for y, m, d in ((2023, 5, 14), (2000, 2, 29), (1950, 3, 12)):
+            real = datetime.date(y, m, d)
+            shifted = real + datetime.timedelta(days=cal)
+            self.assertEqual((shifted.year, shifted.month, shifted.day, shifted.weekday()), (y + 400, m, d, real.weekday()))
+        text = ("Interventi nel 2423: 41; maggio 2423: 7; 2423-05; periodo 2421-2423; Q1 2424; inverno 2423; "
+                "14 maggio 2423; 2423-05-14; il 2423 (2422); dal 2421 al 2424; 2423Q2. "
+                "Leucociti 2400, diluito in 2400 ml, 12/2400 pazienti, range 2400-2500 ml, in 2400 pazienti.")
+        self.assertEqual(clin_results.unshift_dates(text, cal),
+                         "Interventi nel 2023: 41; maggio 2023: 7; 2023-05; periodo 2021-2023; Q1 2024; inverno 2023; "
+                         "14 maggio 2023; 2023-05-14; il 2023 (2022); dal 2021 al 2024; 2023Q2. "
+                         "Leucociti 2400, diluito in 2400 ml, 12/2400 pazienti, range 2400-2500 ml, in 2400 pazienti.")
+        # tabella per anno prodotta dall'agente: torna agli anni veri, i conteggi no
+        unittest.mock.patch.object(clin_settings, "DATA_DIR", Path(self.home)).start()
+        clin_settings.save({"date_calendario": True})
+        self.assertEqual(clin_settings.date_shift(), cal)
+        (self.dir / "analisi").mkdir()
+        (self.dir / "analisi" / "per_anno.csv").write_text("anno,interventi,leucociti\n2422,2400,2400\n2423,41,2350\n")
+        self.assertEqual(len(clin_results.reidentify(self.dir)), 1)
+        self.assertEqual((clin_settings.results_dir(self.dir) / "analisi" / "per_anno.csv").read_text().split(),
+                         ["anno,interventi,leucociti", "2022,2400,2400", "2023,41,2350"])
+
     def test_percorsi_esclusi_dall_utente(self):
         import os
         import clin_mcp, clin_settings

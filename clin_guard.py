@@ -88,7 +88,7 @@ def needs_guard(path: Path) -> bool:
 
 # segnaposto, pseudonimi e date traslate (anni 2100-2299): solo un file dell'agente li contiene
 _TOKEN = re.compile(rb"\[\s*[A-Z]+(?:_[A-Z]+)*_\d+\s*\]|\b[A-Z]{2,4}-\d{4}\b"
-                    rb"|(?<!\d)2[12]\d\d-\d\d-\d\d(?!\d)|(?<!\d)\d{1,2}[/.\-]\d{1,2}[/.\-]2[12]\d\d(?!\d)")
+                    rb"|(?<!\d)2[1-5]\d\d-\d\d-\d\d(?!\d)|(?<!\d)\d{1,2}[/.\-]\d{1,2}[/.\-]2[1-5]\d\d(?!\d)")
 
 
 def is_agent_output(path: Path) -> bool:
@@ -606,7 +606,13 @@ def on_stop(data: dict) -> None:
         where = clin_settings.results_dir(root)
         # messaggio per l'utente: solo conteggio e cartella, nessun dato
         n = len(written)
-        _out({"systemMessage": f"Clin: {n} file ricondott{'o' if n == 1 else 'i'} ai dati reali in {where}"})
+        msg = f"Clin: {n} file ricondott{'o' if n == 1 else 'i'} ai dati reali in {where}"
+        if clin_results.UNRESOLVED:
+            k = len(clin_results.UNRESOLVED)
+            msg += (f". Attenzione: in {k} file restano anni o mesi delle date spostate, che non corrispondono a "
+                    "quelli veri (analisi per anno o per stagione). Per averli corretti: "
+                    "`clin.py impostazioni date_calendario si`, poi ripetere /clin e l'analisi.")
+        _out({"systemMessage": msg})
 
 
 def main() -> int:

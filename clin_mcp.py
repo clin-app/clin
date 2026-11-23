@@ -271,10 +271,18 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
         lines.append(f"Non elaborati: {len(batch.failed)} (formato o protezione).")
     if batch.warnings:
         lines.append(f"Avvisi da verificare manualmente: {len(batch.warnings)}.")
-    if shift:
-        lines.append("Date dei fogli: spostate tutte dello stesso numero di giorni nel futuro (anni 2100-2260). "
-                     "Intervalli, durate ed eta' sono esatti; anno, mese e stagione non sono reali. Nei risultati "
-                     "scrivere le date come AAAA-MM-GG o GG/MM/AAAA: Clin vi rimette quelle vere.")
+    if shift == clin_settings.CALENDAR_SHIFT:
+        lines.append("Date dei fogli: spostate di 400 anni esatti (2023 diventa 2423). Giorno, mese, giorno della "
+                     "settimana, stagione, intervalli ed eta' sono quelli veri: ogni analisi e' possibile, anche per "
+                     "anno e per stagione. Scrivere date e anni cosi' come risultano (2423): Clin li riporta a quelli "
+                     "veri. Con pandas < 3 convertire con .astype('datetime64[s]').")
+    elif shift:
+        lines.append("Date dei fogli: spostate tutte dello stesso numero segreto di giorni nel futuro (anni 2100-2260). "
+                     "Intervalli, durate ed eta' sono esatti e si possono calcolare. Anno, mese, stagione e giorno della "
+                     "settimana NON sono quelli veri: non fare analisi per anno di calendario o per stagione e non "
+                     "riportarli come fatti. Se servono, l'utente puo' attivarle dal proprio terminale con "
+                     "`clin.py impostazioni date_calendario si` e ripetere /clin. Le date intere scritte nei risultati, "
+                     "in cifre o a parole (14/05/2243, 14 maggio 2243), tornano quelle vere.")
     # elenco delle copie (nomi gia' anonimi): l'agente sa subito su che cosa lavorare
     if closed_files:
         closed: Dict[str, int] = {}

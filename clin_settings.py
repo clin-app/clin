@@ -35,6 +35,10 @@ OPTIONS: Dict[str, tuple] = {
     "date_traslate": (True, "Nei fogli di calcolo le date vengono spostate nel futuro di un numero fisso e "
                             "segreto di giorni (circa 220 anni) invece di essere oscurate: intervalli ed eta' "
                             "restano esatti; nei risultati tornano le date vere."),
+    "date_calendario": (True, "Le date dei fogli sono spostate di 400 anni esatti: giorno, mese, stagione e giorno "
+                              "della settimana restano quelli veri, quindi ogni analisi (anche per anno e per "
+                              "stagione) e' corretta e ricostruibile. Con `no` vengono spostate di un numero segreto "
+                              "di giorni: piu' nascoste, ma senza analisi di calendario."),
     "percorsi_esclusi": ([], "File o cartelle senza dati di pazienti (articoli, linee guida) dentro una cartella "
                              "protetta: l'agente li legge cosi' come sono. Si gestiscono con `clin.py escludi`."),
     "colonne_dal_contenuto": (True, "Nei fogli di calcolo riconosce le colonne di nominativi anche senza "
@@ -94,13 +98,20 @@ def parse(key: str, raw: str) -> Any:
     return raw.strip()
 
 
+# 400 anni esatti: il calendario gregoriano si ripete identico (146097 giorni, 20871 settimane)
+CALENDAR_SHIFT = 146097
+
+
 def date_shift(create: bool = True):
     """Giorni di cui si spostano le date dei fogli, o None se la traslazione e' disattivata.
 
     Il numero e' casuale, scelto una volta e conservato nella cartella dei dati di Clin: uguale per
     tutti i file e tutte le sessioni, cosi' gli intervalli restano esatti anche tra fogli diversi."""
-    if not load().get("date_traslate", True):
+    values = load()
+    if not values.get("date_traslate", True):
         return None
+    if values.get("date_calendario"):
+        return CALENDAR_SHIFT
     path = DATA_DIR / "traslazione_date.json"
     try:
         return int(json.loads(path.read_text(encoding="utf-8"))["giorni"])

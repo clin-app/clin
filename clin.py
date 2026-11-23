@@ -208,6 +208,10 @@ def cmd_risultati(a) -> int:
     where = clin_settings.results_dir(root)
     notify(f"{len(written)} file ricondotti ai dati reali in {where}." if written
            else "Nessun nuovo risultato con segnaposto da ricondurre.")
+    if clin_results.UNRESOLVED:
+        notify(f"Attenzione: in {len(clin_results.UNRESOLVED)} file restano anni o mesi delle date spostate, che non "
+               "corrispondono a quelli veri. Per averli corretti: clin.py impostazioni date_calendario si, "
+               "poi ripetere /clin e l'analisi.")
     return 0
 
 

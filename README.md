@@ -50,11 +50,22 @@ Che cosa copre `/clin`:
   l'installazione prova ad aggiungere). In Word e PowerPoint immagini, oggetti
   incorporati, autori di commenti e revisioni vengono svuotati. DICOM, posta e i
   vecchi `.doc`/`.xls`/`.ppt` restano chiusi e `/clin` lo segnala.
-- **Date nei fogli**: invece di essere oscurate vengono spostate tutte dello stesso
-  numero segreto di giorni (circa 220 anni nel futuro). Intervalli, follow-up,
-  sopravvivenza ed età restano esatti anche tra file diversi; anno e stagione non
-  sono reali. Nei risultati tornano le date vere. Si disattiva con
-  `clin.py impostazioni date_traslate no` (le date tornano oscurate).
+- **Date nei fogli**: invece di essere oscurate vengono spostate di 400 anni esatti
+  (14/05/2023 diventa 14/05/2423). Il calendario gregoriano si ripete identico ogni
+  400 anni (146097 giorni, 20871 settimane): giorno, mese, giorno della settimana,
+  stagione, anni bisestili, intervalli ed età restano quelli veri, anche tra file
+  diversi, quindi ogni analisi è corretta. Nei risultati Clin riporta date e anni a
+  quelli veri in ogni forma (`2423-05-14`, `14 maggio 2423`, `May 14, 2423`,
+  `maggio 2423`, `Q2 2423`, `nel 2423`, colonne `anno`).
+  La prova `python3 tools/prova_analisi.py` esegue le stesse analisi su uno studio
+  simulato reale e sulle copie anonime e confronta i risultati ricondotti con la
+  verità, file per file.
+  Limite dichiarato: giorno e mese sono quelli veri e la regola dei 400 anni è
+  pubblica, quindi le date sono mascherate, non segrete. Chi preferisce date non
+  ricostruibili da terzi usa `clin.py impostazioni date_calendario no`: le date
+  vengono spostate di un numero segreto di giorni, restano esatti intervalli ed età
+  ma non si possono fare analisi per anno o per stagione (Clin avvisa se nei
+  risultati ne restano). Con `date_traslate no` le date tornano oscurate.
 - **Risultati**: Word, PowerPoint, Excel, CSV, Markdown, HTML, LaTeX, quaderni
   `.ipynb`, R Markdown/Quarto, SVG tornano con i dati reali nella cartella dei
   risultati. PDF e immagini prodotti dall'agente no.

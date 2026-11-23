@@ -51,16 +51,27 @@ Percorso: quello indicato dall'utente, altrimenti la cartella di lavoro corrente
 
 ### Date nei fogli di calcolo
 
-Nelle copie di Excel, CSV e dataset statistici le date non sono oscurate: sono tutte
-spostate dello stesso numero di giorni nel futuro (anni 2100-2260).
+Nelle copie di Excel, CSV e dataset statistici le date non sono oscurate: sono spostate
+di **400 anni esatti** (14/05/2023 diventa 14/05/2423). Il calendario si ripete
+identico ogni 400 anni, quindi giorno, mese, giorno della settimana, stagione, anni
+bisestili, intervalli ed eta' sono quelli veri: solo l'anno e' aumentato di 400.
 
-- Intervalli, durate, tempi di follow-up, sopravvivenza ed eta' (data evento meno data
-  di nascita) sono **esatti**: calcolarli normalmente.
-- Anno, mese, giorno della settimana e stagione **non sono reali**: non usarli e non
-  riportarli come fatti (niente "interventi nel 2023", niente analisi per stagione).
-- Nei risultati scrivere le date cosi' come sono, in forma `AAAA-MM-GG` o `GG/MM/AAAA`
-  (o come date di Excel): Clin vi rimette quelle vere. Una data scritta a parole
-  ("14 maggio") non viene ricondotta.
+- Fare ogni analisi normalmente: sopravvivenza, follow-up, eta', andamento per anno,
+  per mese, per stagione, per giorno della settimana. I risultati sono corretti.
+- Scrivere date e anni **cosi' come risultano dai dati** (2423, non 2023): a fine
+  risposta Clin li riporta a quelli veri in ogni forma, `2423-05-14`, `14/05/2423`,
+  `14 maggio 2423`, `May 14, 2423`, `maggio 2423`, `2423-05`, `Q2 2423`, `nel 2423`,
+  `2421-2423`, colonne `anno`. Non sottrarre 400 a mano: si otterrebbero risultati
+  misti, in parte gia' convertiti.
+- Un anno da solo va scritto in un contesto che lo indichi come anno (`nel 2423`,
+  `anno 2423`, una colonna `anno`): un numero isolato come `2423` in mezzo a valori
+  di laboratorio non viene toccato. Il mese con l'anno va scritto `2423-05` o
+  `maggio 2423`, non `05/2423`.
+- Con pandas precedente alla versione 3 gli anni oltre il 2262 non entrano nel tipo
+  predefinito: convertire con `.astype("datetime64[s]")`.
+- Se l'output di `avvia` dice invece che le date sono spostate di un numero segreto
+  di giorni, valgono solo intervalli, durate ed eta': anno, mese e stagione non sono
+  reali e non vanno analizzati ne' riportati.
 
 ### Che cosa si puo' produrre
 
