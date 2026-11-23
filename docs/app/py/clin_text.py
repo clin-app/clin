@@ -83,8 +83,12 @@ class TextResult:
         return f"Dati sostituiti con segnaposto - {parts}."
 
 
+_NAME_JOINER = re.compile(r"(?<=[^\W\d_])[ \t]*[*/][ \t]*(?=[^\W\d_])")
+
+
 def _norm(value: str) -> str:
-    return " ".join(value.casefold().split())
+    # "ROSSI*MARIO" e "ROSSI / MARIO" (gestionali ospedalieri) valgono come "ROSSI MARIO"
+    return " ".join(_NAME_JOINER.sub(" ", value).casefold().split())
 
 
 class _Registry:

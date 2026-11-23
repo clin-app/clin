@@ -615,7 +615,7 @@ trovare le parole e i loro riquadri, non ricostruire il documento.
 python3 -m unittest discover -s tests -v
 ```
 
-I test (87, di cui 3 dell'OCR saltati se il modello OCR non è installato) usano
+I test (91, di cui 3 dell'OCR saltati se il modello OCR non è installato) usano
 solo documenti sintetici generati al momento e girano senza modello linguistico
 (`CLIN_LLM=0`); nessun dato reale è incluso nel repository.
 

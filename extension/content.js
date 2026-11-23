@@ -8,8 +8,6 @@
   if (window.__clin) return;
   window.__clin = true;
 
-  const NOTE = "Nota: i dati personali sono sostituiti da segnaposto tra parentesi quadre " +
-    "(es. [PAZIENTE_1]) e codici come PAZ-0001. Riportali esattamente così nella risposta.\n\n";
   const COMPOSER = [
     "#prompt-textarea", "div.ProseMirror[contenteditable='true']", "rich-textarea .ql-editor",
     "[contenteditable='true'][role='textbox']", "textarea", "[contenteditable='true']",
@@ -21,7 +19,7 @@
   ];
   const MARKDOWN = ".standard-markdown, .markdown, [data-testid='chatgpt-writing-block']";
   const PH = /\[[A-Z_]+_\d+\]|\b[A-Z]{2,4}-\d{4}\b/;
-  let active = true, noteSent = false, busy = false, passing = false;
+  let active = true, busy = false, passing = false;
 
   const send = (msg) => chrome.runtime.sendMessage({ target: "background", ...msg });
 
@@ -133,7 +131,7 @@
     if (blocks.length) return blocks.map((b) => b.innerText.trim()).join("\n\n");
     return el.innerText.replace(/^\s*\S+ (ha detto|ha risposto|said|says):?\s*\n/i, "");
   }
-  const isUser = (el) => el.innerText.includes(NOTE.slice(0, 40)) || el.closest("[data-message-author-role='user'],[data-testid='user-message'],user-query");
+  const isUser = (el) => el.closest("[data-message-author-role='user'],[data-testid='user-message'],user-query");
   function lastAnswer() {
     for (const sel of ANSWERS) {
       const all = [...document.querySelectorAll(sel)].filter((e) => !isUser(e));
@@ -262,10 +260,6 @@
       if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
       const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
       if (!deliver(out, origin)) throw new Error("allegato non accettato dal sito");
-      if (!noteSent) {  // la nota sui segnaposto, una volta per pagina
-        const el = composer();
-        if (el) { noteSent = true; insert(el, NOTE.trim() + " "); }
-      }
       const extra = r.notes?.length ? " " + r.notes.join(" ") : "";
       toast(`/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.${extra} Controllare prima di inviare.`, false, 9000);
     } catch (err) {
@@ -295,10 +289,8 @@
       if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
       const el = target && editable(target) && document.contains(target) ? target : composer();
       if (!el) throw new Error("campo della chat non trovato");
-      const prefix = noteSent ? "" : NOTE;
-      noteSent = true;
       const filled = (el.value ?? el.innerText ?? "").trim().length > 0;
-      let body = (filled ? "\n\n" : "") + prefix + r.text.replace(/\n{3,}/g, "\n\n");
+      let body = (filled ? "\n\n" : "") + r.text.replace(/\n{3,}/g, "\n\n");
       if (el.isContentEditable) body = body.replace(/\n\n/g, "\n");
       insert(el, body);
       const docs = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"} anonimizzat${fileCount === 1 ? "o" : "i"}` : "Testo anonimizzato";

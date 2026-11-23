@@ -85,6 +85,8 @@ _PARTICLE = (r"(?:[Dd][aeiu]|[Dd]e[ilns]|[Dd]ell[ao']|[Dd]ela|[Ll][aeio]|[Vv][ao
              r"[Bb]in|[Bb]en|[Dd]os|[Dd]as|[Dd]o|[Yy]|[Ee]|i|Ó|Ní|Nic|Uí|Mac|Mc|[Aa]n|[Ff]itz)")  # catalano "i", irlandese
 _CAP_NAME = _CAP_WORD + r"(?:[ \t]+(?:" + _PARTICLE + r"[ \t]+){0,2}" + _CAP_WORD + r"){0,3}"
 _CAP_NAME_CS = r"(?-i:" + _CAP_NAME + r")"
+# nominativo nei gestionali ospedalieri: "ROSSI*MARIO", "ROSSI / MARIO"
+_CAP_NAME_SEP = r"(?-i:" + _CAP_WORD + r"(?:(?:[ \t]*[*/][ \t]*|[ \t]+)(?:" + _PARTICLE + r"[ \t]+){0,2}" + _CAP_WORD + r"){0,3})"
 
 # Nome di via: parole maiuscole, particelle minuscole ("dei", "della"), numeri
 # romani o date ("XX Settembre", "4 Novembre"). Deve iniziare con maiuscola o cifra.
@@ -136,9 +138,9 @@ OFFICIAL_ID_PATTERNS = [
 
 # 2. Etichette con nominativo del paziente (IT, EN, FR, ES, DE)
 PATIENT_LABEL_PATTERNS = [
-    r'(?i)\b(?:Paziente|Patient|Nominativo|Assistito|Cognome\s*e?\s*Nome|Nome\s*e?\s*Cognome|Patient\s*Name|Nom\s*et\s*prénom|Nombre\s*y\s*apellido|Name\s*of\s*patient|Nom\s*du\s*patient|Nom\s*de\s*la\s*patiente|Patient(?:e)?|Name\s*des\s*Patienten|Name\s*der\s*Patientin|Patientenname|Nombre\s*del\s*paciente|Paciente|Nome\s*do\s*(?:doente|utente|paciente)|Doente|Utente|Naam\s*pati[ëe]nt|Pati[ëe]ntnaam|Pati[ëe]nt|Imi[ęe]\s*i\s*nazwisko(?:\s*pacjent(?:a|ki))?|Pacjent(?:ka)?|Numele\s*(?:[șs]i\s*prenumele\s*)?pacientului|Pacient(?:a|ul)?)\s*[:]\s*(?P<v>[A-Za-zÀ-ÖØ-öø-ɏȘșȚțḀ-ỿ\s\'\-]{2,})',
+    r'(?i)\b(?:Paziente|Patient|Nominativo|Assistito|Cognome\s*(?:e|[*/])?\s*Nome|Nome\s*(?:e|[*/])?\s*Cognome|Patient\s*Name|Nom\s*et\s*prénom|Nombre\s*y\s*apellido|Name\s*of\s*patient|Nom\s*du\s*patient|Nom\s*de\s*la\s*patiente|Patient(?:e)?|Name\s*des\s*Patienten|Name\s*der\s*Patientin|Patientenname|Nombre\s*del\s*paciente|Paciente|Nome\s*do\s*(?:doente|utente|paciente)|Doente|Utente|Naam\s*pati[ëe]nt|Pati[ëe]ntnaam|Pati[ëe]nt|Imi[ęe]\s*i\s*nazwisko(?:\s*pacjent(?:a|ki))?|Pacjent(?:ka)?|Numele\s*(?:[șs]i\s*prenumele\s*)?pacientului|Pacient(?:a|ul)?)\s*[:]\s*(?P<v>[A-Za-zÀ-ÖØ-öø-ɏȘșȚțḀ-ỿ\s\'\-*/]{2,})',
     # senza due punti solo le etichette italiane: "Patient Education Material" non e' un nome
-    r'(?i)\b(?:Paziente|Nominativo|Assistito|Cognome\s*e?\s*Nome|Nome\s*e?\s*Cognome|Patient\s*Name|Nom\s*et\s*prénom|Nombre\s*y\s*apellido)\s+(?P<v>' + _CAP_NAME_CS + r')',
+    r'(?i)\b(?:Paziente|Nominativo|Assistito|Cognome\s*(?:e|[*/])?\s*Nome|Nome\s*(?:e|[*/])?\s*Cognome|Patient\s*Name|Nom\s*et\s*prénom|Nombre\s*y\s*apellido)\s+(?P<v>' + _CAP_NAME_SEP + r')',
     r'(?i)\b(?:Cognome|Surname|Nom|Apellido|Nachname)\s*[:]\s*(?P<v>[A-Za-zÀ-ÖØ-öø-ɏȘșȚțḀ-ỿ\s\'\-]{2,})',
     r'(?i)\b(?:Cognome|Surname|Nom|Apellido|Nachname)\s+(?P<v>' + _CAP_NAME_CS + r')',
     r'(?i)\b(?:Nome|First\s*name|Prénom|Nombre|Vorname)\s*[:]\s*(?P<v>[A-Za-zÀ-ÖØ-öø-ɏȘșȚțḀ-ỿ\s\'\-]{2,})',
@@ -177,12 +179,21 @@ PERSON_CONTEXT_PATTERNS = [
 # 3. Date di nascita e dati anagrafici
 DOB_PATTERNS = [
     r'(?i)\b(?:Data\s*(?:di)?\s*Nascita|Data\s*Nasc\.?|D\.?N\.?|Nascita|Luogo\s*e\s*Data\s*di\s*Nascita|Date\s*of\s*Birth|DOB|D\.O\.B\.?|Birth\s*Date|Date\s*de\s*naissance|Fecha\s*de\s*nacimiento|Geburtsdatum|Geb\.-?Datum|Data\s*de\s*nascimento|Geboortedatum|Data\s*urodzenia|Data\s*na[șs]terii)[:\s]+(?P<v>[^\n\r,;\t|—()\[\]]{2,40}?)(?=\s*(?:[|—()\[\],;\n]|\.(?:\s|$)|\s\s|$))',
-    r'(?i)\b(?:Nato\/a|Nato|Nata|Né\(e\)|Né|Née|Nacido\/a|Nacida|Nacido|Geboren|geb\.|Born|Nascid[oa]|Geboren\s*op|Urodzon[ya]|N[ăa]scut[ăa]?)(?:\s*il|\s*le|\s*el|\s*am|\s*on|\s*em|\s*a|\s*la|\s*dnia)?[:\s]+(?P<v>[^\n\r,;\t|—()\[\]]{2,40}?)(?=\s*(?:[|—()\[\],;\n]|\.(?:\s|$)|\s\s|$))',
+    r'(?i)\b(?:Nato\/a|Nato|Nata|Né\(e\)|Né|Née|Nacido\/a|Nacida|Nacido|Geboren|geb\.|Born|Nascid[oa]|Geboren\s*op|Urodzon[ya]|N[ăa]scut[ăa]?)(?!\s+a\s+(?:pre-?)?termine\b)(?:\s*il|\s*le|\s*el|\s*am|\s*on|\s*em|\s*a|\s*la|\s*dnia)?[:\s]+(?P<v>[^\n\r,;\t|—()\[\]]{2,40}?)(?=\s*(?:[|—()\[\],;\n]|\.(?:\s|$)|\s\s|$))',
     r'(?i)\b(?:Et[àa]|Age|Anni)[:\s]+(?P<v>\d{1,3}(?![.,]\d)\s*(?:anni|aa|mesi|y|yrs)?)\b',
     # eta' in prosa ("di 45 anni", "di 5 mesi"); le durate ("da 3 giorni") restano visibili
     r'(?i)\bdi\s+(?P<v>\d{1,3}\s+(?:anni|mesi))\b(?!\s+(?:di|da|fa|prima|dopo|dal|dalla|dall)\b|\s+(?:terapia|trattamento|follow|distanza|durata))',
     r'(?i)\b(?P<v>\d{1,3})[\s\-]?(?:enne|year[\s\-]old|anni\s+compiuti)\b',
 ]
+
+# luogo di nascita dopo la data, anche separato da piu' spazi (moduli e PDF a colonne):
+# "Nato il 03/05/2014    a  MONTEROTONDO", "nata il 3/5/2014 a Castel San Pietro Terme (BO)"
+_PLACE_WORD = r"[" + _UP + r"][" + _LETTER + r"'’\-]+"
+_PLACE_LINK = r"(?:di|del|della|dei|delle|in|sul|sulla|al|DI|DEL|DELLA|DEI|DELLE|IN|SUL|SULLA|AL)"
+DOB_PATTERNS.append(
+    r'(?i)\b(?:Nat[oa](?:\/a)?|Nascit[oa])[ \t]+(?:il[ \t]+)?\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}[ \t]+a[ \t]+'
+    r'(?P<v>(?-i:' + _PLACE_WORD + r'(?:[ \t]+(?:' + _PLACE_LINK + r'[ \t]+)?' + _PLACE_WORD + r'){0,4}))'
+)
 
 # 4. Recapiti (telefono, email, indirizzo)
 CONTACT_PATTERNS = [

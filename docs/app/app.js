@@ -92,9 +92,6 @@ function show(res) {
 }
 
 // ------------------------------------------------------------------ documenti
-const NOTE = "Nota: i dati personali sono stati sostituiti con segnaposto tra parentesi quadre " +
-  "(es. [PAZIENTE_1], [DATA_1]) e codici come PAZ-0001. Riportali esattamente così nella risposta, " +
-  "senza modificarli né completarli.\n\n";
 const queue = [];     // file in attesa: { file, kind }
 
 function kindOf(file) {
@@ -349,7 +346,7 @@ $("paste").addEventListener("click", async () => {
   try { $("input").value = await navigator.clipboard.readText(); }
   catch (_) { status("Accesso agli appunti negato: incollare a mano nel riquadro.", true); }
 });
-const forChat = () => ($("with-note").checked ? NOTE : "") + $("result").textContent;
+const forChat = () => $("result").textContent;
 $("copy").addEventListener("click", () => copy(forChat(), "Copiato: incollarlo nella chat dell'IA."));
 $("share").addEventListener("click", async () => {
   if (!(await share({ text: forChat() }))) copy(forChat(), "Testo copiato.");

@@ -7,7 +7,7 @@
 //   <button data-dona="dopo">Copia</button>     chiede dopo il clic (l'azione avviene comunque)
 // Uso da JavaScript:  import { chiediDonazione } from "./dona.js"; await chiediDonazione();
 
-export const KOFI = "";
+export const KOFI = "clinapp";
 export const DONA_URL = KOFI ? "https://ko-fi.com/" + encodeURIComponent(KOFI) : "";
 
 let dialog = null;

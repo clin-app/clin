@@ -6,6 +6,7 @@ documenti .txt/.docx/.xlsm e ponte web/estensione.
 import csv
 import io
 import json
+import re
 import os
 import sys
 import tempfile
@@ -371,6 +372,39 @@ class TestNominativiETabelle(unittest.TestCase):
             clin_web.safe_name("dimissione_ferrari", json.dumps({"[PAZIENTE_1]": "Ferrari"})),
             "dimissione_ANON",
         )
+
+
+class TestNominativoGestionaliPS(unittest.TestCase):
+    """Cartelle di pronto soccorso: "Cognome*Nome ROSSI*MARIO" e luogo di nascita dopo la data."""
+
+    def _anon(self, text):
+        return json.loads(clin_web.run_text(text, 10, "{}"))["text"]
+
+    def test_nominativo_con_asterisco_e_barra(self):
+        for text in ("Cognome*Nome ROSSINI*MARCO\nTelefono 3331234567",
+                     "Cognome/Nome: ROSSINI/MARCO",
+                     "Nome*Cognome MARCO*ROSSINI"):
+            out = self._anon(text)
+            self.assertNotIn("ROSSINI", out, text)
+            self.assertNotIn("MARCO", out, text)
+
+    def test_ricorrenze_del_nominativo_con_asterisco(self):
+        out = self._anon("Cognome*Nome ROSSINI*MARCO\nOggi MARCO sta bene, Marco riferisce dolore.")
+        self.assertNotIn("MARCO", out)
+        self.assertNotIn("Marco", out)
+        self.assertEqual(set(re.findall(r"\[([A-Z_]+)_\d+\]", out)) & {"PERSONA"}, set())
+
+    def test_luogo_di_nascita_dopo_la_data(self):
+        for text in ("Nato il 03/05/2014     a     MONTEROTONDO\nRegione LAZIO",
+                     "nata il 3/5/2014 a San Giovanni in Persiceto (BO)"):
+            out = self._anon(text)
+            self.assertNotIn("MONTEROTONDO", out)
+            self.assertNotIn("Persiceto", out)
+            if "LAZIO" in text:
+                self.assertIn("Regione LAZIO", out)
+
+    def test_nato_a_termine_resta_clinico(self):
+        self.assertIn("nato a termine", self._anon("Paziente: ROSSINI MARCO\nnato a termine da parto eutocico"))
 
 
 if __name__ == "__main__":
