@@ -44,11 +44,46 @@ def _tables() -> tuple:
     return seg, pseudo
 
 
+# Date traslate dei fogli (anni 2100-2299): al ritorno si sottraggono gli stessi giorni.
+_DAYS = None  # giorni della traslazione, letti all'inizio di `reidentify`
+_SHIFT_ISO = re.compile(r"(?<!\d)(2[12]\d\d)-(\d{2})-(\d{2})(?!\d)")
+_SHIFT_DMY = re.compile(r"(?<!\d)(\d{1,2})([/.\-])(\d{1,2})\2(2[12]\d\d)(?!\d)")
+
+
+def unshift_dates(text: str, days: int) -> str:
+    from datetime import date, timedelta
+
+    def iso(m):
+        try:
+            return (date(int(m[1]), int(m[2]), int(m[3])) - timedelta(days=days)).isoformat()
+        except ValueError:
+            return m[0]
+
+    def dmy(m):
+        a, b = int(m[1]), int(m[3])
+        us = b > 12 >= a
+        try:
+            d = (date(int(m[4]), a, b) if us else date(int(m[4]), b, a)) - timedelta(days=days)
+        except ValueError:
+            return m[0]
+        first, second = (d.month, d.day) if us else (d.day, d.month)
+        return f"{first:02d}{m[2]}{second:02d}{m[2]}{d.year}"
+
+    return _SHIFT_DMY.sub(dmy, _SHIFT_ISO.sub(iso, text))
+
+
+def _to_restore(text: str) -> bool:
+    """Vero se nel testo c'e' qualcosa da ricondurre: segnaposto, pseudonimi o date traslate."""
+    return bool(PLACEHOLDER.search(text) or (_DAYS and (_SHIFT_ISO.search(text) or _SHIFT_DMY.search(text))))
+
+
 def restore(text: str, seg: Dict[str, str], pseudo: Dict[str, str]) -> str:
     """Un'unica passata per segnaposto e pseudonimi: nessun valore ripristinato viene riletto."""
     from clin_text import restore_text
     merged = dict(pseudo or {})
     merged.update(seg or {})
+    if _DAYS:  # prima le date: quelle dentro i valori reali rimessi dopo non vanno toccate
+        text = unshift_dates(text, _DAYS)
     return restore_text(text, merged) if merged else text
 
 
@@ -128,12 +163,12 @@ def restore_ooxml(xml: str, seg: Dict[str, str], pseudo: Dict[str, str]) -> str:
 
     def each(n):
         text = html.unescape(n.group(3))
-        return node(n, restore(text, seg, pseudo)) if PLACEHOLDER.search(text) else n.group(0)
+        return node(n, restore(text, seg, pseudo)) if _to_restore(text) else n.group(0)
 
     def paragraph(pm):
         block = pm.group(0)
         joined = "".join(html.unescape(n.group(3)) for n in _OOXML_T.finditer(block))
-        if not PLACEHOLDER.search(joined):
+        if not _to_restore(joined):
             return block
         full = restore(joined, seg, pseudo)
         done = _OOXML_T.sub(each, block)  # run per run: la formattazione resta com'e'
@@ -190,10 +225,14 @@ def restore_file(src: Path, dst: Path, seg: Dict[str, str], pseudo: Dict[str, st
             for ws in wb.worksheets:
                 for row in ws.iter_rows():
                     for cell in row:
-                        if isinstance(cell.value, str) and PLACEHOLDER.search(cell.value):
+                        if isinstance(cell.value, str) and _to_restore(cell.value):
                             new = restore(cell.value, seg, pseudo)
                             if new != cell.value:
                                 cell.value, changed = new, True
+                        elif (_DAYS and hasattr(cell.value, "year") and not isinstance(cell.value, str)
+                              and 2100 <= cell.value.year <= 2299):
+                            from datetime import timedelta
+                            cell.value, changed = cell.value - timedelta(days=_DAYS), True
             if not changed:
                 return False
             dst.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -213,7 +252,7 @@ def restore_file(src: Path, dst: Path, seg: Dict[str, str], pseudo: Dict[str, st
             break
         except UnicodeDecodeError:
             continue
-    if not PLACEHOLDER.search(text):
+    if not _to_restore(text):
         return False
     new = restore(text, seg, pseudo)
     if new == text:
@@ -227,8 +266,10 @@ def reidentify(root: Path, out_dir: Path = None) -> List[Path]:
     import clin_settings
     root = Path(root).resolve()
     out_dir = out_dir or clin_settings.results_dir(root)
+    global _DAYS
     seg, pseudo = _tables()
-    if not seg and not pseudo:
+    _DAYS = clin_settings.date_shift(create=False)
+    if not seg and not pseudo and not _DAYS:
         return []
     written = []
     for src in candidates(root, out_dir):

@@ -79,9 +79,10 @@ def restore(text, mapping_json):
 
 def extract(path):
     """Testo grezzo di DOCX, TXT, MD (per unirlo agli altri documenti prima dell'anonimizzazione)."""
-    from clin_text import _docx_text, _read_text
+    from clin_text import _docx_text, _pptx_text, _read_text
     p = Path(path)
-    return _docx_text(p) if p.suffix.lower() == ".docx" else _read_text(p)
+    ext = p.suffix.lower()
+    return _docx_text(p) if ext == ".docx" else _pptx_text(p) if ext == ".pptx" else _read_text(p)
 
 
 def run_bundle(items_json, level, previous_json):

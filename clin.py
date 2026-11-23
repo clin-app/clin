@@ -17,6 +17,7 @@ Clin - comando unico per l'uso con le IA.
     python3 clin.py installa             installazione una tantum: MCP, /clin, guardia dormiente
     python3 clin.py avvia [CARTELLA]     protegge la cartella e crea le copie anonime (lo fa /clin)
     python3 clin.py stato [CARTELLA]     diagnosi: agenti collegati, protezione, motori
+    python3 clin.py escludi [PERCORSO]   file o cartelle senza dati di pazienti (articoli, linee guida)
     python3 clin.py attiva|disattiva     accende/spegne la guardia su una cartella
     python3 clin.py proteggi [CARTELLA]  guardia solo per un progetto (anche --agente tutti)
 
@@ -470,6 +471,26 @@ def cmd_stato(a) -> int:
     return 0
 
 
+def cmd_escludi(a) -> int:
+    """File o cartelle senza dati di pazienti dentro una cartella protetta (lo decide solo l'utente)."""
+    import clin_settings
+    items = list(clin_settings.load()["percorsi_esclusi"])
+    if a.percorso:
+        target = str(Path(a.percorso).expanduser().resolve())
+        if a.annulla:
+            items = [i for i in items if i != target]
+        elif not Path(target).exists():
+            raise ValueError(f"Percorso inesistente: {target}")
+        elif target not in items:
+            items.append(target)
+        clin_settings.save({"percorsi_esclusi": items})
+    print("Percorsi esclusi dalla protezione (l'agente li legge cosi' come sono):" if items
+          else "Nessun percorso escluso: nelle cartelle protette tutto viene anonimizzato.")
+    for i in items:
+        print(f"  {i}")
+    return 0
+
+
 def cmd_disattiva(a) -> int:
     folder = Path(a.cartella).expanduser().resolve()
     for f in [folder, *folder.parents]:
@@ -574,6 +595,10 @@ def main(argv=None) -> int:
     p = sub.add_parser("avvia", help="protegge la cartella e crea le copie anonime (cio' che fa /clin)")
     p.add_argument("percorso", nargs="?", default=".")
     p.set_defaults(fn=cmd_avvia)
+    p = sub.add_parser("escludi", help="dichiara senza dati di pazienti un file o una cartella (articoli, linee guida)")
+    p.add_argument("percorso", nargs="?")
+    p.add_argument("--annulla", action="store_true", help="toglie il percorso dall'elenco")
+    p.set_defaults(fn=cmd_escludi)
     p = sub.add_parser("stato", help="diagnosi: agenti collegati, protezione della cartella, motori")
     p.add_argument("cartella", nargs="?", default=".")
     p.set_defaults(fn=cmd_stato)

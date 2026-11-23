@@ -92,6 +92,59 @@ class TestTxtEDocxInLotto(unittest.TestCase):
         self.assertEqual(len(outs), 1)  # la copia vecchia non resta accanto alla nuova
         self.assertIn("Afebbrile", outs[0].read_text(encoding="utf-8"))
 
+    def test_powerpoint_testo_note_immagini_e_commenti(self):
+        import zipfile
+        slide = ('<p:sld xmlns:a="x" xmlns:p="y"><p:txBody><a:p><a:pPr><a:tabLst><a:tab pos="1"/></a:tabLst></a:pPr>'
+                 '<a:r><a:rPr b="1"/><a:t>Paziente: ROSSI </a:t></a:r><a:r><a:t>MARIO, CF ' + CF + '</a:t></a:r></a:p>'
+                 '<a:p><a:r><a:t>Febbre da 3 giorni.</a:t></a:r></a:p></p:txBody></p:sld>')
+        src = self.root / "caso_rossi.pptx"
+        with zipfile.ZipFile(src, "w") as z:
+            z.writestr("[Content_Types].xml", "<Types/>")
+            z.writestr("ppt/slides/slide1.xml", slide)
+            z.writestr("ppt/notesSlides/notesSlide1.xml",
+                       '<p:notes xmlns:a="x" xmlns:p="y"><a:p><a:r><a:t>Il sig. Rossi va richiamato.</a:t></a:r></a:p></p:notes>')
+            z.writestr("ppt/media/image1.png", b"FOTO DEL REFERTO DI ROSSI MARIO")
+            z.writestr("ppt/embeddings/dati.xlsx", b"ROSSI MARIO")
+            z.writestr("ppt/comments/comment1.xml", '<p:cmLst xmlns:p="y"><p:cm><p:text>Chiedere a Rossi</p:text></p:cm></p:cmLst>')
+            z.writestr("ppt/charts/chart1.xml", '<c:chart xmlns:c="z"><c:strCache><c:pt><c:v>ROSSI MARIO</c:v></c:pt></c:strCache>'
+                                                '<c:numCache><c:pt><c:v>13.5</c:v></c:pt></c:numCache></c:chart>')
+        clin_mcp.tool_crea_copie_anonime({"percorso": str(self.root)})
+        outs = list((self.root / "Clin_anonimizzati").glob("*.pptx"))
+        self.assertEqual(len(outs), 1)
+        self.assertNotIn("rossi", outs[0].name.lower())
+        with zipfile.ZipFile(outs[0]) as z:
+            everything = b"".join(z.read(n) for n in z.namelist())
+            sld = z.read("ppt/slides/slide1.xml").decode()
+        for leak in (b"ROSSI", b"Rossi", b"MARIO", CF.encode()):
+            self.assertNotIn(leak, everything)
+        self.assertIn("Febbre da 3 giorni.", sld)
+        self.assertIn('<a:tab pos="1"/>', sld)                 # la definizione di tabulazione non e' testo
+        self.assertIn(b"<c:v>13.5</c:v>", everything)          # i numeri dei grafici restano
+        from clin_text import anonymize_file
+        text = anonymize_file(src, allowed_roots=None).text
+        self.assertIn("Febbre da 3 giorni.", text)
+        self.assertNotIn("ROSSI", text)
+
+    def test_dataset_stata_convertito_e_anonimizzato(self):
+        try:
+            import pandas as pd
+        except ImportError:
+            self.skipTest("pandas non installato")
+        pd.DataFrame({"paziente": ["Rossi Mario", "Bianchi Anna"], "cf": [CF, "BNCNNA90A41H501U"],
+                      "data_intervento": pd.to_datetime(["2023-05-14", "2023-06-01"]), "hb": [13.5, 12.1]}
+                     ).to_stata(self.root / "coorte.dta", write_index=False)
+        (self.root / "foto.dcm").write_bytes(b"ROSSI MARIO")
+        out = clin_mcp.tool_crea_copie_anonime({"percorso": str(self.root)})
+        self.assertIn("1 su 1", out)
+        self.assertIn("1 .dcm", out)                       # il DICOM resta chiuso e viene segnalato
+        self.assertNotIn(".dta", out.split("File su cui lavorare")[0].split("lasciati chiusi")[-1])
+        copy = next((self.root / "Clin_anonimizzati").glob("*.csv")).read_text(encoding="utf-8-sig")
+        self.assertIn("PAZ-0001", copy)
+        self.assertIn("13.5", copy)
+        for leak in ("Rossi", "Bianchi", CF, "2023-05-14"):
+            self.assertNotIn(leak, copy)
+        self.assertIn("non rielaborate", clin_mcp.tool_crea_copie_anonime({"percorso": str(self.root)}))
+
     def test_txt_tabellare_resta_tabella(self):
         tsv_txt = self.root / "coorte.txt"
         tsv_txt.write_text(

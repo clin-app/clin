@@ -264,8 +264,8 @@
           <button class="ib pop-x" type="button" aria-label="Chiudi">${I.x}</button>
         </header>
         <div class="pop-b">
-          <button class="dz" type="button">${I.up}<span><b>Scegli o trascina un file</b><small>PDF, foto, Word, Excel, CSV, testo · letto solo su questo computer</small></span></button>
-          <input type="file" class="pick" multiple accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xlsm,.csv,.tsv,.txt,.md" hidden>
+          <button class="dz" type="button">${I.up}<span><b>Scegli o trascina un file</b><small>PDF, foto, Word, PowerPoint, Excel, CSV, testo · letto solo su questo computer</small></span></button>
+          <input type="file" class="pick" multiple accept="image/*,application/pdf,.pdf,.docx,.pptx,.xlsx,.xlsm,.csv,.tsv,.txt,.md" hidden>
           <nav class="seg">
             <button type="button" class="on" data-tab="ans">Risposta con i dati reali</button>
             <button type="button" data-tab="sent">Inviati <i class="sent-n">0</i></button>
@@ -613,7 +613,7 @@
     const name = (file.name || "").toLowerCase();
     if (file.type.startsWith("image/") || /\.(jpe?g|png|heic|webp)$/.test(name)) return "foto";
     if (file.type === "application/pdf" || name.endsWith(".pdf")) return "PDF";
-    if (name.endsWith(".docx")) return "Word";
+    if (name.endsWith(".docx") || name.endsWith(".pptx")) return "Word";  // PowerPoint: stesso motore dei Word
     if (/\.(xlsx|xlsm)$/.test(name)) return "Excel";
     if (/\.(csv|tsv)$/.test(name)) return "tabella";
     if (/\.(txt|md)$/.test(name)) return "testo";
@@ -633,7 +633,7 @@
     const acc = (input.accept || "").trim();
     if (!acc || /\*\/\*/.test(acc)) return true;
     if (wantImage) return /image|\.(png|jpe?g|webp)/i.test(acc);
-    return /pdf|application|word|sheet|csv|text|\.(pdf|docx|xlsx|csv|txt|md)/i.test(acc);
+    return /pdf|application|word|sheet|presentation|csv|text|\.(pdf|docx|pptx|xlsx|csv|txt|md)/i.test(acc);
   }
 
   function fileInput(preferred, wantImage = false) {

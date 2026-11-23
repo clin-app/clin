@@ -44,7 +44,7 @@ PROTECTED = {".pdf", ".docx", ".doc", ".xlsx", ".xlsm", ".xls", ".csv", ".tsv", 
              ".odt", ".ods", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".tif", ".tiff", ".bmp",
              # formati che Clin non sa anonimizzare ma che portano dati di pazienti: restano chiusi
              # (presentazioni, dataset statistici, immagini DICOM, posta, database e documenti Apple)
-             ".pptx", ".ppt", ".odp", ".sav", ".zsav", ".por", ".dta", ".sas7bdat", ".xpt", ".dcm",
+             ".ppt", ".odp", ".sav", ".zsav", ".por", ".dta", ".sas7bdat", ".xpt", ".dcm", ".pptx",
              ".eml", ".msg", ".mdb", ".accdb", ".numbers", ".pages", ".key"}
 READS_DIR = Path(os.path.expanduser(os.environ.get("CLIN_DATI") or "~/.clin")) / "letture"
 MARKER = ".clin-protetto"
@@ -59,7 +59,7 @@ _SAFE_CMDS = {"ls", "find", "stat", "file", "du", "mkdir", "touch", "wc",
 _SEARCH_CMDS = {"grep", "egrep", "fgrep", "rg", "ripgrep", "ag", "ack"}
 _SHELL_WRAPPERS = {"sh", "bash", "zsh", "dash", "ksh"}
 # sottocomandi di clin.py riservati all'utente: rivelano dati reali o smontano la protezione
-_USER_ONLY = {"originale", "ripristina", "dimentica", "disinstalla"}
+_USER_ONLY = {"originale", "ripristina", "dimentica", "disinstalla", "escludi"}
 
 
 def is_anonymized(path: Path) -> bool:
@@ -80,11 +80,15 @@ _TECH_FILES = re.compile(r"(?i)^(?:requirements|constraints|dev-requirements|tes
 
 
 def needs_guard(path: Path) -> bool:
-    return (path.suffix.lower() in PROTECTED and not is_anonymized(path)
-            and not _TECH_FILES.match(path.name) and not is_agent_output(path))
+    if path.suffix.lower() not in PROTECTED or is_anonymized(path) or _TECH_FILES.match(path.name):
+        return False
+    import clin_settings
+    return not clin_settings.is_excluded(path) and not is_agent_output(path)
 
 
-_TOKEN = re.compile(rb"\[\s*[A-Z]+(?:_[A-Z]+)*_\d+\s*\]|\b[A-Z]{2,4}-\d{4}\b")
+# segnaposto, pseudonimi e date traslate (anni 2100-2299): solo un file dell'agente li contiene
+_TOKEN = re.compile(rb"\[\s*[A-Z]+(?:_[A-Z]+)*_\d+\s*\]|\b[A-Z]{2,4}-\d{4}\b"
+                    rb"|(?<!\d)2[12]\d\d-\d\d-\d\d(?!\d)|(?<!\d)\d{1,2}[/.\-]\d{1,2}[/.\-]2[12]\d\d(?!\d)")
 
 
 def is_agent_output(path: Path) -> bool:
@@ -229,8 +233,9 @@ def on_read(data: dict) -> None:
         return
     from clin_text import SUPPORTED_SUFFIXES
     if path.suffix.lower() not in SUPPORTED_SUFFIXES:
-        _deny(f"Clin: formato {path.suffix} non anonimizzabile. Convertirlo in PDF, DOCX, XLSX o CSV "
-              "e riprovare: l'originale non viene letto.")
+        _deny(f"Clin: formato {path.suffix} non leggibile direttamente. Per SPSS, Stata e SAS usare la copia "
+              "CSV in Clin_anonimizzati/ (la crea `clin.py avvia`); gli altri formati vanno convertiti in PDF, "
+              "Word, Excel o CSV. L'originale non viene letto.")
         return
     try:
         copy = anonymized_copy(path)

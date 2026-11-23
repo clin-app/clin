@@ -137,6 +137,8 @@ class TableSettings:
     # registro dei segnaposto (clin_text._Registry): se presente, i dati nelle note e nelle
     # colonne oscurate diventano [PERSONA_1], [CONTATTO_1]... ripristinabili, invece di ███
     registry: Optional[object] = None
+    # giorni di cui spostare le date (clin_settings.date_shift); None: le date vengono oscurate
+    date_shift: Optional[int] = None
 
     # ---- accessi comodi -------------------------------------------------
     def column_mode(self, sheet: str, col: int) -> str:
@@ -339,6 +341,39 @@ def _prefix_from_header(header: str, col: int) -> str:
     if len(letters) >= 2:
         return letters[:3]
     return f"C{col + 1}"
+
+
+DATE_SHIFTED = "Date traslate"
+_DATE_ISO = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})(?=$|[ T])")
+_DATE_DMY = re.compile(r"^(\d{1,2})([/.\-])(\d{1,2})\2(\d{2}|\d{4})$")
+
+
+def shift_date(value: str, days: int) -> Optional[str]:
+    """La data spostata di `days` giorni, nello stesso formato; None se la cella non e' una data."""
+    from datetime import date, timedelta
+    v = value.strip()
+    try:
+        m = _DATE_ISO.match(v)
+        if m:
+            d = date(int(m[1]), int(m[2]), int(m[3]))
+            if not 1850 <= d.year <= 2099:
+                return None
+            return (d + timedelta(days=days)).isoformat() + v[m.end():]  # l'eventuale orario resta
+        m = _DATE_DMY.match(v)
+        if not m:
+            return None
+        a, b, year = int(m[1]), int(m[3]), int(m[4])
+        if len(m[4]) == 2:
+            year += 2000 if year <= 30 else 1900
+        us = b > 12 >= a  # "5/23/2021": mese prima del giorno
+        d = date(year, a, b) if us else date(year, b, a)
+        if not 1850 <= d.year <= 2099:
+            return None
+        d += timedelta(days=days)
+        first, second = (d.month, d.day) if us else (d.day, d.month)
+        return f"{first:02d}{m[2]}{second:02d}{m[2]}{d.year}"
+    except ValueError:
+        return None
 
 
 def _mask_for(text: str, mask: str) -> str:
@@ -579,6 +614,7 @@ def plan_sheet(
             if len(nfull.split()) >= 2:
                 codes[nfull] = code
                 codes[_norm(" ".join(reversed(full.split())))] = code
+    shift = settings.date_shift if "Date" not in excluded_categories() else None
     cap_age = "Data di nascita" not in excluded_categories()
     age_cols = ({c for c, h in enumerate(header)
                  if c not in explicit_cols and _AGE_HEADER.fullmatch(_norm_header(h))}
@@ -608,7 +644,10 @@ def plan_sheet(
             if mode == MODE_KEEP:
                 continue
             if mode == MODE_ALL:
-                if settings.registry is not None:
+                moved = shift_date(value, shift) if shift and header_cats.get(c) == "Data di nascita" else None
+                if moved:
+                    plans[(r, c)] = CellPlan(moved, DATE_SHIFTED, mode)
+                elif settings.registry is not None:
                     plans[(r, c)] = CellPlan(_placeholder(settings, header_cats.get(c, "Contatti"), value),
                                              "Colonna oscurata", mode)
                 else:
@@ -628,6 +667,10 @@ def plan_sheet(
                         plans[(r, c)] = CellPlan("90+", "Data di nascita", mode)  # eta' molto alta: identifica
                 except ValueError:
                     pass
+                continue
+            moved = shift_date(value, shift) if shift else None
+            if moved:  # cella che e' per intero una data: spostata, non oscurata
+                plans[(r, c)] = CellPlan(moved, DATE_SHIFTED, mode)
                 continue
             new_value, category = _apply_auto(value, settings, derived, row_codes)
             if new_value is not None:
@@ -724,7 +767,12 @@ def _write_excel(
             plans = all_plans.get(ws.title, {})
             for (r, c), plan in plans.items():
                 cell = ws.cell(row=r + 1, column=c + 1)
-                cell.value = plan.new_value
+                if (plan.category == DATE_SHIFTED and settings.date_shift
+                        and hasattr(cell.value, "year") and not isinstance(cell.value, str)):
+                    from datetime import timedelta
+                    cell.value = cell.value + timedelta(days=settings.date_shift)  # resta una data vera di Excel
+                else:
+                    cell.value = plan.new_value
             # Note di cella e intestazioni di stampa sfuggono all'analisi e
             # contengono spesso nominativi: vengono eliminate.
             for row in ws.iter_rows():

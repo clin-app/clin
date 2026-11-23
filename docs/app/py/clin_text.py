@@ -44,7 +44,7 @@ __all__ = [
 
 DEFAULT_LEVEL = 10         # nessuna scala: tutte le categorie sono sempre attive
 MAX_FILE_MB = 50
-SUPPORTED_SUFFIXES = ({".pdf", ".txt", ".md", ".csv", ".tsv", ".xlsx", ".xlsm", ".docx"}
+SUPPORTED_SUFFIXES = ({".pdf", ".txt", ".md", ".csv", ".tsv", ".xlsx", ".xlsm", ".docx", ".pptx"}
                       | clin_ocr.IMAGE_SUFFIXES)
 
 _PLACEHOLDER = {
@@ -391,17 +391,62 @@ _DOCX_PARA_RX = re.compile(r"<w:p(?:\s[^>]*)?(?<!/)>(?:(?!</?w:p[\s>/]).)*?</w:p
 _DOCX_TOK_RX = re.compile(
     r"<w:t(?:\s[^>]*)?>(.*?)</w:t>|<w:tab(?:\s[^>]*)?/>|<w:(?:br|cr)(?:\s[^>]*)?/>", re.S
 )
+# PowerPoint: stessi paragrafi e run di Word, con il prefisso "a:" (DrawingML). `<a:tab>` qui e'
+# una definizione di tabulazione, non un carattere: non fa parte del testo.
+_PPTX_PARA_RX = re.compile(r"<a:p(?:\s[^>]*)?(?<!/)>(?:(?!</?a:p[\s>/]).)*?</a:p>", re.S)
+_PPTX_TOK_RX = re.compile(r"<a:t(?:\s[^>]*)?>(.*?)</a:t>|<a:br(?:\s[^>]*)?/>", re.S)
+# immagini dentro il documento (foto di referti, schermate): sostituite da un'immagine vuota
+_BLANK_PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=")
+_BLANK_JPEG = ("/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwc"
+               "KDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAA"
+               "AAAAAAAAAAD/2gAIAQEAAD8AVN//2Q==")
+_BLANK_GIF = "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+
+
+def _blank_media(name: str) -> bytes:
+    """Contenuto neutro per un'immagine o un oggetto incorporato in un file Word o PowerPoint."""
+    import base64
+    ext = name.rsplit(".", 1)[-1].lower()
+    if ext in ("jpg", "jpeg"):
+        return base64.b64decode(_BLANK_JPEG)
+    if ext == "gif":
+        return base64.b64decode(_BLANK_GIF)
+    if ext == "svg":
+        return b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
+    if ext in ("png", "bmp", "tif", "tiff"):
+        return base64.b64decode(_BLANK_PNG)
+    return b""  # EMF, WMF, fogli e documenti incorporati: vuoti
+
+
+def _pptx_text(path: Path) -> str:
+    """Testo delle diapositive, nell'ordine, seguito dalle note del relatore."""
+    def order(n: str):
+        m = re.search(r"(\d+)\.xml$", n)
+        return (not n.startswith("ppt/slides/"), int(m.group(1)) if m else 0)
+    total, chunks = 0, []
+    with zipfile.ZipFile(path) as z:
+        parts = [n for n in z.namelist() if re.match(r"ppt/(slides|notesSlides)/[^/]+\.xml$", n)]
+        for name in sorted(parts, key=order):
+            total += z.getinfo(name).file_size
+            if total > MAX_DOCX_XML_BYTES:
+                raise ValueError("Presentazione troppo grande una volta decompressa.")
+            xml = z.read(name).decode("utf-8", "ignore")
+            lines = [_docx_para_text(m.group(0), _PPTX_TOK_RX) for m in _PPTX_PARA_RX.finditer(xml)]
+            chunks.append("\n".join(t for t in lines if t.strip()))
+    return "\n\n".join(c for c in chunks if c)
+
+
 _TITLE_PREFIX_RX = re.compile(
     r"(?i)^(dott\.ssa|dott\.?|dr\.ssa|dr\.?|prof\.ssa|prof\.?|sig\.ra|sig\.?|inf\.)\s+"
 )
 
 
-def _docx_para_text(para_xml: str) -> str:
+def _docx_para_text(para_xml: str, tok_rx: "re.Pattern" = None) -> str:
     out = []
-    for m in _DOCX_TOK_RX.finditer(para_xml):
+    for m in (tok_rx or _DOCX_TOK_RX).finditer(para_xml):
         if m.group(1) is not None:
             out.append(_unescape(m.group(1)))
-        elif m.group(0).startswith("<w:tab"):
+        elif m.group(0).startswith(("<w:tab", "<a:tab")):
             out.append("\t")
         else:
             out.append("\n")
@@ -455,15 +500,20 @@ def redact_docx_file(
     previous: Optional[Dict[str, str]] = None,
 ) -> Tuple[Dict[str, str], Dict[str, int], List[str]]:
     """
-    Riscrive un file .docx sostituendo i dati personali con segnaposto.
+    Riscrive un file .docx o .pptx sostituendo i dati personali con segnaposto.
     Gestisce paragrafi vuoti (<w:p/>), celle di tabella, tabulazioni e a capo,
     rimuove revisioni cancellate (<w:del>), miniature e metadati identificativi.
+    Immagini e oggetti incorporati vengono svuotati: possono contenere referti fotografati,
+    schermate con il nome del paziente o fogli di dati, che il testo non raggiunge.
     """
-    t_rx = re.compile(r"(<w:t(?:\s[^>]*)?>)(.*?)(</w:t>)", re.S)
-    sep_rx = re.compile(r"<w:(?:tab|br|cr)(?:\s[^>]*)?/>")
+    pptx = Path(in_path).suffix.lower() == ".pptx"
+    ns, folder = ("a", "ppt/") if pptx else ("w", "word/")
+    para_rx, tok_rx = (_PPTX_PARA_RX, _PPTX_TOK_RX) if pptx else (_DOCX_PARA_RX, _DOCX_TOK_RX)
+    t_rx = re.compile(rf"(<{ns}:t(?:\s[^>]*)?>)(.*?)(</{ns}:t>)", re.S)
+    sep_rx = re.compile(r"<a:br(?:\s[^>]*)?/>" if pptx else r"<w:(?:tab|br|cr)(?:\s[^>]*)?/>")
     total = 0
     with zipfile.ZipFile(in_path) as zin:
-        parts = [n for n in zin.namelist() if n.startswith("word/") and n.endswith(".xml")]
+        parts = [n for n in zin.namelist() if n.startswith(folder) and n.endswith(".xml")]
         xml: Dict[str, str] = {}
         for n in parts:
             total += zin.getinfo(n).file_size
@@ -473,8 +523,8 @@ def redact_docx_file(
 
         paras: List[Tuple[str, str]] = []
         for n in parts:
-            for m in _DOCX_PARA_RX.finditer(xml[n]):
-                paras.append((n, _docx_para_text(m.group(0))))
+            for m in para_rx.finditer(xml[n]):
+                paras.append((n, _docx_para_text(m.group(0), tok_rx)))
 
         joined = "\n".join(t for _, t in paras)
         prev_names = [v for k, v in (previous or {}).items() if k.startswith("[PAZIENTE_")]
@@ -520,15 +570,19 @@ def redact_docx_file(
             spans = next(it)
             if not spans:
                 return p
-            text = _docx_para_text(p)
+            text = _docx_para_text(p, tok_rx)
             for s, e, ph in sorted(spans, reverse=True):
                 text = text[:s] + ph + text[e:]
+            text = re.sub(r"(\[[A-Z_]+_\d+\])(?:[ \t]+\1)+", r"\1", text)  # "Mario Rossi": un solo segnaposto
             p_clean = sep_rx.sub("", p)
             first = [True]
 
             def t_sub(m: re.Match) -> str:
                 if first[0]:
                     first[0] = False
+                    if pptx:  # un <a:t> non puo' contenere a capo: diventano spazi
+                        from xml.sax.saxutils import escape
+                        return m.group(1) + escape(text.replace("\n", " ")) + m.group(3)
                     return _xml_escape_runs(text)
                 return m.group(1) + m.group(3)
 
@@ -541,8 +595,18 @@ def redact_docx_file(
                 if fn == "docProps/custom.xml" or fn.startswith("docProps/thumbnail"):
                     continue
                 data = zin.read(fn)
-                if fn in xml:
-                    data = _DOCX_PARA_RX.sub(rewrite_para, xml[fn]).encode("utf-8")
+                if re.match(r"(?:word|ppt)/(?:media|embeddings)/", fn):
+                    data = _blank_media(fn)
+                elif fn in xml:
+                    out = para_rx.sub(rewrite_para, xml[fn])
+                    # autori di commenti e revisioni, testo dei commenti alle diapositive,
+                    # etichette dei grafici (i valori numerici restano)
+                    out = re.sub(r'\b((?:w:author|w:initials|name|initials)=)"[^"]*"', r'\1""', out) \
+                        if re.search(r"comment|people", fn, re.I) else re.sub(r'\b(w:author|w:initials)="[^"]*"', r'\1=""', out)
+                    out = re.sub(r"(<p:text>)[^<]*(</p:text>)", r"\1\2", out)
+                    out = re.sub(r"<c:strCache>.*?</c:strCache>",
+                                 lambda m: re.sub(r"(<c:v>)[^<]*(</c:v>)", r"\1\2", m.group(0)), out, flags=re.S)
+                    data = out.encode("utf-8")
                 elif fn == "docProps/core.xml":
                     data = re.sub(
                         rb"(<(?:dc:creator|cp:lastModifiedBy|dc:title|dc:subject|dc:description|cp:keywords)(?:\s[^>]*)?>)[^<]*",
@@ -571,7 +635,7 @@ def anonymize_prose_document(
         return res
     try:
         ext = input_path.suffix.lower()
-        if ext == ".docx":
+        if ext in (".docx", ".pptx"):
             _, counts, names = redact_docx_file(
                 input_path, output_path, level=sensitivity_level,
                 explicit=explicit_targets, whitelist=whitelist_words, registry=registry,
@@ -684,6 +748,8 @@ def anonymize_file(
                 sections.append((f"Pagina {page.number + 1}", txt))
     elif ext == ".docx":
         sections.append(("Documento", _docx_text(p)))
+    elif ext == ".pptx":
+        sections.append(("Presentazione", _pptx_text(p)))
     elif ext in {".xlsx", ".xlsm", ".csv", ".tsv"}:
         return _anonymize_table_file(p, level, explicit, whitelist, previous)
     else:

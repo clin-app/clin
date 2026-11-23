@@ -32,6 +32,11 @@ OPTIONS: Dict[str, tuple] = {
     "ocr": (True, "Legge con l'OCR le pagine scansionate e le immagini, se il modello OCR e' installato."),
     "categorie_escluse": ([], "Categorie da NON rimuovere (controllo manuale; vuoto = si rimuove tutto). "
                               "Es.: Date, Struttura sanitaria. Elenco: clin.py impostazioni categorie."),
+    "date_traslate": (True, "Nei fogli di calcolo le date vengono spostate nel futuro di un numero fisso e "
+                            "segreto di giorni (circa 220 anni) invece di essere oscurate: intervalli ed eta' "
+                            "restano esatti; nei risultati tornano le date vere."),
+    "percorsi_esclusi": ([], "File o cartelle senza dati di pazienti (articoli, linee guida) dentro una cartella "
+                             "protetta: l'agente li legge cosi' come sono. Si gestiscono con `clin.py escludi`."),
     "colonne_dal_contenuto": (True, "Nei fogli di calcolo riconosce le colonne di nominativi anche senza "
                                     "un'intestazione nota, dal contenuto delle celle."),
 }
@@ -74,6 +79,8 @@ def parse(key: str, raw: str) -> Any:
         if low in {"no", "n", "false", "0", "off"}:
             return False
         raise ValueError(f"{key}: usare si oppure no.")
+    if key == "percorsi_esclusi":
+        raise ValueError("percorsi_esclusi si gestisce con: clin.py escludi PERCORSO (--annulla per toglierlo).")
     if key == "categorie_escluse":
         from anonymize_engine import CONTROL_CATEGORIES
         names = [c.strip() for c in raw.split(",") if c.strip()]
@@ -85,6 +92,41 @@ def parse(key: str, raw: str) -> Any:
     if key == "motore" and raw.strip() not in ("auto", "gliner", "ollama"):
         raise ValueError("motore: usare auto, gliner oppure ollama.")
     return raw.strip()
+
+
+def date_shift(create: bool = True):
+    """Giorni di cui si spostano le date dei fogli, o None se la traslazione e' disattivata.
+
+    Il numero e' casuale, scelto una volta e conservato nella cartella dei dati di Clin: uguale per
+    tutti i file e tutte le sessioni, cosi' gli intervalli restano esatti anche tra fogli diversi."""
+    if not load().get("date_traslate", True):
+        return None
+    path = DATA_DIR / "traslazione_date.json"
+    try:
+        return int(json.loads(path.read_text(encoding="utf-8"))["giorni"])
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    if not create:
+        return None
+    import secrets
+    days = 80000 + secrets.randbelow(366)  # 1900 -> 2119, oggi -> 2245: sempre riconoscibili come traslate
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump({"giorni": days}, fh)
+    return days
+
+
+def is_excluded(path: Path) -> bool:
+    """Vero se l'utente ha dichiarato senza dati di pazienti il file o una cartella che lo contiene."""
+    items = load().get("percorsi_esclusi") or []
+    if not items:
+        return False
+    try:
+        p = Path(path).resolve()
+    except OSError:
+        return False
+    return any(p == Path(e) or Path(e) in p.parents for e in items)
 
 
 def results_dir(root: Path) -> Path:

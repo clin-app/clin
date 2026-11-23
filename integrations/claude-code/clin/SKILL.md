@@ -33,8 +33,9 @@ Percorso: quello indicato dall'utente, altrimenti la cartella di lavoro corrente
    - la cartella (con le sottocartelle) diventa protetta: da qui in poi gli originali
      non si possono leggere, cercare o stampare;
    - in `Clin_anonimizzati/` nascono le copie anonime, con la stessa struttura di
-     sottocartelle: PDF e foto con oscuramento irreversibile, Word e testi con
-     segnaposto, Excel e CSV con pseudonimi (`PAZ-0001`, `ID-0001`);
+     sottocartelle: PDF e foto con oscuramento irreversibile; Word, PowerPoint e testi
+     con segnaposto (immagini e oggetti incorporati svuotati); Excel e CSV con
+     pseudonimi (`PAZ-0001`, `ID-0001`); dataset SPSS, Stata e SAS convertiti in CSV;
    - l'output elenca i file su cui lavorare. I documenti non modificati dall'ultima
      volta non vengono rielaborati: ripetere `avvia` costa poco e va fatto ogni volta
      che l'utente aggiunge o modifica dei documenti.
@@ -47,6 +48,19 @@ Percorso: quello indicato dall'utente, altrimenti la cartella di lavoro corrente
    cosi' come sono. A fine risposta Clin ne crea in locale una copia con i dati reali
    nella cartella dei risultati dell'utente. Quella cartella non e' accessibile: non
    leggerla, non cercarla, non elencarla.
+
+### Date nei fogli di calcolo
+
+Nelle copie di Excel, CSV e dataset statistici le date non sono oscurate: sono tutte
+spostate dello stesso numero di giorni nel futuro (anni 2100-2260).
+
+- Intervalli, durate, tempi di follow-up, sopravvivenza ed eta' (data evento meno data
+  di nascita) sono **esatti**: calcolarli normalmente.
+- Anno, mese, giorno della settimana e stagione **non sono reali**: non usarli e non
+  riportarli come fatti (niente "interventi nel 2023", niente analisi per stagione).
+- Nei risultati scrivere le date cosi' come sono, in forma `AAAA-MM-GG` o `GG/MM/AAAA`
+  (o come date di Excel): Clin vi rimette quelle vere. Una data scritta a parole
+  ("14 maggio") non viene ricondotta.
 
 ### Che cosa si puo' produrre
 
@@ -61,8 +75,11 @@ normalmente, con i segnaposto al posto dei nomi.
 - Scrivere ogni segnaposto per intero e senza modificarlo (`[PAZIENTE_1]`, `PAZ-0001`):
   abbreviato o tradotto non viene piu' riconosciuto.
 - Dati intermedi (cache, dataframe salvati): tenerli in `Clin_anonimizzati/` o in CSV.
-- Se `avvia` segnala formati lasciati chiusi (PowerPoint, SPSS, Stata, SAS, DICOM,
-  posta...), dirlo all'utente: vanno esportati in PDF, Word, Excel o CSV.
+- Se `avvia` segnala formati lasciati chiusi (DICOM, posta, vecchi `.doc`/`.xls`/`.ppt`,
+  documenti Apple...), dirlo all'utente: vanno esportati in PDF, Word, Excel o CSV.
+- Se nella cartella ci sono articoli o linee guida che non contengono dati di pazienti
+  e servono con i nomi degli autori in chiaro, l'utente puo' escluderli dal proprio
+  terminale con `escludi "<file o cartella>"`: indicarglielo, non eseguirlo.
 
 ## Regole
 
@@ -83,6 +100,6 @@ normalmente, con i segnaposto al posto dei nomi.
    segnalarlo all'utente senza ripeterlo per intero.
 6. Se un comando di Clin fallisce o `/clin` non sembra attivo, eseguire `stato` e
    riferire all'utente che cosa manca, senza aggirare la protezione.
-7. `originale`, `ripristina`, `dimentica`, `disinstalla` e la modifica delle
+7. `originale`, `ripristina`, `dimentica`, `disinstalla`, `escludi` e la modifica delle
    impostazioni sono riservati all'utente, nel suo terminale: se servono, indicargli
    il comando da eseguire.

@@ -101,10 +101,30 @@ def tool_anonimizza_documento(args: Dict[str, Any]) -> str:
 
 SKIP_DIRS = {"Clin_anonimizzati", "node_modules", "__pycache__"}
 INDEX_NAME = ".clin-indice.json"
+# dataset statistici: convertiti in CSV (con le etichette dei valori) e anonimizzati come un foglio
+STAT_EXT = {".sav", ".zsav", ".por", ".dta", ".sas7bdat", ".xpt"}
+
+
+def _stat_to_csv(src: Path, dst: Path) -> None:
+    """Dataset SPSS, Stata o SAS in CSV. Richiede pandas (e pyreadstat per SPSS): ImportError se mancano."""
+    import pandas as pd
+    ext = src.suffix.lower()
+    if ext == ".dta":
+        df = pd.read_stata(src)
+    elif ext in (".sas7bdat", ".xpt"):
+        df = pd.read_sas(src, encoding="latin-1")
+    elif ext == ".por":
+        import pyreadstat
+        df, _ = pyreadstat.read_por(str(src), apply_value_formats=True)
+    else:
+        import pyreadstat  # noqa: F401  (pandas lo usa per i .sav)
+        df = pd.read_spss(src)
+    df.to_csv(dst, index=False)
 
 
 def _documents(target: Path) -> Dict[Path, List[Path]]:
     """Documenti supportati della cartella e delle sottocartelle, raggruppati per cartella."""
+    import clin_settings
     from clin_text import _is_forbidden_path
     groups: Dict[Path, List[Path]] = {}
     for dirpath, dirs, names in os.walk(target):
@@ -113,7 +133,8 @@ def _documents(target: Path) -> Dict[Path, List[Path]]:
                          and not (d / x).is_symlink() and not _is_forbidden_path(d / x))
         files = sorted(f for f in (d / n for n in names if not n.startswith((".", "~$")))
                        if f.is_file() and not f.is_symlink()
-                       and f.suffix.lower() in SUPPORTED_SUFFIXES - {".md"} and not _is_forbidden_path(f))
+                       and f.suffix.lower() in SUPPORTED_SUFFIXES - {".md"} and not _is_forbidden_path(f)
+                       and not clin_settings.is_excluded(f))
         if files:
             groups[d] = files
     return groups
@@ -137,8 +158,6 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
         base, groups = target.parent, {target.parent: [check_path(target, roots)]}
     out_dir = base / "Clin_anonimizzati"
     total = sum(len(f) for f in groups.values())
-    if not total:
-        return "Nessun documento supportato (PDF, DOCX, TXT, JPG, PNG, CSV, TSV, XLSX) nel percorso indicato."
     from tabular_engine import _PseudonymBook
     level = DEFAULT_LEVEL
     # stesso paziente, stesso pseudonimo in tutti i file e in tutte le sessioni
@@ -168,6 +187,25 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
         st = f.stat()
         return [st.st_mtime_ns, st.st_size]
 
+    # file in formati protetti che Clin non anonimizza direttamente: i dataset statistici vengono
+    # convertiti, gli altri restano chiusi e l'agente lo riferisce all'utente
+    closed_files: List[Path] = []
+    if target.is_dir():
+        from clin_guard import PROTECTED
+        for dirpath, dirs, names in os.walk(target):
+            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS]
+            for n in sorted(names):
+                f = Path(dirpath) / n
+                if (f.suffix.lower() in PROTECTED | STAT_EXT and f.suffix.lower() not in SUPPORTED_SUFFIXES
+                        and not n.startswith((".", "~$")) and not f.is_symlink()
+                        and not _is_forbidden_path(f) and not clin_settings.is_excluded(f)):
+                    closed_files.append(f)
+    stat_files = [f for f in closed_files if f.suffix.lower() in STAT_EXT]
+    total += len(stat_files)
+    if not total and not closed_files:
+        return ("Nessun documento supportato (PDF, Word, PowerPoint, TXT, JPG, PNG, CSV, TSV, Excel, SPSS, Stata, SAS) "
+                "nel percorso indicato.")
+    shift = clin_settings.date_shift()
     batch, reused = BatchResult(), 0
     for folder, files in groups.items():
         todo = []
@@ -184,10 +222,42 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
         done = BatchResult()
         process_batch_files(todo, out_dir / folder.relative_to(base), sensitivity_level=level, batch_result=done,
                             table_settings=TableSettings(level=level, pseudonyms=book, keep_labels=True,
-                                                         registry=registry))
+                                                         registry=registry, date_shift=shift))
         for r in done.results:
             if r.ok and r.output_path:
                 index[key(r.input_path)] = sig(r.input_path) + [str(Path(r.output_path).relative_to(out_dir))]
+        batch.results.extend(done.results)
+    missing_lib = False
+    for f in stat_files:
+        e = index.get(key(f))
+        if e and e[:2] == sig(f) and (out_dir / e[2]).is_file():
+            reused += 1
+            closed_files.remove(f)
+            continue
+        if e:
+            (out_dir / e[2]).unlink(missing_ok=True)
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="clin-") as tmp:  # 0700: il CSV in chiaro vive solo qui
+            csv_path = Path(tmp) / (f.stem + ".csv")
+            try:
+                _stat_to_csv(f, csv_path)
+            except ImportError:
+                missing_lib = True
+                total -= 1
+                continue
+            except Exception as exc:
+                from anonymize_engine import FileResult
+                batch.results.append(FileResult(input_path=f, error=f"{type(exc).__name__}: {exc}"))
+                continue
+            done = BatchResult()
+            process_batch_files([csv_path], out_dir / f.parent.relative_to(base), sensitivity_level=level,
+                                batch_result=done,
+                                table_settings=TableSettings(level=level, pseudonyms=book, keep_labels=True,
+                                                             registry=registry, date_shift=shift))
+        for r in done.results:
+            if r.ok and r.output_path:
+                index[key(f)] = sig(f) + [str(Path(r.output_path).relative_to(out_dir))]
+                closed_files.remove(f)
         batch.results.extend(done.results)
     book.save(book_path)
     clin.save_mapping(registry.mapping)
@@ -201,21 +271,21 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
         lines.append(f"Non elaborati: {len(batch.failed)} (formato o protezione).")
     if batch.warnings:
         lines.append(f"Avvisi da verificare manualmente: {len(batch.warnings)}.")
+    if shift:
+        lines.append("Date dei fogli: spostate tutte dello stesso numero di giorni nel futuro (anni 2100-2260). "
+                     "Intervalli, durate ed eta' sono esatti; anno, mese e stagione non sono reali. Nei risultati "
+                     "scrivere le date come AAAA-MM-GG o GG/MM/AAAA: Clin vi rimette quelle vere.")
     # elenco delle copie (nomi gia' anonimi): l'agente sa subito su che cosa lavorare
-    # formati che Clin non anonimizza: restano chiusi, e l'agente deve dirlo all'utente
-    if target.is_dir():
-        from clin_guard import PROTECTED
+    if closed_files:
         closed: Dict[str, int] = {}
-        for dirpath, dirs, names in os.walk(target):
-            dirs[:] = [d for d in dirs if not d.startswith(".") and d not in SKIP_DIRS]
-            for n in names:
-                ext = Path(n).suffix.lower()
-                if ext in PROTECTED and ext not in SUPPORTED_SUFFIXES and not n.startswith((".", "~$")):
-                    closed[ext] = closed.get(ext, 0) + 1
-        if closed:
-            lines.append("Formati non anonimizzabili, lasciati chiusi: "
-                         + ", ".join(f"{n} {e}" for e, n in sorted(closed.items()))
-                         + ". Chiedere all'utente di esportarli in PDF, Word, Excel o CSV.")
+        for f in closed_files:
+            closed[f.suffix.lower()] = closed.get(f.suffix.lower(), 0) + 1
+        lines.append("Formati non anonimizzabili, lasciati chiusi: "
+                     + ", ".join(f"{n} {e}" for e, n in sorted(closed.items()))
+                     + ". Chiedere all'utente di esportarli in PDF, Word, Excel o CSV.")
+    if missing_lib:
+        lines.append("Per leggere SPSS, Stata e SAS servono pandas e pyreadstat nell'ambiente di Clin: l'utente puo' "
+                     f'installarli con  "{sys.executable}" -m pip install pandas pyreadstat  e ripetere /clin.')
     copies = sorted(str(c.relative_to(out_dir)) for c in out_dir.rglob("*") if c.is_file() and c.name != INDEX_NAME)
     if copies:
         lines.append("File su cui lavorare:")

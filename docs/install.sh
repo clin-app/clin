@@ -71,6 +71,10 @@ PKGS="PyMuPDF>=1.24 openpyxl>=3.1"
 # shellcheck disable=SC2086
 "$VPY" -m pip install -q --disable-pip-version-check $PKGS || fail "Installazione dei pacchetti Python non riuscita."
 echo "  pacchetti: $PKGS"
+# dataset SPSS, Stata e SAS: facoltativi, un errore qui non ferma l'installazione
+"$VPY" -m pip install -q --disable-pip-version-check pandas pyreadstat 2>/dev/null \
+  && echo "  dataset statistici (SPSS, Stata, SAS): pronti" \
+  || echo "  dataset statistici non installati (facoltativi): esportarli in CSV o Excel"
 
 # --- 4. OCR ---------------------------------------------------------------------
 step "Modello OCR italiano (2,6 MB)"

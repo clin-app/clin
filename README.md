@@ -41,7 +41,27 @@ anonime di Excel, CSV, PDF, Word e file di testo in `Clin_anonimizzati/`
 (sottocartelle comprese, con la stessa struttura) e Claude lavora solo su quelle.
 Ripetere `/clin` dopo aver aggiunto documenti rielabora solo quelli nuovi o
 modificati. `/clin stato` (o `python3 clin.py stato`) mostra quali agenti sono
-collegati, se la cartella è protetta e quali motori sono attivi. Per i dettagli: «Guardia automatica per agenti».
+collegati, se la cartella è protetta e quali motori sono attivi.
+
+Che cosa copre `/clin`:
+
+- **Documenti di partenza**: PDF, foto, Word, PowerPoint, testi, Excel, CSV e dataset
+  SPSS, Stata e SAS (convertiti in CSV; servono `pandas` e `pyreadstat`, che
+  l'installazione prova ad aggiungere). In Word e PowerPoint immagini, oggetti
+  incorporati, autori di commenti e revisioni vengono svuotati. DICOM, posta e i
+  vecchi `.doc`/`.xls`/`.ppt` restano chiusi e `/clin` lo segnala.
+- **Date nei fogli**: invece di essere oscurate vengono spostate tutte dello stesso
+  numero segreto di giorni (circa 220 anni nel futuro). Intervalli, follow-up,
+  sopravvivenza ed età restano esatti anche tra file diversi; anno e stagione non
+  sono reali. Nei risultati tornano le date vere. Si disattiva con
+  `clin.py impostazioni date_traslate no` (le date tornano oscurate).
+- **Risultati**: Word, PowerPoint, Excel, CSV, Markdown, HTML, LaTeX, quaderni
+  `.ipynb`, R Markdown/Quarto, SVG tornano con i dati reali nella cartella dei
+  risultati. PDF e immagini prodotti dall'agente no.
+- **File senza dati di pazienti** (articoli, linee guida) nella stessa cartella:
+  `python3 clin.py escludi <file o cartella>` li lascia leggibili così come sono.
+  Lo può eseguire solo l'utente dal proprio terminale, come `originale`,
+  `ripristina`, `dimentica`, `disinstalla` e la modifica delle impostazioni. Per i dettagli: «Guardia automatica per agenti».
 
 Senza riga di comando: `python3 clin.py` apre l'applicazione grafica.
 

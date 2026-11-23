@@ -126,6 +126,60 @@ class TestGuardia(unittest.TestCase):
         os.utime(self.dir / "analisi" / "slide.pptx", (later, later))
         self.assertEqual(self.pre("Bash", {"command": "python3 aggiorna.py analisi/slide.pptx"}), {})
 
+    def test_date_dei_fogli_traslate_e_ricondotte(self):
+        import datetime
+        import os
+        from openpyxl import Workbook, load_workbook
+        import clin_mcp, clin_results, clin_settings, tabular_engine
+        unittest.mock.patch.object(clin_settings, "DATA_DIR", Path(self.home)).start()
+        unittest.mock.patch.dict(os.environ, {"CLIN_CARTELLE": str(self.dir)}).start()
+        wb = Workbook()
+        wb.active.append(["Paziente", "Data di nascita", "Data intervento", "Data decesso", "Note"])
+        wb.active.append(["ROSSI MARIO", datetime.datetime(1950, 3, 12), datetime.datetime(2023, 5, 14), "20/11/2023", "ok"])
+        wb.save(self.dir / "registro.xlsx")
+        out = clin_mcp.tool_crea_copie_anonime({"percorso": str(self.dir)})
+        self.assertIn("Date dei fogli", out)
+        days = clin_settings.date_shift(create=False)
+        self.assertGreaterEqual(days, 80000)
+        row = [c.value for c in load_workbook(self.dir / "Clin_anonimizzati" / "registro_ANONIMIZZATO.xlsx").active[2]]
+        self.assertEqual(row[0], "PAZ-0001")
+        nascita, intervento, decesso = row[1], row[2], row[3]
+        self.assertIsInstance(intervento, datetime.datetime)            # resta una data di Excel
+        self.assertGreaterEqual(nascita.year, 2100)
+        self.assertEqual((intervento - nascita).days, (datetime.datetime(2023, 5, 14) - datetime.datetime(1950, 3, 12)).days)
+        d, m, y = (int(x) for x in decesso.split("/"))
+        self.assertEqual((datetime.datetime(y, m, d) - intervento).days, 190)   # intervallo esatto
+        # l'agente scrive risultati con le date traslate: tornano quelle vere
+        (self.dir / "analisi").mkdir()
+        (self.dir / "analisi" / "decessi.md").write_text(
+            f"PAZ-0001 operato il {intervento.date().isoformat()}, deceduto il {decesso}. Relazione del 23/11/2026.\n")
+        res = Workbook(); res.active.append(["PAZ-0001", intervento]); res.save(self.dir / "analisi" / "date.xlsx")
+        self.assertEqual(len(clin_results.reidentify(self.dir)), 2)
+        real = clin_settings.results_dir(self.dir) / "analisi"
+        self.assertEqual((real / "decessi.md").read_text(),
+                         "ROSSI MARIO operato il 2023-05-14, deceduto il 20/11/2023. Relazione del 23/11/2026.\n")
+        self.assertEqual(load_workbook(real / "date.xlsx").active["B1"].value, datetime.datetime(2023, 5, 14))
+        self.assertIsNone(tabular_engine.shift_date("Hb 13,5", days))
+        self.assertIsNone(tabular_engine.shift_date("12-05", days))
+
+    def test_percorsi_esclusi_dall_utente(self):
+        import os
+        import clin_mcp, clin_settings
+        unittest.mock.patch.object(clin_settings, "DATA_DIR", Path(self.home)).start()
+        unittest.mock.patch.dict(os.environ, {"CLIN_CARTELLE": str(self.dir)}).start()
+        (self.dir / "articoli").mkdir()
+        (self.dir / "articoli" / "linee_guida.txt").write_text("Linee guida ESC 2024, a cura di Mario Rossi.\n")
+        self.assertEqual(self.pre("Bash", {"command": "cat articoli/linee_guida.txt"})["hookSpecificOutput"]["permissionDecision"], "deny")
+        clin_settings.save({"percorsi_esclusi": [str((self.dir / "articoli").resolve())]})
+        self.assertEqual(self.pre("Bash", {"command": "cat articoli/linee_guida.txt"}), {})
+        self.assertEqual(self.pre("Read", {"file_path": "articoli/linee_guida.txt"}), {})
+        clin_mcp.tool_crea_copie_anonime({"percorso": str(self.dir)})
+        self.assertFalse((self.dir / "Clin_anonimizzati" / "articoli").exists())
+        # l'agente non puo' allargare l'elenco da solo
+        self.assertEqual(self.pre("Bash", {"command": f"python3 {ROOT / 'clin.py'} escludi ."})
+                         ["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertEqual(self.pre("Read", {"file_path": "coorte.csv"})["hookSpecificOutput"]["permissionDecision"], "allow")
+
     def test_bash_permesso(self):
         for cmd in ("ls -la *.csv", "wc -l coorte.csv", "cat Clin_anonimizzati/*.csv",
                     "python3 analisi.py", f"python3 {ROOT / 'clin.py'} copie .",

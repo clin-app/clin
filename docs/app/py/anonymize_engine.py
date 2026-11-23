@@ -1902,7 +1902,7 @@ def process_batch_files(
                 else:
                     res = anonymize_table(src_path, out_path, table_settings,
                                           should_cancel=should_cancel)
-            elif ext in {".txt", ".md", ".docx"}:
+            elif ext in {".txt", ".md", ".docx", ".pptx"}:
                 from clin_text import anonymize_prose_document
                 reg = getattr(table_settings, "registry", None) if table_settings else None
                 res = anonymize_prose_document(

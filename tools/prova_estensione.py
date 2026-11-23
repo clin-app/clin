@@ -42,6 +42,12 @@ for n in range(2):
                  "Emoglobina 13,5 g/dL, PCR 4,2 mg/dL.", "Il sig. Rossi viene dimesso in buone condizioni generali.", "", "Dott.ssa Giulia Bianchi"]:
         (doc.new_page() if y == 72 else doc[-1]).insert_text((72, y), line, fontsize=11); y += 22
 doc.save(SP / "site" / "lettera.pdf")
+import zipfile
+with zipfile.ZipFile(SP / "site" / "caso.pptx", "w") as z:  # diapositiva minima, con una foto da svuotare
+    z.writestr("[Content_Types].xml", "<Types/>")
+    z.writestr("ppt/slides/slide1.xml", '<p:sld xmlns:a="x" xmlns:p="y"><a:p><a:r><a:t>Paziente: Mario Rossi, CF RSSMRA58C12L219X</a:t></a:r></a:p>'
+                                        '<a:p><a:r><a:t>Emoglobina 13,5 g/dL.</a:t></a:r></a:p></p:sld>')
+    z.writestr("ppt/media/image1.png", b"FOTO DEL REFERTO DI MARIO ROSSI")
 EXT = str(SP / "ext")
 PAGE = "index.html"
 h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(SP / "site"))
@@ -124,6 +130,18 @@ async def main():
         await page.screenshot(path=str(SP / "shot_narrow_.png"))
         await page.keyboard.press("Escape"); await asyncio.sleep(.3)
         print("E Esc chiude:", await page.locator(".ov").is_hidden())
+        # F: PowerPoint
+        await page.set_viewport_size({"width": 1320, "height": 860})
+        await page.evaluate("document.querySelector('#f').value = ''")
+        await page.set_input_files("#f", str(SP / "site" / "caso.pptx"))
+        await page.locator(".dlg-b").wait_for(state="visible", timeout=120000)
+        shown = await page.locator(".pv .txt").inner_text()
+        assert "Emoglobina 13,5" in shown and "Rossi" not in shown, shown
+        await page.locator(".go").click()
+        await page.wait_for_function("document.querySelector('#f').files.length === 1 && document.querySelector('#f').files[0].name.endsWith('.pptx')", timeout=30000)
+        raw = await page.evaluate("document.querySelector('#f').files[0].text()")
+        assert "Rossi" not in raw and "ROSSI" not in raw and "RSSMRA" not in raw
+        print("F PowerPoint: anteprima e file consegnato senza dati personali")
         errs = [l for l in logs if "Clin" in l or "rror" in l]
         print("console:", errs[:8])
         print("screenshot in", SP)
