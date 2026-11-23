@@ -315,7 +315,18 @@ function buildPdf(pages) {
   return out;
 }
 
-const jpegOf = async (canvas) => new Uint8Array(await (await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", 0.88))).arrayBuffer());
+const jpegOf = async (canvas, q = 0.88) => new Uint8Array(await (await new Promise((ok) => canvas.toBlob(ok, "image/jpeg", q))).arrayBuffer());
+
+function previewDataUrl(canvas) {
+  const maxW = 1100;
+  if (canvas.width <= maxW) return canvas.toDataURL("image/jpeg", 0.78);
+  const scale = maxW / canvas.width;
+  const c = document.createElement("canvas");
+  c.width = Math.round(canvas.width * scale);
+  c.height = Math.round(canvas.height * scale);
+  c.getContext("2d").drawImage(canvas, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.78);
+}
 
 async function redactPdf(data, state) {
   if (!pdfjs) {
@@ -363,8 +374,12 @@ async function redactPdf(data, state) {
     });
   });
   report("Creazione PDF protetto…", 92);
-  for (const p of pages) out.push({ w: p.w, h: p.h, iw: p.canvas.width, ih: p.canvas.height, jpeg: await jpegOf(p.canvas), texts: p.texts });
-  return { bytes: buildPdf(out), ocr: pages.some((p) => p.ocrUsed) };
+  const previews = [];
+  for (const p of pages) {
+    previews.push(previewDataUrl(p.canvas));
+    out.push({ w: p.w, h: p.h, iw: p.canvas.width, ih: p.canvas.height, jpeg: await jpegOf(p.canvas), texts: p.texts });
+  }
+  return { bytes: buildPdf(out), ocr: pages.some((p) => p.ocrUsed), previews };
 }
 
 async function redactImage(data, type, state) {
@@ -382,7 +397,7 @@ async function redactImage(data, type, state) {
   const plan = JSON.parse(py.plan_pages(JSON.stringify([text]), JSON.stringify(state.map), JSON.stringify([true])));
   state.map = { ...state.map, ...plan.mapping };
   cover(ctx, segs, plan.spans[0]);
-  return await jpegOf(canvas);
+  return { bytes: await jpegOf(canvas), previews: [previewDataUrl(canvas)] };
 }
 
 function viaFSout(data, ext, fn) {
@@ -392,7 +407,7 @@ function viaFSout(data, ext, fn) {
   finally { for (const f of [inp, out]) try { fs.unlink(f); } catch (_) {} }
 }
 
-const b64of = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const b64of = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x2000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x2000)); return btoa(s); };
 
 async function redact(items, state) {
   await boot();
@@ -402,33 +417,37 @@ async function redact(items, state) {
       const data = bytes(it.data);
       const dot = it.name.lastIndexOf(".");
       const stem = dot > 0 ? it.name.slice(0, dot) : it.name, ext = dot > 0 ? it.name.slice(dot).toLowerCase() : "";
-      let out, type = it.type || "application/octet-stream", outExt = ext;
+      let out, type = it.type || "application/octet-stream", outExt = ext, pages = [], previewText = "";
       if (it.kind === "PDF") {
         const r = await redactPdf(data, state);
-        out = r.bytes; type = "application/pdf";
+        out = r.bytes; type = "application/pdf"; pages = r.previews || [];
         if (r.ocr) notes.push(`${it.name}: pagine scansionate lette con OCR, verificare.`);
       } else if (it.kind === "foto") {
-        out = await redactImage(data, it.type, state); type = "image/jpeg"; outExt = ".jpg";
+        const r = await redactImage(data, it.type, state);
+        out = r.bytes; type = "image/jpeg"; outExt = ".jpg"; pages = r.previews || [];
         notes.push(`${it.name}: letta con OCR, verificare.`);
       } else if (it.kind === "Word") {
         await withNer([viaFS(data, ext, (p) => py.extract(p))]);
         const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_docx(i, o, JSON.stringify(state.map)));
         state.map = { ...state.map, ...JSON.parse(r).mapping }; out = b;
+        try { previewText = viaFS(b, ext, (p) => py.extract(p)).slice(0, 12000); } catch (_) {}
       } else if (it.kind === "tabella" || it.kind === "Excel") {
         if (it.kind === "Excel") await excelReady();
         await withNer([viaFS(data, ext, (p) => py.table_text(p))]);
         const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_table(i, o, JSON.stringify(state.book || {}), JSON.stringify(state.map)));
         const res = JSON.parse(r);
         state.book = res.book; state.map = { ...state.map, ...res.mapping }; out = b;
+        try { previewText = viaFS(b, ext, (p) => py.table_text(p)).slice(0, 12000); } catch (_) {}
       } else {  // testo semplice: stesso file, con i segnaposto
         const text = new TextDecoder().decode(data);
         await withNer([text]);
         const res = JSON.parse(py.run_bundle(JSON.stringify([{ titolo: "", pagine: [text] }]), 10, JSON.stringify(state.map)));
         state.map = { ...state.map, ...res.mapping }; out = new TextEncoder().encode(res.text);
+        previewText = (res.text || "").slice(0, 12000);
       }
       if (nerNote && !notes.includes(nerNote)) notes.push(nerNote);
       const name = py.safe_name(stem, JSON.stringify(state.map)) + outExt;
-      files.push({ name, type, data: b64of(out) });
+      files.push({ name, type, data: b64of(out), pages, previewText });
     }
   } finally {
     py.set_ner("");
