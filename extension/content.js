@@ -249,6 +249,7 @@
     <div class="panel" hidden>
       <div class="head"><span class="tag">/Clin</span><b>Anonimizzazione locale</b><button class="x" title="Chiudi">×</button></div>
       <label class="sw"><input type="checkbox" class="on" checked> Anonimizzare testi e file incollati o trascinati in questa chat</label>
+      <div class="row"><button class="dark pick-btn" type="button">📎 Carica file da anonimizzare</button><input type="file" class="pick-in" multiple accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xlsm,.csv,.tsv,.txt,.md" hidden></div>
       <p class="muted">Tutto avviene su questo computer. Nella chat arrivano solo segnaposto come [PAZIENTE_1]. La tabella dei segnaposto resta in memoria e si cancella chiudendo il browser.</p>
       <p class="muted"><b>Risposta con i dati reali</b> · selezionare un testo nella chat oppure usare l'ultima risposta.</p>
       <div class="row"><button class="last">Ultima risposta</button><button class="sel">Testo selezionato</button></div>
@@ -288,6 +289,14 @@
   pill.addEventListener("click", () => { panel.hidden = !panel.hidden; toastEl.hidden = true; refresh(); if (!panel.hidden) restoreLast(); });
   $(".x").addEventListener("click", () => { panel.hidden = true; render(); });
   $(".on").addEventListener("change", async (e) => { active = e.target.checked; await send({ op: "toggle", attivo: active }); render(); });
+  $(".pick-btn").addEventListener("click", () => $(".pick-in").click());
+  $(".pick-in").addEventListener("change", (e) => {
+    const files = [...(e.target.files || [])];
+    e.target.value = "";
+    if (!files.length) return;
+    panel.hidden = true; render();
+    handleFiles(captureFiles(files), { kind: "drop", target: composer() });
+  });
   $(".forget").addEventListener("click", async () => { await send({ op: "forget" }); out.textContent = "Segnaposto dimenticati."; refresh(); });
   $(".copy").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(out.textContent); toast("Copiato con i dati reali: si può incollare nella cartella clinica."); }
@@ -517,13 +526,35 @@
     rvTab.classList.toggle("show", collapsed);
   }
 
+  function readViaFileReader(file) {
+    return new Promise((ok, ko) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(fr.result);
+      fr.onerror = () => ko(fr.error || new Error("FileReader error"));
+      fr.readAsArrayBuffer(file);
+    });
+  }
+
+  function readViaEntry(entry) {
+    return new Promise((ok, ko) => {
+      if (!entry || !entry.isFile) { ko(new Error("non è un file")); return; }
+      entry.file((f) => f.arrayBuffer().then(ok, () => readViaFileReader(f).then(ok, ko)), ko);
+    });
+  }
+
   // Avvia la lettura dei file SINCRONAMENTE mentre l'evento drop/paste/change e' attivo,
-  // prima che Chrome possa revocare il permesso temporaneo di lettura del DataTransfer.
-  function captureFiles(files) {
-    return files.map((f) => {
+  // con fallback FileReader e webkitGetAsEntry per i file macOS / Finder.
+  function captureFiles(files, entries = []) {
+    return files.map((f, idx) => {
       const kind = kindOf(f);
       const ok = Boolean(kind && f.size <= MAX_FILE_BYTES);
-      return { file: f, kind, buf: ok ? f.arrayBuffer() : null };
+      const entry = entries[idx] || null;
+      const buf = ok
+        ? f.arrayBuffer()
+            .catch(() => readViaFileReader(f))
+            .catch((e) => (entry ? readViaEntry(entry) : Promise.reject(e)))
+        : null;
+      return { file: f, kind, buf };
     });
   }
 
@@ -812,11 +843,18 @@
     else handle({ text }, target);
   }, true);
 
+  function droppedEntries(dt) {
+    if (!dt?.items?.length) return [];
+    return [...dt.items].filter((it) => it.kind === "file").map((it) => {
+      try { return it.webkitGetAsEntry ? it.webkitGetAsEntry() : null; } catch (_) { return null; }
+    });
+  }
+
   window.addEventListener("drop", (e) => {
     if (passing || !active) return;
     const files = droppedFiles(e.dataTransfer);
     if (!files.length) return;
-    const captured = captureFiles(files);
+    const captured = captureFiles(files, droppedEntries(e.dataTransfer));
     const target = e.target;
     stop(e);
     for (const t of ["dragleave", "dragend"]) {
