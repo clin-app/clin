@@ -430,3 +430,9 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .fl-in { font-size: 16px; font-weight: 500; fill: var(--ink); }
 .fl-cap { font-size: 13px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; fill: var(--ink-3); }
 .ext-points { margin: 18px 0; }
+
+/* sei riquadri su tre colonne (sezione ricerca) */
+.features.three { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 40px; }
+@media (max-width: 900px) { .features.three { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) { .features.three { grid-template-columns: 1fr; } }
+.features + .note { margin-top: 40px; }

@@ -8,7 +8,7 @@
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css?v=20261123a">
-  <link rel="stylesheet" href="clin.css?v=20261123e">
+  <link rel="stylesheet" href="clin.css?v=20261123f">
 </head>
 <body>
 
@@ -36,6 +36,7 @@
         <a href="#database">Excel e database</a>
         <a href="#risultati">Risultati</a>
         <a href="#installazione">Installazione</a>
+        <a href="#ricerca">Per la ricerca</a>
         <a href="#rimosso">Cosa viene rimosso</a>
         <a href="#sicurezza">Sicurezza</a>
         <a href="#domande">Domande</a>
@@ -308,6 +309,31 @@
     </div>
   </section>
 
+  <!-- ------------------------------------------------ ricerca -->
+  <section class="section" id="ricerca">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Per la ricerca clinica</span>
+          <h2>Dai documenti del reparto al dataset dello studio, <span>senza che un nome lasci l’ospedale.</span></h2>
+        </div>
+        <div>
+          <p class="lede">Uno studio vive di cartelle piene di referti, lettere, registri e file di follow-up. Con <span class="clin">/Clin</span> l’IA può leggerli, collegarli e analizzarli, mentre nomi, codici e recapiti restano sul computer.</p>
+          <p class="sub">È il principio di minimizzazione messo in pratica: all’IA arriva solo ciò che serve all’analisi. Ogni paziente ha un codice stabile, le date conservano il loro significato statistico e i risultati tornano con i dati reali in una cartella che l’IA non vede.</p>
+        </div>
+      </div>
+      <div class="features three">
+        <div class="feature"><span class="n">01</span><h3>Tutta la cartella dello studio</h3><p>PDF, Word, PowerPoint, foto di referti, Excel, CSV e dataset SPSS, Stata e SAS, sottocartelle comprese. Quando si aggiungono documenti vengono rielaborati solo quelli nuovi.</p></div>
+        <div class="feature"><span class="n">02</span><h3>Lo stesso paziente, lo stesso codice</h3><p>Il codice assegnato a un paziente è identico in tutti i file e in tutte le sessioni: registro, follow-up ed esami si collegano tra loro come nei dati originali.</p></div>
+        <div class="feature"><span class="n">03</span><h3>Analisi nel tempo corrette</h3><p>Le date sono spostate di 400 anni esatti, dopo i quali il calendario si ripete identico: sopravvivenza, follow-up, età, degenze, andamento per anno e per stagione danno gli stessi numeri dei dati reali.</p></div>
+        <div class="feature"><span class="n">04</span><h3>Risultati pronti da usare</h3><p>Tabelle, relazioni, presentazioni e quaderni di analisi tornano con nomi e date veri, in ogni formato in cui sono stati scritti, senza passaggi manuali.</p></div>
+        <div class="feature"><span class="n">05</span><h3>Verificabile</h3><p>Il codice è aperto e include una prova ripetibile: le stesse analisi eseguite sui dati reali e sulle copie, con il confronto dei risultati file per file.</p></div>
+        <div class="feature"><span class="n">06</span><h3>Letteratura accanto ai dati</h3><p>Articoli e linee guida nella stessa cartella si possono escludere: restano leggibili così come sono, con autori e riferimenti intatti.</p></div>
+      </div>
+      <p class="note"><span class="clin">/Clin</span> pseudonimizza: riduce i dati che raggiungono il fornitore dell’IA, ma non sostituisce le autorizzazioni dello studio (comitato etico, titolare del trattamento, informative). Giorno e mese delle date restano quelli veri; chi preferisce date non ricostruibili da terzi può scegliere lo spostamento di un numero segreto di giorni, rinunciando alle analisi di calendario.</p>
+    </div>
+  </section>
+
   <!-- ------------------------------------------------ excel e database -->
   <section class="section soft" id="database">
     <div class="wrap">
@@ -339,9 +365,9 @@
           <table class="lb sheet-table">
             <thead><tr><th>ID studio</th><th>Cognome</th><th>Nome</th><th>Codice fiscale</th><th>Data di nascita</th><th>Età</th><th>Comune di residenza</th><th>Classe NYHA</th><th>EuroSCORE II</th><th>Note</th></tr></thead>
             <tbody>
-              <tr><td>TAVI-001</td><td><b>PAZ-0001</b></td><td><b>PAZ-0001</b></td><td><b>ID-0001</b></td><td>[DATA_NASCITA_1]</td><td>39</td><td>[CONTATTO_1]</td><td>III</td><td>4,2</td><td>riferisce la moglie [PERSONA_1]</td></tr>
-              <tr><td>TAVI-002</td><td><b>PAZ-0002</b></td><td><b>PAZ-0002</b></td><td><b>ID-0002</b></td><td>[DATA_NASCITA_2]</td><td>54</td><td>[CONTATTO_1]</td><td>II</td><td>2,8</td><td>accompagnato dal figlio [PERSONA_2]</td></tr>
-              <tr><td>TAVI-003</td><td><b>PAZ-0003</b></td><td><b>PAZ-0003</b></td><td><b>ID-0003</b></td><td>[DATA_NASCITA_3]</td><td>90+</td><td>[CONTATTO_2]</td><td>IV</td><td>8,9</td><td>tel. [CONTATTO_3]</td></tr>
+              <tr><td>TAVI-001</td><td><b>PAZ-0001</b></td><td><b>PAZ-0001</b></td><td><b>ID-0001</b></td><td>10/12/2385</td><td>39</td><td>[CONTATTO_1]</td><td>III</td><td>4,2</td><td>riferisce la moglie [PERSONA_1]</td></tr>
+              <tr><td>TAVI-002</td><td><b>PAZ-0002</b></td><td><b>PAZ-0002</b></td><td><b>ID-0002</b></td><td>01/01/2370</td><td>54</td><td>[CONTATTO_1]</td><td>II</td><td>2,8</td><td>accompagnato dal figlio [PERSONA_2]</td></tr>
+              <tr><td>TAVI-003</td><td><b>PAZ-0003</b></td><td><b>PAZ-0003</b></td><td><b>ID-0003</b></td><td>01/01/2332</td><td>90+</td><td>[CONTATTO_2]</td><td>IV</td><td>8,9</td><td>tel. [CONTATTO_3]</td></tr>
             </tbody>
           </table>
           <p class="table-foot">Dati di esempio, elaborati con <span class="clin">/Clin</span>. Nel foglio «Follow-up» dello stesso file e in follow_up_12m.csv, «ROSSI MARIO» e «Anna Bianchi» diventano PAZ-0001 e PAZ-0003.</p>

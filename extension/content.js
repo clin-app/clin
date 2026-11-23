@@ -40,8 +40,8 @@
     text: ico("M5 6h14M5 12h14M5 18h9"),
     arrow: ico("M4 12h15m0 0l-5-5m5 5l-5 5"),
   };
-  // il segno di Clin: un foglio con due righe coperte
-  const MARK = `<svg class="mk" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3h6.9l4.4 4.4v11.9A1.7 1.7 0 0 1 16.8 21H7.2a1.7 1.7 0 0 1-1.7-1.7V4.7A1.7 1.7 0 0 1 7.2 3z" fill="#d4f06b"/><path d="M14.1 3v4.4h4.4z" fill="#a9c93f"/><rect x="8.2" y="10.6" width="7.6" height="2.5" rx="1.25" fill="#0f1210"/><rect x="8.2" y="14.9" width="4.8" height="2.5" rx="1.25" fill="#0f1210"/></svg>`;
+  // l'icona di Clin, la stessa del sito e dell'applicazione
+  const MARK = `<svg class="mk" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#d4f06b"/><g transform="rotate(-8 16 16)"><path d="M10.2 7.5h8.6l4.2 4.2v12.1a1.4 1.4 0 0 1-1.4 1.4H10.2a1.4 1.4 0 0 1-1.4-1.4V8.9a1.4 1.4 0 0 1 1.4-1.4z" fill="#101411"/><path d="M18.6 7.5v4.4h4.4" fill="#3c7a4b"/><rect x="11.3" y="13.6" width="9.4" height="1.5" rx=".75" fill="#d4f06b"/><rect x="11.3" y="17" width="9.4" height="3" rx="1" fill="#d4f06b"/><rect x="11.3" y="21.8" width="5.6" height="1.5" rx=".75" fill="#d4f06b"/></g></svg>`;
   const LOGO = `<span class="brand">${MARK}</span>`;
   // pila isometrica di fogli (lo stesso disegno dei diagrammi del sito)
   const stack = (n = 5) => {
@@ -249,27 +249,35 @@
       }
 
       /* ---------------- rifinitura: superfici bianche, filetti sottili, pulsanti a pillola */
-      .mk { display: block; width: 22px; height: 22px; }
-      .brand { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; background: #0f1210; }
-      .brand .mk { width: 19px; height: 19px; }
+      .mk { display: block; width: 32px; height: 32px; }
+      .brand { flex: none; display: block; width: 34px; height: 34px; }
+      .brand .mk { width: 34px; height: 34px; }
       .b { height: 36px; padding: 0 16px; border-radius: 999px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line); font-weight: 550; }
       .b:hover { background: var(--bg2); }
       .b.pri { background: var(--ink); color: var(--bg); box-shadow: none; }
       .b kbd { border-radius: 6px; font-weight: 500; background: rgba(127,127,127,.32); }
       .ib { border-radius: 50%; }
-      .fab { height: 44px; padding: 0; border-radius: 22px; background: #0f1210;
-             box-shadow: 0 10px 28px rgba(15,18,16,.24), 0 2px 6px rgba(15,18,16,.16), inset 0 0 0 1px rgba(255,255,255,.1);
-             transition: padding .2s, transform .15s, box-shadow .15s; font-weight: 550; letter-spacing: -.01em; }
-      .fab:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(15,18,16,.28), 0 2px 6px rgba(15,18,16,.16), inset 0 0 0 1px rgba(255,255,255,.14); }
+      /* il pulsante di Clin: pillola lime, con un alone che respira piano */
+      .fab { height: 44px; padding: 0; border-radius: 22px; background: #d4f06b; color: #0f1210; font-weight: 600; letter-spacing: -.01em;
+             box-shadow: 0 10px 26px rgba(120,150,20,.34), 0 2px 6px rgba(15,18,16,.16), inset 0 0 0 1px rgba(15,18,16,.08), inset 0 1px 0 rgba(255,255,255,.5);
+             transition: padding .22s cubic-bezier(.2,.8,.2,1), transform .18s, box-shadow .18s, background .2s; animation: rise .4s cubic-bezier(.2,.8,.2,1) both; }
+      .fab::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; animation: halo 3.4s ease-out infinite; }
+      @keyframes halo { 0% { box-shadow: 0 0 0 0 rgba(212,240,107,.6); } 60%, 100% { box-shadow: 0 0 0 14px rgba(212,240,107,0); } }
+      .fab:hover { transform: translateY(-2px); background: #dcf57c;
+                   box-shadow: 0 16px 34px rgba(120,150,20,.4), 0 3px 8px rgba(15,18,16,.18), inset 0 0 0 1px rgba(15,18,16,.1), inset 0 1px 0 rgba(255,255,255,.55); }
+      .fab:active { transform: translateY(0) scale(.97); }
       .fab-m { width: 44px; height: 44px; }
-      .fab-d { display: none; right: 10px; top: 10px; bottom: auto; width: 8px; height: 8px; background: #f0b765; box-shadow: 0 0 0 2px #0f1210; }
-      .fab-r { inset: 4px; border-width: 1.5px; }
+      .fab .mk { width: 34px; height: 34px; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+      .fab:hover .mk { transform: rotate(8deg) scale(1.06); }
+      .fab-d { display: none; right: 6px; top: 6px; bottom: auto; width: 9px; height: 9px; background: #e08a1e; box-shadow: 0 0 0 2px #ecece7; }
+      .fab-r { inset: 2px; border-width: 2px; border-top-color: #0f1210; }
+      .fab.busy::before { animation: none; }
       .fab:hover, .fab.busy, .fab.off, .fab.say { padding-right: 16px; }
-      .fab:hover .fab-l, .fab.busy .fab-l, .fab.off .fab-l, .fab.say .fab-l { margin-left: 0; }
-      .fab.off { background: #0f1210; }
-      .fab.off .fab-d { display: block; background: #f0b765; box-shadow: 0 0 0 2px #0f1210; }
-      .fab.off .mk { filter: grayscale(1); opacity: .55; }
-      .fab.off .fab-l { color: #f0b765; }
+      .fab:hover .fab-l, .fab.busy .fab-l, .fab.off .fab-l, .fab.say .fab-l { margin-left: 2px; }
+      .fab.off { background: #ecece7; color: #50544f; box-shadow: 0 8px 22px rgba(15,18,16,.16), inset 0 0 0 1px rgba(15,18,16,.1); }
+      .fab.off::before { animation: none; }
+      .fab.off .fab-d { display: block; }
+      .fab.off .mk { filter: grayscale(1); opacity: .6; }
       .toast { border-radius: 14px; padding: 11px 12px 11px 16px; }
       .t-act { border-radius: 999px; height: 28px; padding: 0 12px; }
       .pop { border: 0; border-radius: 20px; width: min(384px, calc(100vw - 32px)); bottom: 72px; }
