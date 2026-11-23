@@ -64,8 +64,9 @@ TOOLS = [
         "description": (
             "Crea sul computer dell'utente copie anonimizzate (PDF con riquadri neri "
             "irreversibili, fogli di calcolo con pseudonimi) di un file o di tutti i "
-            "documenti di una cartella. Restituisce solo il numero di file e la "
-            "cartella di destinazione, nessun contenuto."
+            "documenti di una cartella, sottocartelle comprese. I documenti non modificati "
+            "dall'ultima volta non vengono rielaborati. Restituisce il numero di file, la "
+            "cartella di destinazione e i nomi (anonimi) delle copie, nessun contenuto."
         ),
         "inputSchema": {
             "type": "object",
@@ -98,7 +99,28 @@ def tool_anonimizza_documento(args: Dict[str, Any]) -> str:
     return "\n".join(head) + "\n\n" + res.text
 
 
+SKIP_DIRS = {"Clin_anonimizzati", "node_modules", "__pycache__"}
+INDEX_NAME = ".clin-indice.json"
+
+
+def _documents(target: Path) -> Dict[Path, List[Path]]:
+    """Documenti supportati della cartella e delle sottocartelle, raggruppati per cartella."""
+    from clin_text import _is_forbidden_path
+    groups: Dict[Path, List[Path]] = {}
+    for dirpath, dirs, names in os.walk(target):
+        d = Path(dirpath)
+        dirs[:] = sorted(x for x in dirs if not x.startswith(".") and x not in SKIP_DIRS
+                         and not (d / x).is_symlink() and not _is_forbidden_path(d / x))
+        files = sorted(f for f in (d / n for n in names if not n.startswith((".", "~$")))
+                       if f.is_file() and not f.is_symlink()
+                       and f.suffix.lower() in SUPPORTED_SUFFIXES - {".md"} and not _is_forbidden_path(f))
+        if files:
+            groups[d] = files
+    return groups
+
+
 def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
+    import hashlib
     from anonymize_engine import BatchResult, process_batch_files
     from clin_text import _is_forbidden_path
     from tabular_engine import TableSettings
@@ -110,15 +132,12 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     if target.is_dir():
         if not any(target.is_relative_to(r.expanduser().resolve()) for r in roots):
             raise ValueError("La cartella e' fuori da quelle autorizzate per Clin.")
-        files = sorted(p for p in target.iterdir()
-                       if p.is_file() and not p.is_symlink()
-                       and p.suffix.lower() in SUPPORTED_SUFFIXES - {".md"}
-                       and not _is_forbidden_path(p))
-        out_dir = target / "Clin_anonimizzati"
+        base, groups = target, _documents(target)
     else:
-        files = [check_path(target, roots)]
-        out_dir = target.parent / "Clin_anonimizzati"
-    if not files:
+        base, groups = target.parent, {target.parent: [check_path(target, roots)]}
+    out_dir = base / "Clin_anonimizzati"
+    total = sum(len(f) for f in groups.values())
+    if not total:
         return "Nessun documento supportato (PDF, DOCX, TXT, JPG, PNG, CSV, TSV, XLSX) nel percorso indicato."
     from tabular_engine import _PseudonymBook
     level = DEFAULT_LEVEL
@@ -130,18 +149,65 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     import clin
     from clin_text import _Registry
     registry = _Registry.from_mapping(clin.load_mapping())
-    batch = BatchResult()
-    process_batch_files(files, out_dir, sensitivity_level=level, batch_result=batch,
-                        table_settings=TableSettings(level=level, pseudonyms=book, keep_labels=True,
-                                                     registry=registry))
+
+    # Indice delle copie gia' fatte: un documento non modificato non viene rielaborato. La chiave e'
+    # l'impronta del percorso (mai il nome, che puo' contenere quello del paziente); l'indice decade
+    # se cambiano le impostazioni di anonimizzazione.
+    settings_fp = hashlib.sha256(json.dumps(clin_settings.load(), sort_keys=True, default=str).encode()).hexdigest()[:16]
+    index_path = out_dir / INDEX_NAME
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        index = index["file"] if index.get("impostazioni") == settings_fp else {}
+    except (OSError, ValueError, KeyError, AttributeError):
+        index = {}
+
+    def key(f: Path) -> str:
+        return hashlib.sha256(str(f.relative_to(base)).encode()).hexdigest()[:20]
+
+    def sig(f: Path) -> list:
+        st = f.stat()
+        return [st.st_mtime_ns, st.st_size]
+
+    batch, reused = BatchResult(), 0
+    for folder, files in groups.items():
+        todo = []
+        for f in files:
+            e = index.get(key(f))
+            if e and e[:2] == sig(f) and (out_dir / e[2]).is_file():
+                reused += 1
+            else:
+                if e:  # documento modificato: la copia vecchia va tolta, altrimenti resterebbe accanto alla nuova
+                    (out_dir / e[2]).unlink(missing_ok=True)
+                todo.append(f)
+        if not todo:
+            continue
+        done = BatchResult()
+        process_batch_files(todo, out_dir / folder.relative_to(base), sensitivity_level=level, batch_result=done,
+                            table_settings=TableSettings(level=level, pseudonyms=book, keep_labels=True,
+                                                         registry=registry))
+        for r in done.results:
+            if r.ok and r.output_path:
+                index[key(r.input_path)] = sig(r.input_path) + [str(Path(r.output_path).relative_to(out_dir))]
+        batch.results.extend(done.results)
     book.save(book_path)
     clin.save_mapping(registry.mapping)
-    lines = [f"Copie anonimizzate create: {batch.processed} su {len(files)}.",
+    out_dir.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(json.dumps({"impostazioni": settings_fp, "file": index}), encoding="utf-8")
+
+    lines = [f"Copie anonimizzate pronte: {batch.processed + reused} su {total}"
+             + (f" ({reused} gia' aggiornate, non rielaborate)." if reused else "."),
              f"Copie in: {out_dir}"]
     if batch.failed:
         lines.append(f"Non elaborati: {len(batch.failed)} (formato o protezione).")
     if batch.warnings:
         lines.append(f"Avvisi da verificare manualmente: {len(batch.warnings)}.")
+    # elenco delle copie (nomi gia' anonimi): l'agente sa subito su che cosa lavorare
+    copies = sorted(str(c.relative_to(out_dir)) for c in out_dir.rglob("*") if c.is_file() and c.name != INDEX_NAME)
+    if copies:
+        lines.append("File su cui lavorare:")
+        lines.extend(f"  {c}" for c in copies[:60])
+        if len(copies) > 60:
+            lines.append(f"  … e altri {len(copies) - 60}")
     return "\n".join(lines)
 
 

@@ -101,6 +101,7 @@ function startDownload() {
 export function status() {
   if (model) return { state: "ready", progress: 100 };
   if (downloading) return { state: "downloading", progress: downloadProgress };
+  if (loading) return { state: "loading", progress: 0 };
   if (downloadError) return { state: "error", progress: 0, error: downloadError };
   return { state: "missing", progress: 0 };
 }
@@ -132,7 +133,9 @@ async function load(preloadedBytes = null) {
     env.localModelPath = BASE;
     env.useBrowserCache = false;
     const ort = (await import("./vendor/gliner/ort.wasm.min.mjs")).default;
-    ort.env.wasm.numThreads = 1;        // documento offscreen: senza SharedArrayBuffer
+    // piu' thread solo se il documento e' isolato (COOP/COEP nel manifest): altrimenti niente SharedArrayBuffer
+    const threads = self.crossOriginIsolated ? Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)) : 1;
+    ort.env.wasm.numThreads = threads;
     ort.env.wasm.proxy = false;
     const g = new Gliner({
       tokenizerPath: "model",
@@ -173,7 +176,13 @@ function caseNormalized(text) {
   });
 }
 
-async function run(g, parts, found, original) {
+// risultati per brano gia' analizzato: la revisione rielabora lo stesso documento a ogni spunta,
+// e il modello e' la parte piu' lenta. Chiave: il brano; valore: Map("valore|etichetta" -> [valore, tipo])
+const memo = new Map();
+const MEMO_MAX = 1500;
+
+// sink[i]: Map in cui finiscono le entita' del brano parts[i]
+async function run(g, parts, sink, original) {
   for (let i = 0; i < parts.length; i += 4) {
     const batch = parts.slice(i, i + 4);
     const res = await g.inference({ texts: batch, entities: LABELS, flatNer: true, threshold: 0.5 });
@@ -189,11 +198,11 @@ async function run(g, parts, found, original) {
             const at = norm.indexOf(value, from);
             if (at < 0) break;
             const raw = src.slice(at, at + value.length);
-            if (raw) found.set(raw + "|" + e.label, [raw, kind]);
+            if (raw) sink[i + k].set(raw + "|" + e.label, [raw, kind]);
             from = at + Math.max(1, value.length);
           }
         } else {
-          found.set(value + "|" + e.label, [value, kind]);
+          sink[i + k].set(value + "|" + e.label, [value, kind]);
         }
       }
     });
@@ -209,12 +218,19 @@ export async function entities(texts) {
     return null;
   }
   const g = await load();
+  const parts = [...new Set(texts.flatMap((t) => chunks(t)).filter((t) => t.trim().length >= 8))];
+  const fresh = parts.filter((p) => !memo.has(p));
+  if (fresh.length) {
+    const sink = fresh.map(() => new Map());
+    await run(g, fresh, sink, null);
+    const norm = fresh.map(caseNormalized);
+    const changed = norm.map((t, i) => (t !== fresh[i] ? i : -1)).filter((i) => i >= 0);
+    if (changed.length) await run(g, changed.map((i) => norm[i]), changed.map((i) => sink[i]), changed.map((i) => fresh[i]));
+    if (memo.size + fresh.length > MEMO_MAX) memo.clear();
+    fresh.forEach((p, i) => memo.set(p, sink[i]));
+  }
   const found = new Map();
-  const parts = texts.flatMap((t) => chunks(t)).filter((t) => t.trim().length >= 8);
-  await run(g, parts, found, null);
-  const norm = parts.map(caseNormalized);
-  const changed = norm.map((t, i) => (t !== parts[i] ? i : -1)).filter((i) => i >= 0);
-  if (changed.length) await run(g, changed.map((i) => norm[i]), found, changed.map((i) => parts[i]));
+  for (const p of parts) for (const [k, v] of memo.get(p) || []) found.set(k, v);
   return [...found.values()];
 }
 

@@ -68,7 +68,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       if (msg.op === "anonymize") {
         const res = await serialized(async () => {
           const map = await getMap();
-          const r = await engine("anonymize", { items: msg.items, previous: map, review: msg.review, tabId });
+          const r = await engine("anonymize", { job: msg.job, items: msg.items, previous: map, review: msg.review, tabId });
           if (r.error) throw new Error(r.error);
           await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping } });
           return r;
@@ -78,7 +78,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const res = await serialized(async () => {
           const map = await getMap();
           const { book = {} } = await chrome.storage.session.get("book");
-          const r = await engine("redact", { items: msg.items, previous: map, book, review: msg.review, tabId });
+          const r = await engine("redact", { job: msg.job, items: msg.items, previous: map, book, review: msg.review, tabId });
           if (r.error) throw new Error(r.error);
           await chrome.storage.session.set({ [MAP_KEY]: { ...(await getMap()), ...r.mapping }, book: r.book });
           return r;
@@ -90,12 +90,21 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         reply({ ok: true, text: res.text });
       } else if (msg.op === "status") {
         const { attivo = true } = await chrome.storage.local.get("attivo");
-        reply({ ok: true, attivo, n: Object.keys(await getMap()).length });
+        // stato del motore senza crearlo: se il documento offscreen non c'e' ancora, e' "in avvio"
+        const st = (await chrome.offscreen.hasDocument())
+          ? await chrome.runtime.sendMessage({ target: "offscreen", op: "state" }).catch(() => null) : null;
+        reply({ ok: true, attivo, n: Object.keys(await getMap()).length,
+                engine: Boolean(st?.engine), ner: st?.ner || { state: "loading", progress: 0 } });
       } else if (msg.op === "toggle") {
         await chrome.storage.local.set({ attivo: !!msg.attivo });
         reply({ ok: true });
       } else if (msg.op === "forget") {
         await serialized(() => chrome.storage.session.remove([MAP_KEY, "book"]));
+        reply({ ok: true });
+      } else if (msg.op === "release") {
+        if (await chrome.offscreen.hasDocument()) {
+          await chrome.runtime.sendMessage({ target: "offscreen", op: "release", job: msg.job }).catch(() => {});
+        }
         reply({ ok: true });
       } else if (msg.op === "warmup") {
         await ensureEngine();
@@ -108,7 +117,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   return true;  // risposta asincrona
 });
 
-// clic sull'icona: apre il pannello di Clin nella scheda della chat
-chrome.action.onClicked.addListener((tab) => {
-  if (tab.id) chrome.tabs.sendMessage(tab.id, { target: "content", op: "panel" }).catch(() => {});
+// clic sull'icona: apre il pannello di Clin nella scheda della chat; sulle altre pagine
+// (dove Clin non lavora) mostra una finestrella con l'elenco delle chat supportate
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!tab.id) return;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { target: "content", op: "panel" });
+  } catch (_) {
+    await chrome.action.setPopup({ tabId: tab.id, popup: "popup.html" });
+    try { await chrome.action.openPopup(); } catch (_) {}  // Chrome < 127: si apre al clic successivo
+  }
 });

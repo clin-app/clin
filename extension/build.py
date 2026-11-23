@@ -13,7 +13,7 @@ from pathlib import Path
 EXT = Path(__file__).resolve().parent
 WEB = EXT.parent / "web" / "dist"
 DIST = EXT / "dist"
-FILES = ["manifest.json", "background.js", "content.js", "offscreen.html", "offscreen.js", "ner.js"]
+FILES = ["manifest.json", "background.js", "content.js", "offscreen.html", "offscreen.js", "ner.js", "popup.html"]
 
 import hashlib
 import os

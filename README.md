@@ -37,8 +37,11 @@ python3 clin.py installa      # una volta: collega Clin a Claude Code
 
 Poi si apre Claude Code (terminale, IDE o scheda Code di Claude Desktop) nella
 cartella dei dati e si scrive `/clin`. Clin protegge la cartella, crea copie
-anonime di Excel, CSV, PDF, Word e file di testo in `Clin_anonimizzati/` e Claude lavora solo su
-quelle. Per i dettagli: «Guardia automatica per agenti».
+anonime di Excel, CSV, PDF, Word e file di testo in `Clin_anonimizzati/`
+(sottocartelle comprese, con la stessa struttura) e Claude lavora solo su quelle.
+Ripetere `/clin` dopo aver aggiunto documenti rielabora solo quelli nuovi o
+modificati. `/clin stato` (o `python3 clin.py stato`) mostra quali agenti sono
+collegati, se la cartella è protetta e quali motori sono attivi. Per i dettagli: «Guardia automatica per agenti».
 
 Senza riga di comando: `python3 clin.py` apre l'applicazione grafica.
 
@@ -131,12 +134,21 @@ Per chi usa le chat IA nel browser (per esempio sul PC del reparto), l'estension
 - testo incollato, file trascinati e file scelti con la graffetta vengono fermati
   **prima** che il sito li riceva, anonimizzati sul computer e inseriti nel campo
   della chat come testo con segnaposto (PDF, Word, TXT, CSV e foto con OCR);
-- prima che qualcosa entri nella chat si apre la **barra laterale di revisione**:
-  anteprima con i segnaposto ed elenco dei dati coperti; si toglie la spunta per
-  lasciare in chiaro un dato, si aggiunge una parola sfuggita (anche selezionandola
-  nell'anteprima) e solo con «Inserisci nella chat» testo o file arrivano al sito;
-- la pillola **/Clin attivo** in basso a destra apre il pannello: l'ultima risposta
-  dell'IA (o il testo selezionato) con i dati reali, e «Copia con i dati reali»;
+- prima che qualcosa entri nella chat si apre la **finestra di controllo**: a sinistra
+  l'anteprima reale del documento già coperto (pagine, zoom), a destra i dati trovati,
+  raggruppati per tipo, ciascuno con il suo interruttore per lasciarlo in chiaro. Una
+  parola sfuggita si aggiunge scrivendola o selezionandola nell'anteprima. Solo con
+  «Inserisci nella chat» (Cmd/Ctrl+Invio) testo o file arrivano al sito; Esc annulla;
+- un testo breve (fino a 400 caratteri) in cui non c'è nulla da coprire entra nella
+  chat senza passare dalla finestra di controllo;
+- il documento viene letto una volta sola per revisione (pagine, OCR e risultati del
+  modello restano in memoria): ogni correzione ricalcola solo la copertura, in una
+  frazione di secondo. Le pagine scansionate si leggono in parallelo (fino a 3 worker
+  OCR) e GLiNER usa più thread (il documento del motore è cross-origin isolated);
+- il pulsante **Clin** in basso a destra apre il pannello: scelta di un file, l'ultima
+  risposta dell'IA (o il testo selezionato) con i dati reali e «Copia», l'elenco di ciò
+  che è stato inviato da quella scheda. L'interfaccia segue il tema chiaro o scuro
+  della pagina;
 - il pannello è in uno shadow DOM chiuso: il sito della chat non può leggere i nomi
   ripristinati. La tabella dei segnaposto sta in `chrome.storage.session` (solo in
   memoria, cancellata alla chiusura del browser);

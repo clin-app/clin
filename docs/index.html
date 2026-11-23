@@ -8,7 +8,7 @@
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css?v=20261123a">
-  <link rel="stylesheet" href="clin.css?v=20261123b">
+  <link rel="stylesheet" href="clin.css?v=20261123c">
 </head>
 <body>
 
@@ -106,7 +106,78 @@
     </div>
   </section>
 
-  <!-- ------------------------------------------------ come funziona -->
+  <!-- ------------------------------------------------ il percorso dei dati -->
+  <section class="section" id="flusso">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Il percorso dei dati</span>
+          <h2>I nomi non lasciano il computer: <span>all’IA arrivano solo segnaposto.</span></h2>
+        </div>
+        <div>
+          <p class="lede">Tra i documenti e l’IA c’è sempre <span class="clin">/Clin</span>, e gira sul tuo computer.</p>
+          <p class="sub">Riconosce i dati personali e li copre con segnaposto stabili. La tabella che collega ogni segnaposto al dato vero resta in locale: è quella che, al ritorno, rimette i nomi al loro posto nella risposta.</p>
+        </div>
+      </div>
+      <div class="dataflow" role="img" aria-label="Schema: i documenti originali restano sul computer; Clin riconosce e copre i dati personali; all’IA arrivano solo segnaposto; la risposta torna a Clin, che con la tabella dei segnaposto conservata in locale rimette i nomi veri nei risultati.">
+        <svg viewBox="0 0 1080 560" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <symbol id="fl-stk" viewBox="0 0 96 82">
+              <path d="M48 36l46 22-46 22L2 58z"/><path d="M48 29l46 22-46 22L2 51z"/><path d="M48 22l46 22-46 22L2 44z"/>
+              <path d="M48 15l46 22-46 22L2 37z"/><path d="M48 8l46 22-46 22L2 30z"/><path d="M48 1l46 22-46 22L2 23z"/>
+            </symbol>
+            <marker id="fl-ag" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto"><path d="M3 1.5l7 4.5-7 4.5" class="fl-head"/></marker>
+            <marker id="fl-ab" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="11" markerHeight="11" orient="auto"><path d="M3 1.5l7 4.5-7 4.5" class="fl-head fl-blue"/></marker>
+          </defs>
+
+          <line class="fl-edge" x1="806" y1="24" x2="806" y2="512"/>
+          <text class="fl-cap" x="790" y="540" text-anchor="end">Sul tuo computer</text>
+          <text class="fl-cap" x="822" y="540">Fuori dal computer</text>
+
+          <text class="fl-t" x="110" y="52" text-anchor="middle">Documenti originali</text>
+          <text class="fl-s" x="110" y="76" text-anchor="middle">non si muovono da qui</text>
+          <use href="#fl-stk" class="fl-ink" x="62" y="100" width="96" height="82"/>
+
+          <text class="fl-t" x="495" y="34" text-anchor="middle">Clin</text>
+          <text class="fl-s" x="495" y="58" text-anchor="middle">prima di ogni invio</text>
+          <rect class="fl-panel" x="330" y="74" width="330" height="156" rx="12"/>
+          <use href="#fl-stk" class="fl-b" x="366" y="92" width="96" height="82"/>
+          <use href="#fl-stk" class="fl-b" x="528" y="92" width="96" height="82"/>
+          <path class="fl-line fl-blue" d="M472 138H516" marker-end="url(#fl-ab)"/>
+          <text class="fl-in" x="414" y="208" text-anchor="middle">Riconosce</text>
+          <text class="fl-in" x="576" y="208" text-anchor="middle">Copre</text>
+
+          <text class="fl-t" x="940" y="52" text-anchor="middle">L’IA</text>
+          <text class="fl-s" x="940" y="76" text-anchor="middle">ChatGPT, Claude, Gemini</text>
+          <use href="#fl-stk" class="fl-ink" x="892" y="100" width="96" height="82"/>
+
+          <path class="fl-line" d="M170 146H320" marker-end="url(#fl-ag)"/>
+          <text class="fl-s" x="245" y="134" text-anchor="middle">PDF, Word, Excel</text>
+          <path class="fl-line" d="M670 146H882" marker-end="url(#fl-ag)"/>
+          <text class="fl-s" x="738" y="134" text-anchor="middle">Solo segnaposto</text>
+
+          <path class="fl-line fl-blue" d="M495 240V318" marker-end="url(#fl-ab)"/>
+          <text class="fl-t fl-tb" x="512" y="276">Tabella dei segnaposto</text>
+          <text class="fl-s" x="512" y="298">resta in locale</text>
+
+          <rect class="fl-panel" x="330" y="330" width="330" height="156" rx="12"/>
+          <use href="#fl-stk" class="fl-b" x="366" y="348" width="96" height="82"/>
+          <use href="#fl-stk" class="fl-b" x="528" y="348" width="96" height="82"/>
+          <path class="fl-line fl-blue" d="M516 394H472" marker-end="url(#fl-ab)"/>
+          <text class="fl-in" x="414" y="464" text-anchor="middle">Rimette i nomi</text>
+          <text class="fl-in" x="576" y="464" text-anchor="middle">Rilegge</text>
+
+          <path class="fl-line" d="M940 194V390a12 12 0 0 1-12 12H672" marker-end="url(#fl-ag)"/>
+          <text class="fl-s" x="738" y="430" text-anchor="middle">Risposta</text>
+          <path class="fl-line" d="M320 402H170" marker-end="url(#fl-ag)"/>
+          <use href="#fl-stk" class="fl-ink" x="62" y="356" width="96" height="82"/>
+          <text class="fl-t" x="110" y="470" text-anchor="middle">Risultati con i nomi veri</text>
+          <text class="fl-s" x="110" y="494" text-anchor="middle">li vedi solo tu</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
   <!-- ------------------------------------------------ in reparto, senza installare nulla -->
   <section class="section" id="reparto">
     <div class="wrap">
@@ -129,7 +200,13 @@
       </div>
       <div class="card ext" id="estensione">
         <h3>Ancora più semplice: l’estensione per Chrome ed Edge</h3>
-        <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude e Gemini: i documenti si trascinano direttamente nella chat e l’IA riceve gli stessi file con i dati personali coperti dai segnaposto. Il riconoscimento dei nomi usa lo stesso modello locale della versione per agenti, dentro il browser. Una pillola «/Clin attivo» mostra la risposta con i nomi veri, visibili solo a chi la usa.</p>
+        <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude, Gemini, Copilot e Mistral. Si incolla o si trascina come sempre: prima che il sito riceva qualcosa si apre una finestra di controllo, con l’anteprima reale del documento già coperto e l’elenco dei dati trovati, ciascuno con il suo interruttore. Con «Inserisci nella chat» l’IA riceve lo stesso file, con i segnaposto al posto dei dati personali.</p>
+        <ul class="checks ext-points">
+          <li><span><b>Nessun passaggio in più quando non serve</b>Un testo breve senza dati personali entra nella chat senza domande.</span></li>
+          <li><span><b>Rapida anche sui documenti lunghi</b>Il documento viene letto una volta sola: ogni correzione nella finestra di controllo si applica in una frazione di secondo. Le pagine scansionate si leggono in parallelo.</span></li>
+          <li><span><b>I nomi veri restano tuoi</b>Il pannello di <span class="clin">/Clin</span> mostra la risposta dell’IA con i dati reali in un’area che la pagina della chat non può leggere.</span></li>
+        </ul>
+        <p class="muted">Il riconoscimento dei nomi usa lo stesso modello locale della versione per agenti, eseguito dentro il browser.</p>
         <div class="actions ext-actions">
           <a class="btn btn-dark" href="https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip" data-dona>Scarica l’estensione completa (.zip, circa 500 MB)</a>
           <a class="link-in" href="https://github.com/clin-app/clin/releases/latest">Note di versione</a>
@@ -398,7 +475,7 @@
 
       <div class="tabpanel" role="tabpanel" id="t-claude" aria-labelledby="b-claude">
         <ul class="checks">
-          <li><span><b>Richiamo</b>Nel terminale, nell’estensione per VS Code o JetBrains, o nella scheda Code di Claude Desktop: aprire una nuova sessione nella cartella e scrivere <code>/clin</code>. <code>/clin off</code> disattiva la protezione.</span></li>
+          <li><span><b>Richiamo</b>Nel terminale, nell’estensione per VS Code o JetBrains, o nella scheda Code di Claude Desktop: aprire una nuova sessione nella cartella e scrivere <code>/clin</code>: la cartella viene protetta e le copie anonime vengono create, sottocartelle comprese. Ripeterlo dopo aver aggiunto documenti rielabora solo quelli nuovi o modificati. <code>/clin stato</code> mostra che cosa è attivo, <code>/clin off</code> disattiva la protezione.</span></li>
           <li><span><b>Letture</b>Quando Claude apre un documento della cartella, legge la copia con segnaposto. Se l’anonimizzazione non riesce, la lettura viene negata.</span></li>
           <li><span><b>Comandi e messaggi</b><code>cat</code>, <code>head</code> o pandas sugli originali vengono negati; l’output dei comandi viene ripulito; un messaggio con codice fiscale o telefono viene fermato prima dell’invio.</span></li>
         </ul>

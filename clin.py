@@ -15,7 +15,9 @@ Clin - comando unico per l'uso con le IA.
     python3 clin.py risultati [CARTELLA] risultati dell'agente ricondotti ai dati reali (Clin_risultati/)
     python3 clin.py impostazioni [K V]   impostazioni per Claude Code, Codex, Antigravity
     python3 clin.py installa             installazione una tantum: MCP, /clin, guardia dormiente
-    python3 clin.py attiva|disattiva     accende/spegne la guardia su una cartella (lo fa /clin)
+    python3 clin.py avvia [CARTELLA]     protegge la cartella e crea le copie anonime (lo fa /clin)
+    python3 clin.py stato [CARTELLA]     diagnosi: agenti collegati, protezione, motori
+    python3 clin.py attiva|disattiva     accende/spegne la guardia su una cartella
     python3 clin.py proteggi [CARTELLA]  guardia solo per un progetto (anche --agente tutti)
 
 Flusso "appunti" (funziona con qualunque IA, anche dal browser):
@@ -425,6 +427,49 @@ def cmd_attiva(a) -> int:
     return 0
 
 
+def cmd_avvia(a) -> int:
+    """Quello che fa /clin, in un solo comando: protegge la cartella e crea le copie anonime."""
+    from clin_mcp import tool_crea_copie_anonime
+    target = Path(a.percorso).expanduser().resolve()
+    print(activate(target if target.is_dir() else target.parent))
+    print(tool_crea_copie_anonime({"percorso": str(target)}))
+    return 0
+
+
+def cmd_stato(a) -> int:
+    """Diagnosi: che cosa e' installato, per quali agenti, e se la cartella e' protetta."""
+    import clin_llm
+    import clin_ocr
+    home = Path.home()
+    here = Path(a.cartella).expanduser().resolve()
+    root = next((f for f in [here, *here.parents] if (f / ".clin-protetto").is_file()), None)
+
+    def has_hook(path: Path) -> bool:
+        try:
+            return "clin_guard.py" in path.read_text(encoding="utf-8")
+        except OSError:
+            return False
+
+    agents = {  # nome: (file degli hook, cartella della skill)
+        "Claude Code": (home / ".claude" / "settings.json", home / ".claude" / "skills" / "clin"),
+        "Codex": (home / ".codex" / "hooks.json", home / ".agents" / "skills" / "clin"),
+        "Antigravity": (home / ".gemini" / "config" / "hooks.json", home / ".gemini" / "config" / "skills" / "clin"),
+    }
+    found = detect_agents()
+    print(f"Cartella: {here}")
+    print("  protezione: " + (f"attiva (da {root})" if root else "non attiva: scrivere /clin nell'agente"))
+    print("Agenti:")
+    for (name, (hooks, skill)), ident in zip(agents.items(), GUARD_FNS):
+        if ident not in found and not has_hook(hooks):
+            print(f"  {name:<12} non presente su questo computer")
+            continue
+        ok = has_hook(hooks) and (skill / "SKILL.md").is_file()
+        print(f"  {name:<12} {'pronto (guardia e /clin installati)' if ok else 'da collegare: clin.py installa'}")
+    print(f"Nomi senza etichetta: {clin_llm.status()}")
+    print(f"OCR per scansioni e foto: {'pronto' if clin_ocr.available() else 'assente (scripts/fetch_ocr_model.py)'}")
+    return 0
+
+
 def cmd_disattiva(a) -> int:
     folder = Path(a.cartella).expanduser().resolve()
     for f in [folder, *folder.parents]:
@@ -526,6 +571,12 @@ def main(argv=None) -> int:
     p = sub.add_parser("copie", help="crea copie anonime di un file o di una cartella (Clin_anonimizzati/)")
     p.add_argument("percorso")
     p.set_defaults(fn=cmd_copie)
+    p = sub.add_parser("avvia", help="protegge la cartella e crea le copie anonime (cio' che fa /clin)")
+    p.add_argument("percorso", nargs="?", default=".")
+    p.set_defaults(fn=cmd_avvia)
+    p = sub.add_parser("stato", help="diagnosi: agenti collegati, protezione della cartella, motori")
+    p.add_argument("cartella", nargs="?", default=".")
+    p.set_defaults(fn=cmd_stato)
     p = sub.add_parser("installa", help="installazione una tantum: MCP, /clin e guardia (dormiente)")
     p.add_argument("--agente", choices=["auto", "claude-code", "codex", "antigravity", "tutti"], default="auto",
                    help="default: tutti gli agenti trovati sul computer")

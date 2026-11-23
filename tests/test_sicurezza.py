@@ -74,6 +74,24 @@ class TestTxtEDocxInLotto(unittest.TestCase):
             self.assertNotIn(leak, content)
         self.assertIn("febbre da 3 giorni", content)
 
+    def test_sottocartelle_e_copie_non_rielaborate(self):
+        sub = self.root / "reparto" / "2026"
+        sub.mkdir(parents=True)
+        (sub / "referto_rossi.txt").write_text(f"Paziente: ROSSI MARIO, CF {CF}\nFebbre da 3 giorni.\n", encoding="utf-8")
+        first = clin_mcp.tool_crea_copie_anonime({"percorso": str(self.root)})
+        outs = list((self.root / "Clin_anonimizzati" / "reparto" / "2026").glob("*.txt"))
+        self.assertEqual(len(outs), 1)
+        self.assertNotIn("ROSSI", outs[0].read_text(encoding="utf-8"))
+        self.assertIn("1 su 1.", first)
+        index = (self.root / "Clin_anonimizzati" / clin_mcp.INDEX_NAME).read_text(encoding="utf-8")
+        self.assertNotIn("rossi", index.lower())  # l'indice non contiene i nomi dei file originali
+        self.assertIn("non rielaborate", clin_mcp.tool_crea_copie_anonime({"percorso": str(self.root)}))
+        (sub / "referto_rossi.txt").write_text(f"Paziente: ROSSI MARIO, CF {CF}\nAfebbrile.\n", encoding="utf-8")
+        self.assertNotIn("non rielaborate", clin_mcp.tool_crea_copie_anonime({"percorso": str(self.root)}))
+        outs = list((self.root / "Clin_anonimizzati" / "reparto" / "2026").glob("*.txt"))
+        self.assertEqual(len(outs), 1)  # la copia vecchia non resta accanto alla nuova
+        self.assertIn("Afebbrile", outs[0].read_text(encoding="utf-8"))
+
     def test_txt_tabellare_resta_tabella(self):
         tsv_txt = self.root / "coorte.txt"
         tsv_txt.write_text(

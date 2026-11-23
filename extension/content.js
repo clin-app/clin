@@ -1,10 +1,10 @@
 // Clin - nella pagina della chat (ChatGPT, Claude, Gemini...).
 //
 // Quando Clin e' attivo, testo incollato, file trascinati e file scelti vengono fermati PRIMA
-// che il sito li riceva: si anonimizzano sul computer, si aprono nella barra di revisione
-// (con anteprima visiva reale dei PDF/foto, zoom, 2 colonne stile desktop, collassabile)
-// e solo con «Inserisci nella chat» entrano nel sito. I documenti inviati restano
-// consultabili in anteprima dal pannello /Clin per tutta la sessione della scheda.
+// che il sito li riceva: si anonimizzano sul computer e si aprono nella finestra di revisione
+// (anteprima reale del documento a sinistra, dati coperti a destra). Solo con «Inserisci nella
+// chat» entrano nel sito. Un testo breve in cui non c'e' nulla da coprire passa senza domande.
+// Tutta l'interfaccia vive in uno shadow DOM chiuso: la pagina non puo' leggere i dati reali.
 (() => {
   if (window.__clin) return;
   window.__clin = true;
@@ -19,9 +19,34 @@
   ];
   const MARKDOWN = ".standard-markdown, .markdown, [data-testid='chatgpt-writing-block']";
   const PH = /\[[A-Z_]+_\d+\]|\b[A-Z]{2,4}-\d{4}\b/;
+  const QUIET_MAX = 400;  // caratteri: sotto questa soglia un testo senza dati personali entra senza revisione
   let active = true, busy = false, passing = false;
 
   const send = (msg) => chrome.runtime.sendMessage({ target: "background", ...msg });
+
+  // ---------------------------------------------------------------- icone e disegni
+  const ico = (d, extra = "") => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${extra}<path d="${d}"/></svg>`;
+  const I = {
+    x: ico("M6 6l12 12M18 6L6 18"),
+    up: ico("M12 16V4m0 0L8 8m4-4l4 4M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"),
+    down: ico("M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"),
+    lock: ico("M8 11V8a4 4 0 018 0v3", '<rect x="5" y="11" width="14" height="9" rx="2"/>'),
+    copy: ico("M5 15V6a2 2 0 012-2h8", '<rect x="9" y="9" width="11" height="11" rx="2"/>'),
+    prev: ico("M15 6l-6 6 6 6"),
+    next: ico("M9 6l6 6-6 6"),
+    plus: ico("M12 5v14M5 12h14"),
+    minus: ico("M5 12h14"),
+    file: ico("M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8zM14 3v5h5"),
+    text: ico("M5 6h14M5 12h14M5 18h9"),
+    arrow: ico("M4 12h15m0 0l-5-5m5 5l-5 5"),
+  };
+  const LOGO = `<svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#d4f06b"/><g transform="rotate(-8 16 16)"><path d="M10.2 7.5h8.6l4.2 4.2v12.1a1.4 1.4 0 0 1-1.4 1.4H10.2a1.4 1.4 0 0 1-1.4-1.4V8.9a1.4 1.4 0 0 1 1.4-1.4z" fill="#101411"/><path d="M18.6 7.5v4.4h4.4" fill="#3c7a4b"/><rect x="11.3" y="13.6" width="9.4" height="1.5" rx=".75" fill="#d4f06b"/><rect x="11.3" y="17" width="9.4" height="3" rx="1" fill="#d4f06b"/><rect x="11.3" y="21.8" width="5.6" height="1.5" rx=".75" fill="#d4f06b"/></g></svg>`;
+  // pila isometrica di fogli (lo stesso disegno dei diagrammi del sito)
+  const stack = (n = 5) => {
+    let p = "";
+    for (let k = n - 1; k >= 0; k--) p += `<path d="M24 ${1.5 + k * 5}l21 10.5-21 10.5L3 ${12 + k * 5}z"/>`;
+    return `<svg class="stk" viewBox="0 0 48 ${24 + (n - 1) * 5}" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+  };
 
   // ---------------------------------------------------------------- interfaccia (shadow DOM chiuso)
   const host = document.createElement("clin-panel");
@@ -29,335 +54,323 @@
   root.innerHTML = `
     <style>
       :host { all: initial; }
-      * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; }
+      .app { --bg: #fff; --bg2: #f5f6f3; --bg3: #ebede7; --line: #e2e5dd; --ink: #101411; --ink2: #4a504b; --ink3: #767c77;
+             --acc: #d4f06b; --on-acc: #101411; --green: #2e6b3c; --green-bg: #e9f4ec; --warn: #9a5407; --warn-bg: #fff3df; --warn-line: #f1d9ad;
+             --err: #c0302e; --blue: #2f5fd0; --blue-bg: #eaf0fb; --mark-bg: #101411; --mark-ink: #d4f06b;
+             --shadow: 0 24px 64px rgba(16,20,17,.24), 0 2px 8px rgba(16,20,17,.08);
+             font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); letter-spacing: -.005em; }
+      .app.dark { --bg: #181b19; --bg2: #212622; --bg3: #2b312d; --line: #353c37; --ink: #f1f3ee; --ink2: #bcc1bb; --ink3: #8a908a;
+                  --green: #8fd39b; --green-bg: #1d2e22; --warn: #f0b765; --warn-bg: #33290f; --warn-line: #5a4517;
+                  --err: #ff8a85; --blue: #8fb0ff; --blue-bg: #1c2540; --mark-bg: #d4f06b; --mark-ink: #101411;
+                  --shadow: 0 24px 64px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); }
+      * { box-sizing: border-box; font-family: inherit; }
       [hidden] { display: none !important; }
-      .pill { position: fixed; right: 18px; bottom: 18px; z-index: 2147483646; display: flex; align-items: center; gap: 0;
-              height: 44px; padding: 0 5px; border: 0; border-radius: 22px; background: #101411; color: #fff;
-              font-size: 13px; font-weight: 600; letter-spacing: -.01em; cursor: pointer;
-              box-shadow: 0 8px 24px rgba(16,20,17,.28), 0 0 0 1px rgba(255,255,255,.06) inset;
-              transition: gap .2s, padding .2s, background .2s, opacity .2s; opacity: .94; }
-      .pill:hover, .pill.busy, .pill.open { gap: 10px; padding: 0 16px 0 5px; opacity: 1; }
-      .logo { position: relative; flex: none; width: 34px; height: 34px; display: grid; place-items: center; }
-      .logo svg { width: 34px; height: 34px; display: block; }
-      .lbl { max-width: 0; overflow: hidden; white-space: nowrap; transition: max-width .25s; }
-      .pill:hover .lbl, .pill.busy .lbl, .pill.open .lbl { max-width: 180px; }
-      .state { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%;
-               background: #7fcf8a; box-shadow: 0 0 0 2px #101411; }
-      .pill.off { background: #3d423e; }
-      .pill.off .state { background: #9ba19c; }
-      .pill.off .logo svg { filter: grayscale(1); opacity: .7; }
-      .ring { position: absolute; inset: -3px; border-radius: 50%; border: 2px solid transparent; border-top-color: #d4f06b; display: none; animation: spin .9s linear infinite; }
-      .pill.busy .ring { display: block; }
+      .i { width: 18px; height: 18px; flex: none; display: block; }
+      .logo { width: 28px; height: 28px; flex: none; display: block; }
+      button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+      button:focus-visible, input:focus-visible, .dz:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
       @keyframes spin { to { transform: rotate(360deg); } }
-      @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-      @keyframes pulse { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
+      @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+      @keyframes rise { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: none; } }
+      @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+      @media (prefers-reduced-motion: reduce) { * { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
-      .panel { position: fixed; right: 18px; bottom: 72px; z-index: 2147483647; width: min(440px, calc(100vw - 36px));
-               max-height: min(660px, calc(100vh - 100px)); display: flex; flex-direction: column; gap: 10px; padding: 16px;
-               border-radius: 20px; background: #fff; color: #101411; box-shadow: 0 18px 50px rgba(0,0,0,.22); font-size: 14px; }
-      .head { display: flex; align-items: center; gap: 10px; }
-      .head b { font-size: 15px; }
-      .head .tag, .rv-head .tag, .lb-head .tag { padding: 3px 9px; border-radius: 999px; background: #d4f06b; color: #101411; font-size: 12px; font-weight: 700; letter-spacing: -.01em; }
-      .head button { margin-left: auto; }
-      label.sw { display: flex; align-items: center; gap: 8px; color: #3d423e; font-size: 13px; }
-      .muted { color: #6a706b; font-size: 12.5px; line-height: 1.45; margin: 0; }
-      .p-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: #f0f2ec; }
-      .p-tabs button { flex: 1; padding: 7px 10px; font-size: 12.5px; background: transparent; color: #5c625d; }
-      .p-tabs button.on { background: #fff; color: #101411; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-      .out { flex: 1; min-height: 120px; overflow: auto; white-space: pre-wrap; padding: 10px 12px; border-radius: 12px;
-             background: #f3f4f1; font-size: 13.5px; line-height: 1.5; }
-      .sent-list { flex: 1; min-height: 120px; max-height: 340px; overflow: auto; display: grid; gap: 8px; align-content: start; }
-      .sent-card { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px;
-                   border-radius: 13px; background: #f6f7f4; border: 1px solid #eceee9; }
-      .sent-thumb { width: 48px; height: 60px; border-radius: 8px; background: #e5e8e0; object-fit: cover; border: 1px solid #dde0d8; cursor: pointer; display: grid; place-items: center; font-size: 20px; }
-      .sent-info { min-width: 0; }
-      .sent-name { font-weight: 600; font-size: 13px; color: #101411; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .sent-meta { font-size: 11.5px; color: #6a706b; margin-top: 2px; }
-      .sent-act { display: flex; gap: 4px; }
-      .sent-act button { padding: 6px 10px; font-size: 12px; }
+      /* ---------------- pulsanti */
+      .b { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 36px; padding: 0 14px; border-radius: 10px;
+           background: var(--bg2); color: var(--ink); font-size: 13.5px; font-weight: 600; white-space: nowrap; transition: background .15s, opacity .15s; }
+      .b:hover { background: var(--bg3); }
+      .b.pri { background: var(--ink); color: var(--bg); }
+      .b.pri:hover { opacity: .88; }
+      .b:disabled { opacity: .45; cursor: default; }
+      .b kbd { font: 600 11px/1 inherit; padding: 3px 5px; border-radius: 5px; background: rgba(127,127,127,.28); }
+      .ib { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; color: var(--ink2); transition: background .15s; }
+      .ib:hover { background: var(--bg2); color: var(--ink); }
+      .ib:disabled { opacity: .35; cursor: default; }
+      .lnk { color: var(--ink3); font-size: 12.5px; text-decoration: underline; text-underline-offset: 2px; }
+      .lnk:hover { color: var(--ink); }
 
+      /* ---------------- pulsante fisso */
+      .fab { position: fixed; right: 16px; bottom: 16px; z-index: 2147483646; display: flex; align-items: center; height: 40px; padding: 0 6px;
+             border-radius: 20px; background: #101411; color: #fff; font-size: 13px; font-weight: 600;
+             box-shadow: 0 6px 20px rgba(16,20,17,.3), inset 0 0 0 1px rgba(255,255,255,.08); transition: padding .2s, background .2s; }
+      .fab-m { position: relative; display: grid; place-items: center; width: 28px; height: 28px; }
+      .fab-d { position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: #7fcf8a; box-shadow: 0 0 0 2px #101411; }
+      .fab-r { position: absolute; inset: -4px; border-radius: 50%; border: 2px solid transparent; border-top-color: #d4f06b; animation: spin .8s linear infinite; display: none; }
+      .fab-l { max-width: 0; overflow: hidden; white-space: nowrap; transition: max-width .25s, margin .25s; }
+      .fab:hover, .fab.busy, .fab.off, .fab.say { padding-right: 14px; }
+      .fab:hover .fab-l, .fab.busy .fab-l, .fab.off .fab-l, .fab.say .fab-l { max-width: 240px; margin-left: 9px; }
+      .fab.busy .fab-r { display: block; }
+      .fab.off { background: #4a4f4b; }
+      .fab.off .fab-d { background: #f0b765; box-shadow: 0 0 0 2px #4a4f4b; }
+      .fab.off .logo { filter: grayscale(1); opacity: .75; }
+
+      .toast { position: fixed; right: 16px; bottom: 66px; z-index: 2147483647; max-width: min(400px, calc(100vw - 32px)); display: flex; align-items: center; gap: 10px;
+               padding: 10px 12px 10px 14px; border-radius: 12px; background: #101411; color: #fff; font-size: 13px; line-height: 1.4;
+               box-shadow: 0 10px 30px rgba(0,0,0,.3); animation: rise .2s ease-out; }
+      .toast.err { background: #b32b29; }
+      .t-act { flex: none; height: 28px; padding: 0 10px; border-radius: 8px; background: #d4f06b; color: #101411; font-size: 12.5px; font-weight: 600; }
+
+      /* ---------------- pannello */
+      .pop { position: fixed; right: 16px; bottom: 66px; z-index: 2147483647; width: min(380px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 90px));
+             display: flex; flex-direction: column; border-radius: 16px; background: var(--bg); border: 1px solid var(--line); box-shadow: var(--shadow);
+             overflow: hidden; animation: rise .18s ease-out; }
+      .pop-h { display: flex; align-items: center; gap: 10px; padding: 14px 12px 12px 14px; }
+      .ttl { flex: 1; min-width: 0; display: grid; }
+      .ttl b { font-size: 15px; font-weight: 650; }
+      .ttl span { font-size: 12.5px; color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sw { appearance: none; -webkit-appearance: none; flex: none; position: relative; width: 38px; height: 22px; margin: 0; border-radius: 11px; background: var(--bg3); cursor: pointer; transition: background .18s; }
+      .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .18s; }
+      .sw:checked { background: #3c7a4b; }
+      .sw:checked::after { transform: translateX(16px); }
+      .pop-b { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; overflow: auto; }
+      .dz { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 12px; text-align: left;
+            border: 1.5px dashed var(--line); background: var(--bg2); transition: border-color .15s, background .15s; }
+      .dz:hover { border-color: var(--blue); background: var(--blue-bg); }
+      .dz .i { width: 22px; height: 22px; color: var(--blue); }
+      .dz b { display: block; font-size: 13.5px; font-weight: 600; }
+      .dz small { display: block; font-size: 12px; color: var(--ink3); }
+      .seg { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--bg2); }
+      .seg button { flex: 1; height: 30px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink3); }
+      .seg button.on { background: var(--bg); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+      .seg i { font-style: normal; font-weight: 500; opacity: .7; }
+      .tab { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+      .hint { margin: 0; font-size: 12.5px; color: var(--ink3); }
+      .out { min-height: 96px; max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; border-radius: 10px;
+             background: var(--bg2); font-size: 13.5px; line-height: 1.5; user-select: text; }
+      .out.empty { color: var(--ink3); }
       .row { display: flex; flex-wrap: wrap; gap: 8px; }
-      button { border: 0; border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
-               background: #f3f4f1; color: #101411; transition: background .15s, transform .08s, color .15s; }
-      button:hover { background: #e8ebe4; }
-      button:active { transform: scale(.98); }
-      button.dark { background: #101411; color: #fff; }
-      button.dark:hover { background: #262c28; }
-      button.x { padding: 5px 10px; background: transparent; font-size: 18px; line-height: 1; color: #4c524d; }
-      button.x:hover { background: #f3f4f1; color: #101411; }
+      .row .b { flex: 1; }
+      .sent { display: grid; gap: 6px; max-height: 300px; overflow: auto; }
+      .sc { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; background: var(--bg2); text-align: left; width: 100%; }
+      .sc:hover { background: var(--bg3); }
+      .sc-t { width: 40px; height: 50px; border-radius: 6px; object-fit: cover; background: var(--bg3); display: grid; place-items: center; color: var(--ink3); border: 1px solid var(--line); }
+      .sc-n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sc-m { font-size: 12px; color: var(--ink3); }
+      .pop-f { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink3); }
+      .eng { display: flex; align-items: center; gap: 7px; min-width: 0; }
+      .eng i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #e0a53a; }
+      .eng.ok i { background: #3c9a55; }
 
-      .toast { position: fixed; right: 18px; bottom: 72px; z-index: 2147483647; max-width: 400px; padding: 10px 14px;
-               border-radius: 14px; background: #101411; color: #fff; font-size: 13px; line-height: 1.45;
-               box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; align-items: center; gap: 10px; }
-      .toast.err { background: #c8312f; }
-      .toast .t-act { flex: none; padding: 5px 10px; font-size: 12px; background: #d4f06b; color: #101411; border-radius: 999px; }
+      /* ---------------- finestra di revisione */
+      .ov { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 16px; background: rgba(16,20,17,.5);
+            backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: fade .15s ease-out; }
+      .dlg { position: relative; display: flex; flex-direction: column; width: min(1080px, 100%); height: min(780px, 100%); border-radius: 18px;
+             background: var(--bg); border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden; animation: rise .22s cubic-bezier(.2,.8,.2,1); }
+      .dlg.text { width: min(900px, 100%); height: min(640px, 100%); }
+      .dlg:focus { outline: none; }
+      .dlg-h { flex: none; display: flex; align-items: center; gap: 10px; padding: 14px 12px 14px 16px; border-bottom: 1px solid var(--line); }
+      .local { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 13px; background: var(--green-bg); color: var(--green); font-size: 12px; font-weight: 600; }
+      .local .i { width: 14px; height: 14px; }
+      .upd { flex: none; height: 2px; margin-bottom: -2px; position: relative; z-index: 3; overflow: hidden; visibility: hidden; }
+      .upd::after { content: ""; display: block; width: 30%; height: 100%; background: var(--blue); animation: slide 1s ease-in-out infinite; }
+      .dlg.updating .upd { visibility: visible; }
+      .dlg.updating .side, .dlg.updating .pv { opacity: .6; transition: opacity .15s; }
 
-      /* ---------------- barra di revisione (stile desktop a 2 colonne, espandibile e collassabile) */
-      .rev { position: fixed; top: 10px; right: 10px; bottom: 10px; z-index: 2147483647; width: min(460px, calc(100vw - 20px));
-             display: flex; flex-direction: column; border-radius: 22px; background: rgba(255,255,255,.98); color: #101411;
-             backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-             border: 1px solid rgba(16,20,17,.08); box-shadow: -14px 12px 48px rgba(16,20,17,.22); font-size: 14px;
-             transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; visibility: hidden;
-             transition: transform .36s cubic-bezier(.16, 1, .3, 1), opacity .24s ease, width .28s cubic-bezier(.16, 1, .3, 1), visibility 0s linear .36s; }
-      .rev.wide { width: min(980px, calc(100vw - 24px)); }
-      .rev.open { transform: translateX(0); opacity: 1; pointer-events: auto; visibility: visible;
-                  transition: transform .36s cubic-bezier(.16, 1, .3, 1), opacity .24s ease, width .28s cubic-bezier(.16, 1, .3, 1), visibility 0s linear 0s; }
-      .rev.collapsed { transform: translateX(calc(100% + 28px)); opacity: 0; pointer-events: none; visibility: hidden;
-                       transition: transform .3s cubic-bezier(.4, 0, .2, 1), opacity .2s ease, visibility 0s linear .3s; }
+      .load { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px; text-align: center; }
+      .pipe { display: flex; align-items: center; gap: 14px; color: var(--ink3); }
+      .pipe figure { margin: 0; display: grid; justify-items: center; gap: 8px; width: 112px; padding: 14px 8px 12px; border-radius: 14px; font-size: 12px; font-weight: 600; transition: background .3s, color .3s; }
+      .pipe .stk { width: 48px; }
+      .stk path { fill: var(--bg); }
+      .pipe figure.on .stk path { fill: var(--blue-bg); }
+      .pipe figure.on { background: var(--blue-bg); color: var(--blue); }
+      .pipe figure.on .stk { animation: bob 1.2s ease-in-out infinite; }
+      .pipe figure.done { color: var(--ink); }
+      .pipe .i { width: 20px; height: 20px; opacity: .6; }
+      .load-t b { display: block; font-size: 15px; font-weight: 600; }
+      .load-t span { font-size: 13px; color: var(--ink3); }
+      .bar { width: min(320px, 80%); height: 4px; border-radius: 2px; background: var(--bg3); overflow: hidden; }
+      .bar div { height: 100%; width: 8%; border-radius: 2px; background: var(--blue); transition: width .4s cubic-bezier(.2,.8,.2,1); }
+      .load.fail .pipe, .load.fail .bar { display: none; }
+      .load.fail .load-t b { color: var(--err); }
 
-      .rv-tab { position: fixed; right: 0; top: 50%; z-index: 2147483647; display: flex; align-items: center; gap: 8px;
-                padding: 10px 14px 10px 12px; border-radius: 16px 0 0 16px; background: #101411; color: #fff;
-                box-shadow: -8px 8px 28px rgba(16,20,17,.26); font-size: 13px; font-weight: 600;
-                transform: translate(110%, -50%); opacity: 0; pointer-events: none; visibility: hidden;
-                transition: transform .32s cubic-bezier(.16, 1, .3, 1), opacity .2s ease, background .15s, visibility 0s linear .32s; }
-      .rv-tab.show { transform: translate(0, -50%); opacity: 1; pointer-events: auto; visibility: visible;
-                     transition: transform .32s cubic-bezier(.16, 1, .3, 1), opacity .2s ease, background .15s, visibility 0s linear 0s; }
-      .rv-tab:hover { background: #1e2621; }
-      .rv-tab .arr { font-size: 15px; color: #d4f06b; line-height: 1; }
-      .rv-tab .badge { padding: 2px 7px; border-radius: 999px; background: #d4f06b; color: #101411; font-size: 11.5px; font-weight: 700; }
-      .rv-tab .spin-sm { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); border-top-color: #d4f06b; animation: spin .8s linear infinite; display: none; }
-      .rv-tab.loading .spin-sm { display: block; }
-      .rv-tab.loading .badge { display: none; }
+      .dlg-b { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; }
+      .pv { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--bg2); }
+      .pv-bar { flex: none; display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--bg); min-height: 49px; }
+      .pv-k { margin: 0 6px; font-size: 12px; font-weight: 600; color: var(--ink3); text-transform: uppercase; letter-spacing: .05em; }
+      .ft { display: flex; gap: 2px; min-width: 0; overflow: auto; }
+      .ft button { height: 30px; max-width: 180px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: none; }
+      .ft button.on { background: var(--bg2); color: var(--ink); }
+      .sp { flex: 1; }
+      .pg { font-size: 12.5px; font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; padding: 0 2px; white-space: nowrap; }
+      .stage { flex: 1; min-height: 0; overflow: auto; padding: 18px; text-align: center; }
+      .stage img { display: inline-block; max-width: none; height: auto; background: #fff; border-radius: 4px; box-shadow: 0 2px 14px rgba(0,0,0,.16); }
+      .txt { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 20px 22px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.65; user-select: text; background: var(--bg); }
+      mark { background: var(--mark-bg); color: var(--mark-ink); border-radius: 5px; padding: 1px 5px; font: 600 .86em/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
 
-      .rv-head { display: flex; align-items: center; gap: 8px; padding: 13px 14px 11px 16px; border-bottom: 1px solid #eceee9; flex: none; }
-      .rv-head b { font-size: 15px; letter-spacing: -.01em; }
-      .rv-head-act { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-      .rv-icobtn { width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border-radius: 10px;
-                   background: #f3f4f1; color: #2b312d; font-size: 15px; line-height: 1; }
-      .rv-icobtn:hover { background: #e6e9e2; color: #101411; }
+      .side { min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
+      .cnt { flex: none; display: flex; align-items: baseline; gap: 8px; padding: 16px 16px 4px; }
+      .cnt b { font-size: 30px; font-weight: 650; letter-spacing: -.03em; line-height: 1; }
+      .cnt span { font-size: 13.5px; color: var(--ink2); }
+      .cnt-s { flex: none; margin: 0; padding: 0 16px 10px; font-size: 12.5px; color: var(--ink3); }
+      .cnt-s.w { color: var(--warn); font-weight: 600; }
+      .list { flex: 1; min-height: 0; overflow: auto; padding: 0 10px 8px; }
+      .gk { position: sticky; top: 0; z-index: 1; margin: 0; padding: 10px 6px 4px; background: var(--bg); font-size: 11.5px; font-weight: 600; color: var(--ink3); text-transform: uppercase; letter-spacing: .05em; }
+      .it { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 9px; cursor: pointer; }
+      .it:hover { background: var(--bg2); }
+      .it-v { font-size: 13.5px; font-weight: 550; overflow-wrap: anywhere; }
+      .it-p { font: 600 11px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 2px 6px; border-radius: 5px; background: var(--mark-bg); color: var(--mark-ink); white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; }
+      .it .sw { width: 32px; height: 18px; border-radius: 9px; }
+      .it .sw::after { width: 14px; height: 14px; }
+      .it .sw:checked::after { transform: translateX(14px); }
+      .it.off { background: var(--warn-bg); box-shadow: inset 0 0 0 1px var(--warn-line); }
+      .it.off .it-p { background: transparent; color: var(--warn); }
+      .none { margin: 8px 6px; font-size: 13px; color: var(--ink3); }
+      .add { flex: none; display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--line); }
+      .add input { flex: 1; min-width: 0; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-size: 13.5px; }
+      .add input::placeholder { color: var(--ink3); }
+      .notes { flex: none; margin: 0; padding: 0 14px 10px; font-size: 12px; color: var(--ink3); }
+      .selb { position: fixed; z-index: 2; height: 32px; padding: 0 12px; border-radius: 9px; background: var(--ink); color: var(--bg); font-size: 12.5px; font-weight: 600; box-shadow: 0 6px 18px rgba(0,0,0,.28); }
 
-      .rv-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 16px 0; flex: none; }
-      .rv-sum { margin: 0; color: #3d423e; font-size: 13px; line-height: 1.4; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .rv-sum strong { color: #101411; }
-      .rv-local { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px;
-                  background: #eef6ef; color: #2e6b3c; font-size: 11.5px; font-weight: 600; }
-      .rv-local::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #3c7a4b; }
+      .dlg-f { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 14px 12px 16px; border-top: 1px solid var(--line); }
+      .st { flex: 1; min-width: 0; margin: 0; font-size: 12.5px; color: var(--ink3); }
+      .st.err { color: var(--err); font-weight: 600; }
+      .go { min-width: 190px; height: 40px; }
 
-      .rv-loader { margin: 12px 16px 0; padding: 16px; border-radius: 16px; background: #f6f7f4; border: 1px solid #eceee9; display: none; flex-direction: column; gap: 12px; }
-      .rv-loader.show { display: flex; }
-      .rv-ld-top { display: flex; align-items: center; gap: 12px; }
-      .rv-spin { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 3px solid #e4e7df; border-top-color: #101411; border-right-color: #3c7a4b; animation: spin .75s linear infinite; }
-      .rv-ld-txt { flex: 1; min-width: 0; }
-      .rv-ld-step { font-size: 13.5px; font-weight: 600; color: #101411; margin: 0; }
-      .rv-ld-sub { font-size: 12px; color: #6a706b; margin: 2px 0 0; }
-      .rv-ld-pct { font-size: 12.5px; font-weight: 700; color: #2e6b3c; font-variant-numeric: tabular-nums; }
-      .rv-bar { height: 7px; border-radius: 999px; background: #e5e8e0; overflow: hidden; }
-      .rv-bar-fill { height: 100%; width: 12%; border-radius: 999px; background: linear-gradient(90deg, #3c7a4b, #9fd94b, #d4f06b);
-                     background-size: 200% 100%; animation: shimmer 1.8s linear infinite; transition: width .35s cubic-bezier(.16, 1, .3, 1); }
-      .rv-skels { display: grid; gap: 8px; margin-top: 2px; }
-      .rv-skel { height: 42px; border-radius: 12px; background: #ebede7; animation: pulse 1.3s ease-in-out infinite; }
-      .rv-skel:nth-child(2) { animation-delay: .15s; opacity: .75; }
-      .rv-skel:nth-child(3) { animation-delay: .3s; opacity: .55; }
+      /* ---------------- anteprima a schermo intero (documenti gia' inviati) */
+      .lb { position: fixed; inset: 0; z-index: 2147483647; display: flex; flex-direction: column; background: rgba(12,15,13,.9); color: #fff; animation: fade .15s ease-out; }
+      .lb-h { display: flex; align-items: center; gap: 8px; padding: 12px 14px 12px 18px; }
+      .lb-h b { flex: 1; min-width: 0; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .lb-h .ib { color: #fff; }
+      .lb-h .ib:hover { background: rgba(255,255,255,.14); }
+      .lb-h .pg { color: #fff; }
+      .lb-b { flex: 1; min-height: 0; overflow: auto; padding: 8px 18px 24px; text-align: center; }
+      .lb-b img { width: min(920px, 100%); height: auto; border-radius: 6px; background: #fff; }
+      .lb-b .txt { display: inline-block; width: min(820px, 100%); text-align: left; border-radius: 12px; color: var(--ink); }
 
-      .rv-updating { margin: 8px 16px 0; padding: 7px 12px; border-radius: 10px; background: #eef6ef; color: #2e6b3c;
-                     font-size: 12.5px; font-weight: 600; display: none; align-items: center; gap: 8px; flex: none; }
-      .rv-updating.show { display: flex; }
-      .rv-updating .u-spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(46,107,60,.25); border-top-color: #2e6b3c; animation: spin .75s linear infinite; }
-
-      /* corpo: 1 colonna stretta, 2 colonne affiancate quando .rev.wide */
-      .rv-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 14px; }
-      .rv-body.hide { display: none; }
-      .rev.wide .rv-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, .85fr); gap: 16px; overflow: hidden; padding: 12px 16px; }
-      .rv-pane-doc, .rv-pane-ctrl { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-      .rev.wide .rv-pane-doc, .rev.wide .rv-pane-ctrl { overflow: auto; padding-right: 2px; }
-
-      .rv-k { margin: 0 0 6px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6a706b; }
-      .rv-prev { max-height: 240px; overflow: auto; white-space: pre-wrap; padding: 12px 13px; border-radius: 14px; background: #f6f7f4;
-                 border: 1px solid #eceee9; font-size: 13px; line-height: 1.55; user-select: text; }
-      .rev.wide .rv-prev { flex: 1; max-height: none; }
-      .rv-prev mark { background: #101411; color: #d4f06b; border-radius: 5px; padding: 1px 4px; font-weight: 600; font-size: 12px; }
-
-      /* visualizzatore pagine PDF/foto */
-      .doc-viewer { display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0; }
-      .doc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: #f3f4f1; }
-      .doc-bar .doc-ftabs { display: flex; gap: 4px; flex-wrap: wrap; }
-      .doc-bar .ftab { padding: 4px 9px; font-size: 12px; border-radius: 8px; background: transparent; color: #5c625d; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .doc-bar .ftab.on { background: #fff; color: #101411; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
-      .doc-bar .doc-nav { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-      .doc-bar .navbtn { padding: 4px 9px; font-size: 12px; border-radius: 8px; background: #fff; color: #101411; }
-      .doc-bar .navbtn:disabled { opacity: .4; cursor: default; }
-      .doc-bar .pg-lbl { font-size: 12px; font-weight: 600; color: #3d423e; padding: 0 4px; font-variant-numeric: tabular-nums; }
-      .doc-stage { flex: 1; min-height: 220px; max-height: 360px; overflow: auto; border-radius: 14px; background: #e8ebe4;
-                   border: 1px solid #dde0d8; padding: 10px; display: flex; justify-content: center; align-items: flex-start; }
-      .rev.wide .doc-stage { max-height: none; min-height: 340px; }
-      .doc-stage img { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,.14); cursor: zoom-in; transition: width .15s; background: #fff; }
-      .doc-hint { font-size: 11.5px; color: #6a706b; margin: 0; text-align: center; }
-
-      .rv-list { display: grid; gap: 6px; }
-      .rv-item { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 13px;
-                 background: #f6f7f4; border: 1px solid transparent; cursor: pointer; transition: background .15s, border-color .15s; }
-      .rv-item:hover { background: #eff1ec; border-color: #e1e4dc; }
-      .rv-item input { width: 18px; height: 18px; margin: 0; accent-color: #3c7a4b; cursor: pointer; }
-      .rv-item .v { min-width: 0; overflow-wrap: anywhere; font-weight: 600; font-size: 13px; color: #101411; }
-      .rv-item .c { display: block; font-weight: 400; font-size: 11.5px; color: #6a706b; margin-top: 1px; }
-      .rv-item .ph { padding: 3px 7px; border-radius: 7px; background: #101411; color: #d4f06b; font-size: 11px; font-weight: 600; white-space: nowrap; }
-      .rv-item.off { background: #fff6e8; border-color: #f3dfbd; }
-      .rv-item.off .v { text-decoration: line-through; text-decoration-color: rgba(16,20,17,.35); color: #5c5140; }
-      .rv-item.off .ph { background: #b8640a; color: #fff; }
-
-      .rv-add { display: flex; gap: 6px; }
-      .rv-add input { flex: 1; min-width: 0; padding: 9px 13px; border: 1px solid #dde0d8; border-radius: 999px; font-size: 13.5px; background: #fff; color: #101411; }
-      .rv-add input:focus { outline: 2px solid #3c7a4b; outline-offset: 1px; border-color: transparent; }
-
-      .rv-foot { margin-top: auto; flex: none; display: grid; gap: 8px; padding: 12px 16px 14px; border-top: 1px solid #eceee9; background: rgba(255,255,255,.94); border-radius: 0 0 22px 22px; }
-      .rv-foot-row { display: flex; gap: 8px; }
-      .rv-foot .go { flex: 1; min-height: 44px; font-size: 14px; background: #101411; color: #fff; }
-      .rv-foot .go:hover:not(:disabled) { background: #222b25; }
-      .rv-foot .go:disabled { background: #e9ebe6; color: #9ba19c; cursor: default; transform: none; }
-      .rv-foot .rv-dl { min-height: 44px; padding: 0 14px; background: #eef6ef; color: #2e6b3c; }
-      .rv-foot .rv-dl:hover { background: #dff0e2; }
-      .rv-foot .rv-cancel { min-height: 44px; padding: 0 16px; }
-      .rv-foot .rv-retry { min-height: 40px; background: #d4f06b; color: #101411; display: none; }
-      .rv-foot .rv-retry.show { display: block; }
-      .rv-st { margin: 0; min-height: 1.1em; font-size: 12.5px; color: #6a706b; text-align: center; }
-      .rv-st.err { color: #c8312f; font-weight: 500; }
-
-      /* lightbox schermo intero per anteprima documento (prima e dopo l'invio) */
-      .lb { position: fixed; inset: 0; z-index: 2147483647; background: rgba(16,20,17,.84); backdrop-filter: blur(8px);
-            display: flex; flex-direction: column; padding: 18px; color: #fff; }
-      .lb-head { display: flex; align-items: center; gap: 10px; max-width: 1100px; width: 100%; margin: 0 auto 12px; }
-      .lb-head b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .lb-act { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-      .lb-act button { background: rgba(255,255,255,.14); color: #fff; padding: 7px 12px; font-size: 13px; }
-      .lb-act button:hover { background: rgba(255,255,255,.24); }
-      .lb-act .lb-pg { font-size: 13px; font-weight: 600; padding: 0 6px; }
-      .lb-body { flex: 1; min-height: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 6px; }
-      .lb-body img { max-width: 100%; width: min(920px, 100%); height: auto; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.45); background: #fff; }
-      .lb-body .lb-txt { max-width: 820px; width: 100%; background: #fff; color: #101411; padding: 20px 24px; border-radius: 14px; white-space: pre-wrap; line-height: 1.6; font-size: 14px; }
-      .lb-body .lb-txt mark { background: #101411; color: #d4f06b; border-radius: 4px; padding: 1px 4px; font-weight: 600; }
-
-      @media (max-width: 880px) {
-        .rev.wide { width: calc(100vw - 20px); }
-        .rev.wide .rv-body { display: flex; flex-direction: column; overflow: auto; }
+      @media (max-width: 820px) {
+        .dlg-b { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+        .side { border-left: 0; border-top: 1px solid var(--line); }
+        .local { display: none; }
+        .go { min-width: 0; flex: 1; }
+        .go kbd { display: none; }
+        .pipe figure { width: 88px; }
       }
     </style>
 
-    <button class="pill" part="pill" title="Clin: anonimizzazione locale">
-      <span class="logo"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#d4f06b"/><g transform="rotate(-8 16 16)"><path d="M10.2 7.5h8.6l4.2 4.2v12.1a1.4 1.4 0 0 1-1.4 1.4H10.2a1.4 1.4 0 0 1-1.4-1.4V8.9a1.4 1.4 0 0 1 1.4-1.4z" fill="#101411"/><path d="M18.6 7.5v4.4h4.4" fill="#3c7a4b"/><rect x="11.3" y="13.6" width="9.4" height="1.5" rx=".75" fill="#d4f06b"/><rect x="11.3" y="17" width="9.4" height="3" rx="1" fill="#d4f06b"/><rect x="11.3" y="21.8" width="5.6" height="1.5" rx=".75" fill="#d4f06b"/></g></svg><span class="state"></span><span class="ring"></span></span>
-      <span class="lbl">/Clin attivo</span>
-    </button>
-    <div class="toast" hidden><span class="t-msg"></span><button class="t-act" type="button" hidden>Vedi anteprima</button></div>
+    <div class="app">
+      <button class="fab" type="button" aria-label="Apri Clin">
+        <span class="fab-m">${LOGO}<span class="fab-d"></span><span class="fab-r"></span></span>
+        <span class="fab-l">Clin attivo</span>
+      </button>
 
-    <button class="rv-tab" type="button" title="Riapri la revisione di Clin">
-      <span class="arr" aria-hidden="true">«</span>
-      <span>/Clin</span>
-      <span class="spin-sm" aria-hidden="true"></span>
-      <span class="badge">0</span>
-    </button>
+      <div class="toast" role="status" hidden><span class="t-msg"></span><button class="t-act" type="button" hidden></button></div>
 
-    <aside class="rev" aria-label="Revisione dei dati coperti">
-      <div class="rv-head">
-        <span class="tag">/Clin</span>
-        <b>Controlla prima di inviare</b>
-        <div class="rv-head-act">
-          <button class="rv-icobtn rv-wide" type="button" title="Espandi / riduci vista a 2 colonne">⤢</button>
-          <button class="rv-icobtn rv-col" type="button" title="Riduci a icona lateralmente">»</button>
-          <button class="rv-icobtn rv-x" type="button" title="Annulla e chiudi">×</button>
-        </div>
-      </div>
-
-      <div class="rv-meta">
-        <p class="rv-sum"></p>
-        <span class="rv-local">Locale</span>
-      </div>
-
-      <div class="rv-loader">
-        <div class="rv-ld-top">
-          <div class="rv-spin" aria-hidden="true"></div>
-          <div class="rv-ld-txt">
-            <p class="rv-ld-step">Avvio del motore locale…</p>
-            <p class="rv-ld-sub">Nessun dato lascia questo computer</p>
+      <section class="pop" role="dialog" aria-label="Clin" hidden>
+        <header class="pop-h">
+          ${LOGO}
+          <div class="ttl"><b>Clin</b><span class="pop-s">Protezione attiva</span></div>
+          <input type="checkbox" class="sw on" role="switch" aria-label="Protezione attiva" checked>
+          <button class="ib pop-x" type="button" aria-label="Chiudi">${I.x}</button>
+        </header>
+        <div class="pop-b">
+          <button class="dz" type="button">${I.up}<span><b>Scegli o trascina un file</b><small>PDF, foto, Word, Excel, CSV, testo · letto solo su questo computer</small></span></button>
+          <input type="file" class="pick" multiple accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xlsm,.csv,.tsv,.txt,.md" hidden>
+          <nav class="seg">
+            <button type="button" class="on" data-tab="ans">Risposta con i dati reali</button>
+            <button type="button" data-tab="sent">Inviati <i class="sent-n">0</i></button>
+          </nav>
+          <div class="tab tab-ans">
+            <div class="out empty"></div>
+            <div class="row">
+              <button class="b pri copy" type="button">${I.copy}Copia</button>
+              <button class="b last" type="button">Ultima risposta</button>
+              <button class="b sel" type="button">Selezione</button>
+            </div>
+            <p class="hint">I nomi veri compaiono solo qui: la pagina della chat non può leggerli.</p>
           </div>
-          <span class="rv-ld-pct">10%</span>
+          <div class="tab tab-sent" hidden><div class="sent"></div></div>
         </div>
-        <div class="rv-bar"><div class="rv-bar-fill"></div></div>
-        <div class="rv-skels"><div class="rv-skel"></div><div class="rv-skel"></div><div class="rv-skel"></div></div>
-      </div>
+        <footer class="pop-f">
+          <span class="eng"><i></i><span class="eng-t">Motore in avvio…</span></span>
+          <button class="lnk forget" type="button">Dimentica tutto</button>
+        </footer>
+      </section>
 
-      <div class="rv-updating"><span class="u-spin" aria-hidden="true"></span><span class="u-txt">Aggiornamento anteprima…</span></div>
-
-      <div class="rv-body hide">
-        <div class="rv-pane-doc">
-          <div class="rv-preview"></div>
-        </div>
-        <div class="rv-pane-ctrl">
-          <div>
-            <p class="rv-k">Dati coperti · togliere la spunta per lasciarli in chiaro</p>
-            <div class="rv-list"></div>
+      <div class="ov" hidden>
+        <section class="dlg" role="dialog" aria-modal="true" aria-label="Controlla prima di inviare" tabindex="-1">
+          <header class="dlg-h">
+            ${LOGO}
+            <div class="ttl"><b>Controlla prima di inviare</b><span class="dlg-s"></span></div>
+            <span class="local">${I.lock}Solo su questo computer</span>
+            <button class="ib dlg-x" type="button" aria-label="Annulla e chiudi">${I.x}</button>
+          </header>
+          <div class="upd"></div>
+          <div class="load">
+            <div class="pipe">
+              <figure class="p1">${stack(5)}<figcaption>Documento</figcaption></figure>${I.arrow}
+              <figure class="p2">${stack(5)}<figcaption>Motore locale</figcaption></figure>${I.arrow}
+              <figure class="p3">${stack(5)}<figcaption>Copia anonima</figcaption></figure>
+            </div>
+            <div class="load-t"><b class="load-step">Avvio del motore locale…</b><span class="load-sub">Nessun dato lascia questo computer</span></div>
+            <div class="bar"><div></div></div>
           </div>
-          <div>
-            <p class="rv-k">Manca qualcosa? Coprire anche</p>
-            <div class="rv-add"><input class="rv-word" placeholder="Parola o nome da coprire" autocomplete="off"><button class="rv-plus" type="button">Aggiungi</button></div>
-            <p class="muted rv-selhint" style="margin-top:6px">Oppure selezionare la parola nell'anteprima e premere «Copri selezione».</p>
-            <div class="row" style="margin-top:6px"><button class="rv-sel" type="button">Copri selezione</button></div>
+          <div class="dlg-b" hidden>
+            <div class="pv"></div>
+            <aside class="side">
+              <div class="cnt"><b>0</b><span>dati coperti</span></div>
+              <p class="cnt-s"></p>
+              <div class="list"></div>
+              <p class="notes" hidden></p>
+              <form class="add"><input class="word" placeholder="Manca qualcosa? Scrivilo qui" autocomplete="off" aria-label="Parola o nome da coprire"><button class="b" type="submit">Copri</button></form>
+            </aside>
           </div>
-        </div>
+          <footer class="dlg-f">
+            <p class="st" aria-live="polite"></p>
+            <button class="b cancel" type="button">Annulla</button>
+            <button class="b retry" type="button" hidden>Riprova</button>
+            <button class="b dl" type="button" hidden>${I.down}Scarica</button>
+            <button class="b pri go" type="button" disabled>Inserisci nella chat <kbd>⌘↵</kbd></button>
+          </footer>
+        </section>
+        <button class="selb" type="button" hidden>Copri la selezione</button>
       </div>
 
-      <div class="rv-foot">
-        <button class="rv-retry" type="button">Riprova</button>
-        <div class="rv-foot-row">
-          <button class="dark go" type="button" disabled>Inserisci nella chat</button>
-          <button class="rv-dl" type="button" hidden title="Salva i file anonimizzati sul computer">Scarica</button>
-          <button class="rv-cancel" type="button">Annulla</button>
+      <div class="lb" hidden>
+        <div class="lb-h">
+          <b class="lb-t"></b>
+          <button class="ib lb-prev" type="button" aria-label="Pagina precedente">${I.prev}</button>
+          <span class="pg lb-pg"></span>
+          <button class="ib lb-next" type="button" aria-label="Pagina successiva">${I.next}</button>
+          <button class="ib lb-dl" type="button" aria-label="Scarica">${I.down}</button>
+          <button class="ib lb-x" type="button" aria-label="Chiudi">${I.x}</button>
         </div>
-        <p class="rv-st" aria-live="polite"></p>
+        <div class="lb-b"></div>
       </div>
-    </aside>
-
-    <div class="lb" hidden>
-      <div class="lb-head">
-        <span class="tag">/Clin</span>
-        <b class="lb-title">Anteprima documento anonimizzato</b>
-        <div class="lb-act">
-          <button class="lb-prev" type="button">‹</button>
-          <span class="lb-pg">1 / 1</span>
-          <button class="lb-next" type="button">›</button>
-          <button class="lb-dl" type="button" hidden>Scarica</button>
-          <button class="lb-close" type="button">Chiudi ×</button>
-        </div>
-      </div>
-      <div class="lb-body"></div>
-    </div>
-
-    <div class="panel" hidden>
-      <div class="head"><span class="tag">/Clin</span><b>Anonimizzazione locale</b><button class="x" title="Chiudi">×</button></div>
-      <label class="sw"><input type="checkbox" class="on" checked> Anonimizzare testi e file incollati o trascinati</label>
-      <div class="row"><button class="dark pick-btn" type="button">📎 Carica file da anonimizzare</button><input type="file" class="pick-in" multiple accept="image/*,application/pdf,.pdf,.docx,.xlsx,.xlsm,.csv,.tsv,.txt,.md" hidden></div>
-      <div class="p-tabs">
-        <button type="button" class="ptab-ans on">Risposte IA</button>
-        <button type="button" class="ptab-sent">Inviati (0)</button>
-      </div>
-      <div class="p-sec-ans" style="display:flex;flex-direction:column;gap:8px;flex:1;min-height:0">
-        <p class="muted"><b>Risposta con i dati reali</b> · selezionare un testo nella chat oppure usare l'ultima risposta.</p>
-        <div class="row"><button class="last">Ultima risposta</button><button class="sel">Testo selezionato</button></div>
-        <div class="out">Le risposte dell'IA compariranno qui con i nomi veri, visibili solo a te.</div>
-        <div class="row"><button class="dark copy">Copia con i dati reali</button><button class="forget">Dimentica</button></div>
-      </div>
-      <div class="p-sec-sent" hidden style="display:flex;flex-direction:column;gap:8px;flex:1;min-height:0">
-        <p class="muted">Anteprima esatta dei documenti e testi anonimizzati inviati in questa chat.</p>
-        <div class="sent-list"></div>
-      </div>
-      <p class="muted n"></p>
     </div>`;
 
   const $ = (s) => root.querySelector(s);
-  const pill = $(".pill"), panel = $(".panel"), toastEl = $(".toast"), out = $(".out");
-  let toastTimer = 0, toastAction = null;
-  const sentDocs = [];  // storico documenti/testi inviati in questa scheda
+  const app = $(".app"), fab = $(".fab"), pop = $(".pop"), toastEl = $(".toast"), out = $(".out");
+  const ov = $(".ov"), dlg = $(".dlg"), lb = $(".lb");
+  const sentDocs = [];  // documenti e testi inviati da questa scheda (solo in memoria)
+  if (!/Mac|iPhone|iPad/.test(navigator.platform)) $(".go kbd").textContent = "Ctrl ↵";
+
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function svg(markup) { const t = document.createElement("template"); t.innerHTML = markup; return t.content.firstChild; }
 
   const ensureMounted = () => {
     if (!host.isConnected) (document.body || document.documentElement).appendChild(host);
   };
 
+  // chiaro o scuro come la pagina della chat (che puo' differire dal tema del sistema)
+  function theme() {
+    let dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    try {
+      const m = getComputedStyle(document.body).backgroundColor.match(/[\d.]+/g);
+      if (m && m.length >= 3 && (m[3] === undefined || +m[3] > 0.5)) dark = 0.299 * m[0] + 0.587 * m[1] + 0.114 * m[2] < 128;
+    } catch (_) {}
+    app.classList.toggle("dark", dark);
+  }
+
+  let toastTimer = 0, toastAction = null;
   function toast(msg, err = false, ms = 5000, action = null) {
     ensureMounted();
     $(".t-msg").textContent = msg;
     toastEl.classList.toggle("err", err);
     toastAction = action;
-    const actBtn = $(".t-act");
-    actBtn.hidden = !action;
-    if (action?.label) actBtn.textContent = action.label;
+    const act = $(".t-act");
+    act.hidden = !action;
+    if (action) act.textContent = action.label;
     toastEl.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { toastEl.hidden = true; toastAction = null; }, ms);
@@ -368,17 +381,40 @@
     if (fn) fn();
   });
 
-  function render() {
-    pill.classList.toggle("off", !active);
-    pill.classList.toggle("busy", busy);
-    pill.classList.toggle("open", !panel.hidden);
-    $(".lbl").textContent = busy ? "/Clin al lavoro…" : active ? "/Clin attivo" : "/Clin in pausa";
-    $(".on").checked = active;
+  // messaggio breve accanto al pulsante (senza toast): "Nessun dato personale", "Rilascia qui"...
+  let sayTimer = 0, said = "";
+  function say(text, ms = 1800) {
+    said = text;
+    clearTimeout(sayTimer);
+    if (ms) sayTimer = setTimeout(() => { said = ""; render(); }, ms);
+    render();
   }
+
+  function render() {
+    fab.classList.toggle("off", !active);
+    fab.classList.toggle("busy", busy);
+    fab.classList.toggle("say", Boolean(said));
+    $(".fab-l").textContent = busy ? "Clin al lavoro…" : said || (active ? "Clin attivo" : "Clin in pausa: nulla viene coperto");
+    $(".on").checked = active;
+    $(".pop-s").textContent = active ? "Protezione attiva su questa chat" : "In pausa: testi e file passano in chiaro";
+  }
+
+  let pollTimer = 0;
   async function refresh() {
     const s = await send({ op: "status" }).catch(() => null);
-    if (s?.ok) { active = s.attivo; $(".n").textContent = s.n ? `${s.n} segnaposto in memoria.` : ""; }
-    renderSentList();
+    if (s?.ok) {
+      active = s.attivo;
+      const ner = s.ner?.state;
+      const ready = s.engine && ner === "ready";
+      $(".eng").classList.toggle("ok", ready);
+      $(".eng-t").textContent = !s.engine ? "Motore in avvio…"
+        : ner === "ready" ? `Motore pronto${s.n ? ` · ${s.n} segnaposto` : ""}`
+        : ner === "downloading" ? `Modello dei nomi: download ${s.ner.progress}%`
+        : ner === "loading" ? "Modello dei nomi in caricamento…"
+        : "Attivo con le regole (modello dei nomi assente)";
+      clearTimeout(pollTimer);
+      if (!pop.hidden && (!s.engine || ner === "loading" || ner === "downloading")) pollTimer = setTimeout(refresh, 1500);
+    }
     render();
   }
 
@@ -391,119 +427,121 @@
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   }
 
-  // ---------------- Lightbox a schermo intero (anteprima prima e dopo l'invio)
-  const lb = $(".lb");
+  function appendHighlighted(container, text) {
+    let last = 0;
+    for (const m of text.matchAll(/\[[A-Z_]+_\d+\]/g)) {
+      container.append(document.createTextNode(text.slice(last, m.index)), el("mark", "", m[0]));
+      last = m.index + m[0].length;
+    }
+    container.append(document.createTextNode(text.slice(last)));
+  }
+
+  // ---------------------------------------------------------------- anteprima a schermo intero
   let lbState = null;
-  function renderLightbox() {
-    if (!lbState) return;
+  function drawLightbox() {
     const { title, pages, text, file, pageIdx } = lbState;
-    $(".lb-title").textContent = title;
-    const body = $(".lb-body");
-    body.replaceChildren();
-    const hasPages = pages && pages.length > 0;
-    $(".lb-prev").hidden = $(".lb-next").hidden = $(".lb-pg").hidden = !hasPages || pages.length <= 1;
+    $(".lb-t").textContent = title;
+    const many = pages.length > 1;
+    $(".lb-prev").hidden = $(".lb-next").hidden = $(".lb-pg").hidden = !many;
     $(".lb-dl").hidden = !file;
-    if (hasPages) {
+    const body = $(".lb-b");
+    if (pages.length) {
       $(".lb-pg").textContent = `${pageIdx + 1} / ${pages.length}`;
       $(".lb-prev").disabled = pageIdx <= 0;
       $(".lb-next").disabled = pageIdx >= pages.length - 1;
-      const img = document.createElement("img");
-      img.src = pages[pageIdx];
-      img.alt = `${title} - pagina ${pageIdx + 1}`;
-      body.append(img);
+      const img = el("img");
+      img.src = pages[pageIdx]; img.alt = `${title}, pagina ${pageIdx + 1}`;
+      body.replaceChildren(img);
     } else {
-      const box = el("div", "lb-txt");
-      appendHighlighted(box, text || "(Nessuna anteprima testuale disponibile)");
-      body.append(box);
+      const box = el("div", "txt");
+      appendHighlighted(box, text || "Nessuna anteprima disponibile per questo file.");
+      body.replaceChildren(box);
     }
+    body.scrollTop = 0;
   }
-  function openLightbox({ title, pages = [], text = "", file = null, pageIdx = 0 }) {
-    ensureMounted();
-    lbState = { title, pages, text, file, pageIdx };
+  function openLightbox({ title, pages = [], text = "", file = null }) {
+    ensureMounted(); theme();
+    lbState = { title, pages, text, file, pageIdx: 0 };
     lb.hidden = false;
-    renderLightbox();
+    drawLightbox();
   }
-  $(".lb-close").addEventListener("click", () => { lb.hidden = true; lbState = null; });
-  $(".lb-prev").addEventListener("click", () => { if (lbState && lbState.pageIdx > 0) { lbState.pageIdx--; renderLightbox(); } });
-  $(".lb-next").addEventListener("click", () => { if (lbState && lbState.pageIdx < lbState.pages.length - 1) { lbState.pageIdx++; renderLightbox(); } });
+  const closeLightbox = () => { lb.hidden = true; lbState = null; };
+  $(".lb-x").addEventListener("click", closeLightbox);
+  $(".lb-prev").addEventListener("click", () => { lbState.pageIdx--; drawLightbox(); });
+  $(".lb-next").addEventListener("click", () => { lbState.pageIdx++; drawLightbox(); });
   $(".lb-dl").addEventListener("click", () => { if (lbState?.file) downloadFileObj(lbState.file); });
-  lb.addEventListener("click", (e) => { if (e.target === lb || e.target === $(".lb-body")) { lb.hidden = true; lbState = null; } });
+  lb.addEventListener("click", (e) => { if (e.target === lb || e.target === $(".lb-b")) closeLightbox(); });
 
-  // ---------------- Pannello pillola (Risposte IA + Inviati)
-  function switchPanelTab(which) {
-    const isSent = which === "sent";
-    $(".ptab-ans").classList.toggle("on", !isSent);
-    $(".ptab-sent").classList.toggle("on", isSent);
-    $(".p-sec-ans").hidden = isSent;
-    $(".p-sec-sent").hidden = !isSent;
-    if (isSent) renderSentList();
+  // ---------------------------------------------------------------- pannello
+  function showTab(which) {
+    for (const b of root.querySelectorAll(".seg button")) b.classList.toggle("on", b.dataset.tab === which);
+    $(".tab-ans").hidden = which !== "ans";
+    $(".tab-sent").hidden = which !== "sent";
   }
-  $(".ptab-ans").addEventListener("click", () => switchPanelTab("ans"));
-  $(".ptab-sent").addEventListener("click", () => switchPanelTab("sent"));
+  $(".seg").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) showTab(b.dataset.tab); });
 
-  function renderSentList() {
-    $(".ptab-sent").textContent = `Inviati (${sentDocs.length})`;
-    const list = $(".sent-list");
+  function drawSent() {
+    $(".sent-n").textContent = sentDocs.length;
+    const list = $(".sent");
     list.replaceChildren();
     if (!sentDocs.length) {
-      list.append(el("p", "muted", "Nessun documento inviato in questa chat. I file e testi anonimizzati compariranno qui per rivederli in qualsiasi momento."));
+      list.append(el("p", "hint", "Ancora nulla. I file e i testi anonimizzati inviati da questa scheda restano qui, per rivedere che cosa ha ricevuto l’IA."));
       return;
     }
     for (const d of sentDocs) {
-      const card = el("div", "sent-card");
-      if (d.pages?.length) {
-        const img = document.createElement("img");
-        img.className = "sent-thumb"; img.src = d.pages[0]; img.alt = d.title;
-        img.addEventListener("click", () => openLightbox(d));
-        card.append(img);
-      } else {
-        const ic = el("div", "sent-thumb", d.file ? "📄" : "📝");
-        ic.addEventListener("click", () => openLightbox(d));
-        card.append(ic);
-      }
-      const info = el("div", "sent-info");
-      info.append(el("div", "sent-name", d.title));
-      const metaParts = [d.time];
-      if (d.pages?.length) metaParts.push(`${d.pages.length} pag.`);
-      metaParts.push(`${d.count} dati coperti`);
-      info.append(el("div", "sent-meta", metaParts.join(" · ")));
-      const act = el("div", "sent-act");
-      const btnPrev = el("button", "dark", "Vedi");
-      btnPrev.addEventListener("click", () => openLightbox(d));
-      act.append(btnPrev);
-      if (d.file) {
-        const btnDl = el("button", "", "⬇");
-        btnDl.title = "Scarica file anonimizzato";
-        btnDl.addEventListener("click", () => downloadFileObj(d.file));
-        act.append(btnDl);
-      }
-      card.append(info, act);
+      const card = el("button", "sc");
+      card.type = "button";
+      let thumb;
+      if (d.pages?.length) { thumb = el("img", "sc-t"); thumb.src = d.pages[0]; thumb.alt = ""; }
+      else { thumb = el("span", "sc-t"); thumb.append(svg(d.file ? I.file : I.text)); }
+      const info = el("span");
+      info.append(el("span", "sc-n", d.title), el("span", "sc-m", [d.time, d.pages?.length ? `${d.pages.length} pag.` : "", `${d.count} dati coperti`].filter(Boolean).join(" · ")));
+      info.style.display = "grid"; info.style.minWidth = "0";
+      card.append(thumb, info);
+      card.addEventListener("click", () => openLightbox(d));
       list.append(card);
     }
   }
+  function remember(entry) {
+    sentDocs.unshift(entry);
+    if (sentDocs.length > 20) sentDocs.length = 20;
+    drawSent();
+  }
 
-  pill.addEventListener("click", () => { panel.hidden = !panel.hidden; toastEl.hidden = true; refresh(); if (!panel.hidden) restoreLast(); });
-  $(".x").addEventListener("click", () => { panel.hidden = true; render(); });
-  $(".on").addEventListener("change", async (e) => { active = e.target.checked; await send({ op: "toggle", attivo: active }); render(); });
-  $(".pick-btn").addEventListener("click", () => $(".pick-in").click());
-  $(".pick-in").addEventListener("change", (e) => {
+  function showOut(text, empty = false) { out.textContent = text; out.classList.toggle("empty", empty); $(".copy").disabled = empty; }
+  function openPanel() {
+    ensureMounted(); theme();
+    pop.hidden = false; toastEl.hidden = true;
+    refresh(); drawSent(); restoreLast();
+  }
+  const closePanel = () => { pop.hidden = true; clearTimeout(pollTimer); };
+  fab.addEventListener("click", () => (pop.hidden ? openPanel() : closePanel()));
+  $(".pop-x").addEventListener("click", closePanel);
+  $(".on").addEventListener("change", async (e) => { active = e.target.checked; render(); await send({ op: "toggle", attivo: active }).catch(() => {}); });
+  $(".dz").addEventListener("click", () => $(".pick").click());
+  $(".pick").addEventListener("change", (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = "";
     if (!files.length) return;
-    panel.hidden = true; render();
+    closePanel();
     handleFiles(captureFiles(files), { kind: "drop", target: composer() });
   });
-  $(".forget").addEventListener("click", async () => { await send({ op: "forget" }); sentDocs.length = 0; out.textContent = "Segnaposto e storico dimenticati."; refresh(); });
+  $(".forget").addEventListener("click", async () => {
+    await send({ op: "forget" }).catch(() => {});
+    sentDocs.length = 0; drawSent();
+    showOut("Segnaposto e documenti inviati dimenticati.", true);
+    refresh();
+  });
   $(".copy").addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(out.textContent); toast("Copiato con i dati reali: si può incollare nella cartella clinica."); }
-    catch (_) { toast("Copia non riuscita: selezionare il testo nel pannello.", true); }
+    catch (_) { toast("Copia non riuscita: selezionare il testo nel pannello e copiarlo.", true); }
   });
   let lastSelection = "";
   document.addEventListener("selectionchange", () => {
     const t = String(getSelection() || "");
     if (t.trim()) lastSelection = t;
   });
-  $(".sel").addEventListener("click", () => { mode = "sel"; restore(lastSelection || "Selezionare prima un testo nella chat."); });
+  $(".sel").addEventListener("click", () => { mode = "sel"; restore(lastSelection, "Selezionare prima un testo nella chat, poi premere «Selezione»."); });
   $(".last").addEventListener("click", restoreLast);
 
   function answerText(el) {
@@ -525,27 +563,29 @@
            && el.parentElement.innerText.length < 20000) el = el.parentElement;
     return el && !isUser(el) ? answerText(el) : "";
   }
-  async function restore(text) {
-    if (!text.trim()) { out.textContent = "Nessuna risposta trovata: selezionare il testo nella chat."; return; }
+  async function restore(text, emptyMsg = "Quando l’IA risponde, qui compare la risposta con i nomi e i dati veri.") {
+    if (!text.trim()) { showOut(emptyMsg, true); return; }
     const r = await send({ op: "restore", text }).catch(() => null);
-    out.textContent = r?.ok ? r.text : "Ripristino non riuscito.";
+    if (r?.ok) showOut(r.text); else showOut("Ripristino non riuscito: ricaricare la pagina e riprovare.", true);
   }
   let mode = "last", lastShown = "", watchTimer = 0;
   function restoreLast() { mode = "last"; const t = lastAnswer(); lastShown = t; restore(t); }
   new MutationObserver(() => {
-    if (panel.hidden || mode !== "last") return;
+    if (pop.hidden || mode !== "last") return;
     clearTimeout(watchTimer);
     watchTimer = setTimeout(() => { const t = lastAnswer(); if (t !== lastShown) { lastShown = t; restore(t); } }, 900);
   }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     if (!msg || msg.target !== "content") return;
-    if (msg.op === "panel") { panel.hidden = false; refresh(); restoreLast(); }
-    else if (msg.op === "progress" && rv) { setProgress(msg.step, msg.pct); }
+    if (msg.op === "panel") { openPanel(); reply({ ok: true }); }
+    else if (msg.op === "progress" && rv) setProgress(msg.step, msg.pct);
   });
 
   const mount = () => { ensureMounted(); refresh(); send({ op: "warmup" }).catch(() => {}); };
   if (document.body) mount(); else document.addEventListener("DOMContentLoaded", mount);
+  // i tasti premuti dentro Clin non devono arrivare alle scorciatoie della pagina
+  for (const t of ["keydown", "keyup", "keypress"]) host.addEventListener(t, (e) => e.stopPropagation());
 
   // ---------------------------------------------------------------- intercettazione e consegna
   const editable = (el) => el && (el.isContentEditable || el.tagName === "TEXTAREA" ||
@@ -674,61 +714,6 @@
       passing = false;
     }
   }
-
-  // ---------------------------------------------------------------- revisione prima dell'invio
-  const KIND_LABEL = {
-    PAZIENTE: "Paziente", PERSONA: "Persona", MEDICO: "Medico", OPERATORE: "Operatore sanitario",
-    DATA_NASCITA: "Nascita", DATA: "Data", CONTATTO: "Recapito", ID: "Documento d'identità",
-    ID_CLINICO: "Codice clinico", STRUTTURA: "Struttura sanitaria", PROVENIENZA: "Provenienza",
-    IBAN: "Dati bancari", DOCUMENTO: "Documento", DATO: "Aggiunto da te",
-  };
-  const kindOfPh = (ph) => { const m = /^\[([A-Z_]+)_\d+\]$/.exec(ph); return m ? (KIND_LABEL[m[1]] || m[1]) : "Codice"; };
-  const addList = [];
-  let rv = null, collapsed = false, wideMode = false;
-  const rev = $(".rev"), rvTab = $(".rv-tab"), rvLoader = $(".rv-loader"), rvBody = $(".rv-body"), rvUpd = $(".rv-updating"), rvRetry = $(".rv-retry");
-
-  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-
-  function appendHighlighted(container, text) {
-    let last = 0;
-    for (const m of text.matchAll(/\[[A-Z_]+_\d+\]/g)) {
-      container.append(document.createTextNode(text.slice(last, m.index)), el("mark", "", m[0]));
-      last = m.index + m[0].length;
-    }
-    container.append(document.createTextNode(text.slice(last)));
-  }
-
-  function setProgress(stepText, pct) {
-    if (stepText) {
-      $(".rv-ld-step").textContent = stepText;
-      $(".u-txt").textContent = stepText;
-    }
-    if (typeof pct === "number") {
-      const p = Math.max(5, Math.min(100, Math.round(pct)));
-      $(".rv-ld-pct").textContent = p + "%";
-      $(".rv-bar-fill").style.width = p + "%";
-    }
-  }
-
-  function setWide(val) {
-    wideMode = !!val;
-    rev.classList.toggle("wide", wideMode);
-    $(".rv-wide").textContent = wideMode ? "⤡" : "⤢";
-    $(".rv-wide").title = wideMode ? "Riduci a colonna singola" : "Espandi vista a 2 colonne";
-  }
-
-  function setCollapsed(val) {
-    collapsed = !!val;
-    if (!rv) {
-      rev.classList.remove("open", "collapsed");
-      rvTab.classList.remove("show", "loading");
-      return;
-    }
-    rev.classList.toggle("open", !collapsed);
-    rev.classList.toggle("collapsed", collapsed);
-    rvTab.classList.toggle("show", collapsed);
-  }
-
   function readViaFileReader(file) {
     return new Promise((ok, ko) => {
       const fr = new FileReader();
@@ -769,191 +754,234 @@
     });
   }
 
-  function rvStatus(msg, err = false) { const el = $(".rv-st"); el.textContent = msg; el.classList.toggle("err", err); }
+  // ---------------------------------------------------------------- revisione prima dell'invio
+  // tipo di segnaposto -> titolo del gruppo nell'elenco (nell'ordine in cui compaiono)
+  const KINDS = {
+    PAZIENTE: "Pazienti", PERSONA: "Persone", MEDICO: "Medici", OPERATORE: "Operatori sanitari",
+    DATA_NASCITA: "Date di nascita", DATA: "Date", CONTATTO: "Recapiti", INDIRIZZO: "Indirizzi",
+    ID: "Documenti d’identità", ID_CLINICO: "Codici clinici", STRUTTURA: "Strutture sanitarie",
+    PROVENIENZA: "Provenienza", IBAN: "Dati bancari", DOCUMENTO: "Documenti", DATO: "Aggiunti da te",
+  };
+  const ORDER = Object.keys(KINDS);
+  const kindOf_ = (ph) => { const m = /^\[([A-Z_]+)_\d+\]$/.exec(ph); return m ? m[1] : "CODICE"; };
+  const kindTitle = (k) => KINDS[k] || (k === "CODICE" ? "Codici" : k.charAt(0) + k.slice(1).toLowerCase().replace(/_/g, " "));
+  const addList = [];  // parole aggiunte a mano: valgono per tutta la sessione della scheda
+  let rv = null, rerunTimer = 0;
 
-  async function startReview(op, items, label, finish) {
+  function setProgress(stepText, pct) {
+    if (stepText) $(".load-step").textContent = stepText;
+    if (typeof pct !== "number") return;
+    const p = Math.max(5, Math.min(100, Math.round(pct)));
+    $(".bar div").style.width = p + "%";
+    const stage = p < 60 ? 1 : p < 92 ? 2 : 3;  // lettura, riconoscimento, copia anonima
+    [".p1", ".p2", ".p3"].forEach((s, i) => {
+      $(s).classList.toggle("on", i + 1 === stage);
+      $(s).classList.toggle("done", i + 1 < stage);
+    });
+  }
+
+  function status(msg, err = false) { const s = $(".st"); s.textContent = msg; s.classList.toggle("err", err); }
+
+  function openDialog() {
+    ensureMounted(); theme();
+    closePanel(); toastEl.hidden = true;
+    dlg.classList.toggle("text", rv.op === "anonymize");
+    dlg.classList.remove("updating");
+    $(".dlg-s").textContent = rv.label;
+    $(".load").hidden = false; $(".load").classList.remove("fail");
+    $(".load-sub").textContent = "Nessun dato lascia questo computer";
+    $(".dlg-b").hidden = true;
+    $(".dl").hidden = $(".retry").hidden = $(".selb").hidden = true;
+    $(".go").disabled = true;
+    status("");
+    setProgress("Avvio del motore locale…", 8);
+    ov.hidden = false;
+    dlg.focus();
+  }
+
+  async function startReview(op, items, label, finish, quiet = false) {
     ensureMounted();
     if (rv) {
-      if (collapsed) setCollapsed(false);
-      toast("Concludere prima la revisione aperta nel pannello di Clin.", true);
+      toast("Concludere prima la revisione aperta di Clin.", true);
       return;
     }
-    rv = { op, items, label, finish, keep: new Set(), kept: new Map(), result: null, fileIdx: 0, pageIdx: 0, zoom: 100 };
-    panel.hidden = true; toastEl.hidden = true;
-    $(".rv-sum").textContent = label;
-    $(".rv-preview").replaceChildren(); $(".rv-list").replaceChildren();
-    const isText = op === "anonymize";
-    $(".rv-sel").hidden = $(".rv-selhint").hidden = !isText;
-    $(".rv-dl").hidden = true;
-    // Per i documenti (PDF/foto/Word) apriamo subito in vista ampia a 2 colonne stile desktop
-    setWide(!isText && window.innerWidth >= 960);
-    rvRetry.classList.remove("show");
-    rvBody.classList.add("hide");
-    rvLoader.classList.add("show");
-    rvUpd.classList.remove("show");
-    setProgress("Avvio del motore locale…", 8);
-    setCollapsed(false);
+    rv = { op, items, label, finish, quiet, job: crypto.randomUUID(), delivered: false,
+           keep: new Set(), kept: new Map(), result: null, fileIdx: 0, pageIdx: 0, zoom: 100 };
+    if (!quiet) openDialog();
     await rerun();
   }
 
-  function sendWithTimeout(msg, ms = 120000) {
+  function sendWithTimeout(msg, ms = 300000) {
     return Promise.race([
       send(msg),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("tempo massimo superato: riprovare o ricaricare la scheda")), ms)),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("tempo massimo superato")), ms)),
     ]);
+  }
+
+  // i file viaggiano una volta sola per revisione: le spunte successive mandano solo le scelte
+  async function callEngine(mine) {
+    const base = { op: mine.op, job: mine.job, review: { keep: [...mine.keep], add: addList } };
+    let r = await sendWithTimeout(mine.delivered ? base : { ...base, items: mine.items });
+    if (!r?.ok && r?.error === "job-missing") r = await sendWithTimeout({ ...base, items: mine.items });
+    if (r?.ok) mine.delivered = true;
+    return r;
   }
 
   async function rerun() {
     if (!rv) return;
     const mine = rv;
-    const firstLoad = !mine.result;
     busy = true; render();
-    rvTab.classList.add("loading");
-    rvRetry.classList.remove("show");
     $(".go").disabled = true;
-    if (firstLoad) {
-      rvLoader.classList.add("show");
-      rvBody.classList.add("hide");
-      setProgress("Avvio del motore locale…", 10);
-      rvStatus("");
-    } else {
-      rvUpd.classList.add("show");
-      $(".u-txt").textContent = "Aggiornamento anteprima…";
-      rvStatus("");
-    }
+    $(".retry").hidden = true;
+    status("");
+    if (mine.result) dlg.classList.add("updating");
     try {
-      const r = await sendWithTimeout({ op: mine.op, items: mine.items, review: { keep: [...mine.keep], add: addList } });
+      const r = await callEngine(mine);
       if (rv !== mine) return;
-      if (!r?.ok) throw new Error(r?.error || "motore non disponibile (ricaricare la pagina se hai aggiornato l'estensione)");
+      if (!r?.ok) throw new Error(r?.error || "motore non disponibile");
       mine.result = r;
-      setProgress("Pronto.", 100);
-      rvLoader.classList.remove("show");
-      rvUpd.classList.remove("show");
-      rvBody.classList.remove("hide");
+      if (mine.quiet && ov.hidden && !(r.found || []).length) {  // nulla da coprire: entra senza domande
+        say("Nessun dato personale");
+        await commit();
+        return;
+      }
+      if (ov.hidden) openDialog();
+      $(".load").hidden = true;
+      $(".dlg-b").hidden = false;
+      dlg.classList.remove("updating");
       drawReview();
       $(".go").disabled = false;
-      $(".rv-dl").hidden = mine.op !== "redact" || !(r.files && r.files.length);
-      rvStatus("");
+      $(".dl").hidden = mine.op !== "redact" || !r.files?.length;
     } catch (err) {
-      if (rv === mine) {
-        rvLoader.classList.remove("show");
-        rvUpd.classList.remove("show");
-        rvRetry.classList.add("show");
-        const msg = String(err?.message || err);
-        const hint = /Extension context invalidated/i.test(msg)
-          ? "Estensione aggiornata: ricarica questa pagina (Cmd+R / F5) e riprova."
-          : `Anonimizzazione non riuscita (${msg}). Nulla è stato inviato alla chat.`;
-        rvStatus(hint, true);
+      if (rv !== mine) return;
+      if (ov.hidden) openDialog();
+      dlg.classList.remove("updating");
+      const msg = String(err?.message || err);
+      const reload = /Extension context invalidated|message port closed/i.test(msg);
+      const text = reload ? "Clin è stato aggiornato: ricaricare questa pagina e riprovare."
+        : `Anonimizzazione non riuscita (${msg}).`;
+      if (mine.result) status(`${text} Nulla è stato inviato.`, true);
+      else {
+        $(".load").classList.add("fail");
+        $(".load-step").textContent = text;
+        $(".load-sub").textContent = "Nulla è stato inviato alla chat.";
       }
+      $(".retry").hidden = reload;
     } finally {
       busy = false; render();
-      rvTab.classList.remove("loading");
     }
   }
+  // piu' spunte ravvicinate diventano una sola rielaborazione
+  function queueRerun() {
+    clearTimeout(rerunTimer);
+    dlg.classList.add("updating");
+    $(".go").disabled = true;
+    rerunTimer = setTimeout(rerun, 220);
+  }
 
-  function drawDocViewer(pv, files) {
+  function drawPreview() {
+    const pv = $(".pv"), r = rv.result;
+    const bar = el("div", "pv-bar");
+    pv.replaceChildren(bar);
+    $(".selb").hidden = true;
+    const textBox = (text) => {
+      const box = el("div", "txt");
+      appendHighlighted(box, text.replace(/\n{3,}/g, "\n\n"));
+      return box;
+    };
+    if (rv.op === "anonymize") {
+      bar.append(el("p", "pv-k", "Ciò che entra nella chat"));
+      pv.append(textBox(r.text || ""));
+      return;
+    }
+    const files = r.files || [];
     if (!files.length) return;
     rv.fileIdx = Math.min(rv.fileIdx, files.length - 1);
-    const f = files[rv.fileIdx];
-    const pages = f.pages || [];
+    const f = files[rv.fileIdx], pages = f.pages || [];
     rv.pageIdx = Math.min(rv.pageIdx, Math.max(0, pages.length - 1));
-
-    const wrap = el("div", "doc-viewer");
-    wrap.append(el("p", "rv-k", "Anteprima documento anonimizzato"));
-
-    const bar = el("div", "doc-bar");
-    const ftabs = el("div", "doc-ftabs");
-    files.forEach((fi, idx) => {
-      const b = el("button", "ftab" + (idx === rv.fileIdx ? " on" : ""), fi.name);
-      b.type = "button"; b.title = fi.name;
-      b.addEventListener("click", () => { rv.fileIdx = idx; rv.pageIdx = 0; drawDocViewer(pv, files); });
-      ftabs.append(b);
-    });
-    bar.append(ftabs);
-
-    const nav = el("div", "doc-nav");
+    if (files.length > 1) {
+      const ft = el("div", "ft");
+      files.forEach((fi, idx) => {
+        const b = el("button", idx === rv.fileIdx ? "on" : "", fi.name);
+        b.type = "button"; b.title = fi.name;
+        b.addEventListener("click", () => { rv.fileIdx = idx; rv.pageIdx = 0; drawPreview(); });
+        ft.append(b);
+      });
+      bar.append(ft);
+    } else {
+      bar.append(el("p", "pv-k", "Ciò che riceve l’IA"));
+    }
+    bar.append(el("span", "sp"));
+    const ib = (icon, label, fn, disabled = false) => {
+      const b = el("button", "ib"); b.type = "button"; b.setAttribute("aria-label", label); b.title = label;
+      b.append(svg(icon)); b.disabled = disabled; b.addEventListener("click", fn);
+      return b;
+    };
     if (pages.length) {
       if (pages.length > 1) {
-        const prev = el("button", "navbtn", "‹"); prev.type = "button"; prev.disabled = rv.pageIdx <= 0;
-        prev.addEventListener("click", () => { rv.pageIdx--; drawDocViewer(pv, files); });
-        const next = el("button", "navbtn", "›"); next.type = "button"; next.disabled = rv.pageIdx >= pages.length - 1;
-        next.addEventListener("click", () => { rv.pageIdx++; drawDocViewer(pv, files); });
-        nav.append(prev, el("span", "pg-lbl", `${rv.pageIdx + 1}/${pages.length}`), next);
+        bar.append(
+          ib(I.prev, "Pagina precedente", () => { rv.pageIdx--; drawPreview(); }, rv.pageIdx <= 0),
+          el("span", "pg", `${rv.pageIdx + 1} / ${pages.length}`),
+          ib(I.next, "Pagina successiva", () => { rv.pageIdx++; drawPreview(); }, rv.pageIdx >= pages.length - 1),
+        );
       }
-      const zmOut = el("button", "navbtn", "−"); zmOut.type = "button"; zmOut.title = "Riduci zoom";
-      zmOut.addEventListener("click", () => { rv.zoom = Math.max(80, rv.zoom - 25); drawDocViewer(pv, files); });
-      const zmIn = el("button", "navbtn", "+"); zmIn.type = "button"; zmIn.title = "Aumenta zoom";
-      zmIn.addEventListener("click", () => { rv.zoom = Math.min(225, rv.zoom + 25); drawDocViewer(pv, files); });
-      const full = el("button", "navbtn", "Schermo intero"); full.type = "button";
-      full.addEventListener("click", () => openLightbox({ title: f.name, pages, file: f, pageIdx: rv.pageIdx }));
-      nav.append(zmOut, zmIn, full);
-    } else if (f.previewText) {
-      const full = el("button", "navbtn", "Espandi"); full.type = "button";
-      full.addEventListener("click", () => openLightbox({ title: f.name, text: f.previewText, file: f }));
-      nav.append(full);
-    }
-    bar.append(nav);
-    wrap.append(bar);
-
-    if (pages.length) {
-      const stage = el("div", "doc-stage");
-      const img = document.createElement("img");
+      bar.append(
+        ib(I.minus, "Riduci", () => { rv.zoom = Math.max(50, rv.zoom - 25); drawPreview(); }, rv.zoom <= 50),
+        el("span", "pg", `${rv.zoom}%`),
+        ib(I.plus, "Ingrandisci", () => { rv.zoom = Math.min(250, rv.zoom + 25); drawPreview(); }, rv.zoom >= 250),
+      );
+      const stage = el("div", "stage"), img = el("img");
       img.src = pages[rv.pageIdx];
-      img.alt = `${f.name} - pagina ${rv.pageIdx + 1}`;
+      img.alt = `${f.name}, pagina ${rv.pageIdx + 1}`;
       img.style.width = rv.zoom + "%";
-      img.addEventListener("click", () => openLightbox({ title: f.name, pages, file: f, pageIdx: rv.pageIdx }));
       stage.append(img);
-      wrap.append(stage, el("p", "doc-hint", "Clicca sull'immagine per ingrandirla · Togli una spunta a destra per aggiornare subito il documento."));
-    } else if (f.previewText) {
-      const box = el("div", "rv-prev");
-      appendHighlighted(box, f.previewText);
-      wrap.append(box);
+      pv.append(stage);
+    } else {
+      pv.append(textBox(f.previewText || "Anteprima non disponibile per questo file: i dati elencati a destra sono stati coperti."));
     }
-    if (rv.result?.notes?.length) wrap.append(el("p", "muted", rv.result.notes.join(" ")));
-    pv.replaceChildren(wrap);
   }
 
   function drawReview() {
     const r = rv.result;
-    const groups = new Map();
+    const groups = new Map();  // segnaposto -> valori originali
     for (const [ph, orig] of r.found || []) {
       if (!groups.has(ph)) groups.set(ph, new Set());
       groups.get(ph).add(orig);
     }
-    const n = groups.size;
-    $(".rv-tab .badge").textContent = `${n} ${n === 1 ? "dato" : "dati"}`;
-    const sum = $(".rv-sum");
-    sum.replaceChildren(el("strong", "", `${n} ${n === 1 ? "dato coperto" : "dati coperti"}`), document.createTextNode(` · ${rv.label}`));
+    const kept = [...rv.kept].filter(([ph]) => !groups.has(ph));
+    $(".cnt b").textContent = groups.size;
+    $(".cnt span").textContent = groups.size === 1 ? "dato coperto" : "dati coperti";
+    const cs = $(".cnt-s");
+    cs.classList.toggle("w", kept.length > 0);
+    cs.textContent = kept.length ? `${kept.length} ${kept.length === 1 ? "lasciato" : "lasciati"} in chiaro per tua scelta`
+      : groups.size ? "Spegnere un interruttore per lasciare un dato in chiaro." : "";
+    drawPreview();
 
-    const pv = $(".rv-preview");
-    pv.replaceChildren();
-    if (rv.op === "anonymize") {
-      pv.append(el("p", "rv-k", "Anteprima di ciò che entra nella chat"));
-      const box = el("div", "rv-prev");
-      appendHighlighted(box, (r.text || "").replace(/\n{3,}/g, "\n\n"));
-      pv.append(box);
-    } else {
-      drawDocViewer(pv, r.files || []);
-    }
-
-    const list = $(".rv-list");
+    const rows = [...[...groups].map(([ph, o]) => [ph, o, true]), ...kept.map(([ph, o]) => [ph, o, false])];
+    const rank = (ph) => { const i = ORDER.indexOf(kindOf_(ph)); return i < 0 ? ORDER.length : i; };
+    rows.sort((a, b) => rank(a[0]) - rank(b[0]));
+    const list = $(".list");
     list.replaceChildren();
-    const row = (ph, originals, on) => {
-      const lab = el("label", "rv-item" + (on ? "" : " off"));
-      const cb = el("input"); cb.type = "checkbox"; cb.checked = on;
-      const v = el("span", "v", [...originals].join(" · "));
-      v.append(el("span", "c", on ? kindOfPh(ph) : `${kindOfPh(ph)} · resterà in chiaro`));
-      lab.append(cb, v, el("span", "ph", on ? ph : "in chiaro"));
-      cb.addEventListener("change", () => toggle(ph, originals, cb.checked));
+    let current = null;
+    for (const [ph, originals, on] of rows) {
+      const k = kindOf_(ph);
+      if (k !== current) { current = k; list.append(el("p", "gk", kindTitle(k))); }
+      const lab = el("label", "it" + (on ? "" : " off"));
+      const cb = el("input", "sw"); cb.type = "checkbox"; cb.checked = on;
+      cb.setAttribute("aria-label", `Coprire ${[...originals].join(", ")}`);
+      cb.addEventListener("change", () => toggle(ph, originals, cb.checked, lab));
+      lab.append(el("span", "it-v", [...originals].join(" · ")), el("span", "it-p", on ? ph : "in chiaro"), cb);
       list.append(lab);
-    };
-    for (const [ph, originals] of groups) row(ph, originals, true);
-    for (const [ph, originals] of rv.kept) if (!groups.has(ph)) row(ph, originals, false);
-    if (!list.children.length) list.append(el("p", "muted", "Nessun dato personale riconosciuto. Se ne manca qualcuno, aggiungerlo qui sotto."));
+    }
+    if (!rows.length) list.append(el("p", "none", "Nessun dato personale riconosciuto. Se ne manca uno, scriverlo qui sotto."));
+    const notes = $(".notes");
+    notes.hidden = !r.notes?.length;
+    notes.textContent = (r.notes || []).join(" ");
   }
 
-  function toggle(ph, originals, on) {
+  function toggle(ph, originals, on, row) {
     if (!rv) return;
+    row.classList.toggle("off", !on);
     if (on) {
       rv.kept.delete(ph);
       for (const o of originals) rv.keep.delete(o);
@@ -965,63 +993,73 @@
         if (i >= 0) addList.splice(i, 1);
       }
     }
-    rerun();
+    queueRerun();
   }
 
   function addWord(word) {
     word = (word || "").replace(/\s+/g, " ").trim();
     if (!rv || word.length < 2) return;
-    if (/\[[A-Z_]+_\d+\]/.test(word)) { rvStatus("Selezionare solo testo in chiaro, non un segnaposto.", true); return; }
+    if (/\[[A-Z_]+_\d+\]/.test(word)) { status("Selezionare solo testo in chiaro, non un segnaposto.", true); return; }
     if (!addList.some((a) => a.toLowerCase() === word.toLowerCase())) addList.push(word);
     for (const o of [...rv.keep]) if (o.toLowerCase() === word.toLowerCase()) rv.keep.delete(o);
-    $(".rv-word").value = "";
-    rerun();
+    $(".word").value = "";
+    $(".selb").hidden = true;
+    queueRerun();
   }
 
   function closeReview() {
+    clearTimeout(rerunTimer);
+    if (rv) send({ op: "release", job: rv.job }).catch(() => {});
     rv = null;
-    collapsed = false;
-    rev.classList.remove("open", "collapsed");
-    rvTab.classList.remove("show", "loading");
-    rvLoader.classList.remove("show");
-    rvUpd.classList.remove("show");
-    rvRetry.classList.remove("show");
-    rvStatus("");
+    ov.hidden = true;
+    $(".pv").replaceChildren(); $(".list").replaceChildren();  // i dati reali non restano nel DOM
   }
-
-  $(".rv-wide").addEventListener("click", () => setWide(!wideMode));
-  $(".rv-col").addEventListener("click", () => setCollapsed(true));
-  rvTab.addEventListener("click", () => setCollapsed(false));
-  rvRetry.addEventListener("click", () => rerun());
-  $(".rv-plus").addEventListener("click", () => addWord($(".rv-word").value));
-  $(".rv-word").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addWord(e.target.value); } });
-  $(".rv-sel").addEventListener("click", () => {
-    const sel = (root.getSelection ? root.getSelection() : getSelection());
-    addWord(String(sel || ""));
-  });
-  const cancel = () => { if (rv) { closeReview(); toast("/Clin · annullato: nulla è stato inserito nella chat."); } };
-  $(".rv-cancel").addEventListener("click", cancel);
-  $(".rv-x").addEventListener("click", cancel);
-  root.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      if (!lb.hidden) { lb.hidden = true; lbState = null; }
-      else if (rv) cancel();
-    }
-  });
-  $(".rv-dl").addEventListener("click", () => {
-    if (!rv?.result?.files?.length) return;
-    for (const f of rv.result.files) downloadFileObj(f);
-    toast("/Clin · file anonimizzato salvato nei Download.");
-  });
-  $(".go").addEventListener("click", async () => {
+  async function commit() {
     if (!rv?.result) return;
     const { result, finish } = rv;
     closeReview();
     try { await finish(result); }
-    catch (err) { console.error("[Clin]", err); toast(`/Clin: inserimento non riuscito (${err.message}). Nulla è stato inviato alla chat.`, true, 10000); }
+    catch (err) { console.error("[Clin]", err); toast(`Inserimento non riuscito (${err.message}). Nulla è stato inviato alla chat.`, true, 10000); }
+  }
+  const cancel = () => { if (rv) { closeReview(); toast("Annullato: nulla è stato inserito nella chat."); } };
+
+  $(".retry").addEventListener("click", () => { if (!rv) return; if (!rv.result) openDialog(); rerun(); });
+  $(".add").addEventListener("submit", (e) => { e.preventDefault(); addWord($(".word").value); });
+  $(".cancel").addEventListener("click", cancel);
+  $(".dlg-x").addEventListener("click", cancel);
+  $(".go").addEventListener("click", commit);
+  $(".dl").addEventListener("click", () => {
+    if (!rv?.result?.files?.length) return;
+    for (const f of rv.result.files) downloadFileObj(f);
+    status("File anonimizzato salvato nei Download.");
+  });
+  // testo selezionato nell'anteprima -> pulsante «Copri la selezione» accanto alla selezione
+  const selectionIn = () => (root.getSelection ? root.getSelection() : getSelection());
+  $(".pv").addEventListener("mouseup", () => setTimeout(() => {
+    const sel = selectionIn(), text = String(sel || "").trim(), btn = $(".selb");
+    if (!rv || text.length < 2 || text.length > 80 || !sel.rangeCount) { btn.hidden = true; return; }
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect.width) { btn.hidden = true; return; }
+    btn.textContent = `Copri «${text.length > 28 ? text.slice(0, 27) + "…" : text}»`;
+    btn.dataset.word = text;
+    btn.style.left = Math.max(8, Math.min(innerWidth - 240, rect.left)) + "px";
+    btn.style.top = Math.min(innerHeight - 44, rect.bottom + 6) + "px";
+    btn.hidden = false;
+  }));
+  $(".selb").addEventListener("click", (e) => addWord(e.currentTarget.dataset.word));
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (!lb.hidden) closeLightbox();
+      else if (rv && !ov.hidden) cancel();
+      else if (!pop.hidden) closePanel();
+    } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && rv && !ov.hidden && !$(".go").disabled) {
+      e.preventDefault();
+      commit();
+    }
   });
 
-  function nowTime() { return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  const nowTime = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const countOf = (r) => new Set((r.found || []).map((x) => x[0])).size;
 
   async function handleFiles(files, origin) {
     try {
@@ -1031,60 +1069,47 @@
       await startReview("redact", items, label, async (r) => {
         const out = r.files.map((f) => new File([Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0))], f.name, { type: f.type }));
         if (!(await deliver(out, origin))) throw new Error("allegato non accettato dal sito");
-        const count = new Set((r.found || []).map((x) => x[0])).size;
-        const firstEntry = {
-          title: r.files[0].name, pages: r.files[0].pages || [], text: r.files[0].previewText || "",
-          file: r.files[0], count, time: nowTime(),
-        };
-        for (const f of r.files) {
-          sentDocs.unshift({ title: f.name, pages: f.pages || [], text: f.previewText || "", file: f, count, time: nowTime() });
-        }
-        if (sentDocs.length > 20) sentDocs.length = 20;
-        renderSentList();
-        toast(
-          `/Clin · allegat${out.length === 1 ? "o 1 file" : "i " + out.length + " file"} con i dati coperti: ${out.map((f) => f.name).join(", ")}.`,
-          false, 9000,
-          { label: "Vedi anteprima", fn: () => openLightbox(firstEntry) },
-        );
+        const count = countOf(r), time = nowTime();
+        const entries = r.files.map((f) => ({ title: f.name, pages: f.pages || [], text: f.previewText || "", file: f, count, time }));
+        for (const e of [...entries].reverse()) remember(e);
+        toast(out.length === 1 ? `Allegato con i dati coperti: ${out[0].name}` : `Allegati ${out.length} file con i dati coperti.`,
+              false, 8000, { label: "Rivedi", fn: () => openLightbox(entries[0]) });
       });
     } catch (err) {
       console.warn("[Clin handleFiles]", err);
       const raw = String(err?.message || err);
       const msg = /could not be found|NotFoundError/i.test(raw)
-        ? "Chrome blocca la lettura dei file trascinati dalla bolla dei Download: clicca sulla pillola /Clin › «Carica file da anonimizzare» oppure trascinalo dal Finder."
-        : `impossibile leggere il file (${raw}).`;
-      toast(`/Clin: ${msg}`, true, 9000);
+        ? "Chrome non lascia leggere i file trascinati dalla barra dei download: aprire Clin e usare «Scegli o trascina un file», oppure trascinarlo dalla cartella."
+        : `Impossibile leggere il file (${raw}).`;
+      toast(msg, true, 9000);
     }
   }
 
-  async function handle({ files = [], text = "" }, target) {
+  async function handle({ text = "" }, target) {
     try {
-      const items = await readItems(files);
-      const fileCount = items.length;
-      if (text.trim()) items.push({ kind: "testo incollato", text });
-      if (!items.length) return;
-      const label = fileCount ? `${fileCount === 1 ? "1 file" : fileCount + " file"}${text.trim() ? " e testo incollato" : ""}` : "testo incollato";
-      await startReview("anonymize", items, label, (r) => {
+      if (!text.trim()) return;
+      const items = [{ kind: "testo incollato", text }];
+      await startReview("anonymize", items, "Testo incollato", (r) => {
         const el = target && editable(target) && document.contains(target) ? target : composer();
         if (!el) throw new Error("campo della chat non trovato");
         const filled = (el.value ?? el.innerText ?? "").trim().length > 0;
         let body = (filled ? "\n\n" : "") + r.text.replace(/\n{3,}/g, "\n\n");
         if (el.isContentEditable) body = body.replace(/\n\n/g, "\n");
         insert(el, body);
-        const count = new Set((r.found || []).map((x) => x[0])).size;
-        const entry = { title: label, pages: [], text: r.text, file: null, count, time: nowTime() };
-        sentDocs.unshift(entry);
-        if (sentDocs.length > 20) sentDocs.length = 20;
-        renderSentList();
-        toast("/Clin · testo anonimizzato inserito.", false, 7000, { label: "Vedi anteprima", fn: () => openLightbox(entry) });
-      });
+        const count = countOf(r);
+        if (!count) return;  // testo senza dati personali: nessuna traccia, nessun avviso
+        const entry = { title: "Testo incollato", pages: [], text: r.text, file: null, count, time: nowTime() };
+        remember(entry);
+        toast(`Testo inserito: ${count} ${count === 1 ? "dato coperto" : "dati coperti"}.`, false, 6000, { label: "Rivedi", fn: () => openLightbox(entry) });
+      }, text.length <= QUIET_MAX);
     } catch (err) {
       console.warn("[Clin handle]", err);
-      toast(`/Clin: errore (${err?.message || err}).`, true, 8000);
+      toast(`Errore di Clin (${err?.message || err}). Nulla è stato inviato.`, true, 8000);
     }
   }
 
   const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation(); };
+  const inClin = (e) => e.target === host || e.composedPath?.().includes(host);
 
   function droppedFiles(dt) {
     if (!dt) return [];
@@ -1102,7 +1127,7 @@
   }
 
   window.addEventListener("paste", (e) => {
-    if (passing || !active || e.target === host || e.composedPath?.().includes(host)) return;
+    if (passing || !active || inClin(e)) return;
     const ed = e.target?.closest?.("[contenteditable],textarea,input") || (editable(e.target) ? e.target : null);
     if (ed && ed.tagName === "INPUT" && !/^(text|search)$/.test(ed.type)) return;
     const dt = e.clipboardData;
@@ -1117,14 +1142,23 @@
     else handle({ text }, target);
   }, true);
 
+  // mentre un file viene trascinato sulla pagina, il pulsante dice che cosa succedera' al rilascio
+  window.addEventListener("dragover", (e) => {
+    if (!active || rv || !e.dataTransfer?.types?.includes("Files")) return;
+    if (inClin(e)) e.preventDefault();  // il pannello di Clin accetta il rilascio
+    say("Rilascia: Clin copre i dati prima dell’invio", 700);
+  }, true);
+
   window.addEventListener("drop", (e) => {
     if (passing || !active) return;
     const files = droppedFiles(e.dataTransfer);
     if (!files.length) return;
     const captured = captureFiles(files, droppedEntries(e.dataTransfer));
-    const target = e.target;
+    const mine = inClin(e);  // rilasciato sul pannello di Clin: il file va consegnato al campo della chat
+    const target = mine ? composer() : e.target;
     stop(e);
-    for (const t of ["dragleave", "dragend"]) {
+    if (mine) closePanel();
+    else for (const t of ["dragleave", "dragend"]) {
       try { target.dispatchEvent(new DragEvent(t, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() })); } catch (_) {}
     }
     handleFiles(captured, { kind: "drop", target });
