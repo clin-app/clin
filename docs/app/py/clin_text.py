@@ -322,7 +322,8 @@ def _date_replacement(registry: _Registry, cat: str, original: str) -> Optional[
     from clin_results import already_shifted, shift_span
     hit = shift_span(original, ae.DATE_SHIFT)
     if not hit:
-        return original if already_shifted(original) else None
+        from clin_results import is_age
+        return original if already_shifted(original) or is_age(original) else None   # l'eta' resta leggibile
     s, e, moved = hit
     kind = _PLACEHOLDER.get(cat, "DATO")
     # cio' che nel tratto non e' la data (il luogo in "12/03/1958 a Torino") resta un segnaposto

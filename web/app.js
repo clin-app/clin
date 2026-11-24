@@ -217,6 +217,8 @@ async function ocrWorker() {
     workerBlobURL: false,
     gzip: true,
     cacheMethod: "none",   // il modello e' gia' nella cache dell'app
+  }, {
+    user_words_suffix: "",  // il modello chiede "ita.special-words", che non esiste: evita l'errore in console
   });
   return tess;
 }

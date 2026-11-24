@@ -1492,7 +1492,8 @@ def _pdf_date(det: "Detection"):
     from clin_results import already_shifted, shift_span
     hit = shift_span(det.text, DATE_SHIFT)
     if not hit:
-        return "" if already_shifted(det.text) else None
+        from clin_results import is_age
+        return "" if already_shifted(det.text) or is_age(det.text) else None   # l'eta' resta leggibile
     return det.text[:hit[0]] + hit[2]   # cio' che segue la data (luogo di nascita) non viene riscritto
 
 

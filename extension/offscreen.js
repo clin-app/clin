@@ -96,6 +96,10 @@ async function addOcrWorker() {
   const w = await self.Tesseract.createWorker("ita", 1, {
     workerPath: base + "worker.min.js", corePath: base, langPath: base.replace(/\/$/, ""),
     workerBlobURL: false, gzip: true, cacheMethod: "none",
+  }, {
+    // il modello italiano chiede un elenco "ita.special-words" che non esiste: senza questo, ogni worker
+    // segnala "failed to load ./ita.special-words" fra gli errori dell'estensione
+    user_words_suffix: "",
   });
   tessSched.addWorker(w);
   tessWorkers++;

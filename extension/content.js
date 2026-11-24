@@ -22,7 +22,20 @@
   const QUIET_MAX = 400;  // caratteri: sotto questa soglia un testo senza dati personali entra senza revisione
   let active = true, busy = false, passing = false;
 
-  const send = (msg) => chrome.runtime.sendMessage({ target: "background", ...msg });
+  // Dopo un aggiornamento o un ricaricamento dell'estensione questo script resta nella pagina ma non puo' piu'
+  // parlare con Clin: sendMessage lancia subito un'eccezione invece di rifiutare la promessa, e nessun .catch()
+  // la raccoglierebbe. Qui diventa una promessa rifiutata con un messaggio comprensibile; i contenuti incollati
+  // restano comunque fermi, non passano alla chat senza anonimizzazione.
+  const STALE = "Clin è stato aggiornato: ricaricare la pagina per continuare.";
+  const send = (msg) => {
+    try {
+      if (!chrome.runtime?.id) throw new Error(STALE);
+      return chrome.runtime.sendMessage({ target: "background", ...msg })
+        .catch((e) => { throw /context invalidated/i.test(e?.message) ? new Error(STALE) : e; });
+    } catch (e) {
+      return Promise.reject(/context invalidated/i.test(e?.message) ? new Error(STALE) : e);
+    }
+  };
 
   // ---------------------------------------------------------------- icone e disegni
   const ico = (d, extra = "") => `<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${extra}<path d="${d}"/></svg>`;
