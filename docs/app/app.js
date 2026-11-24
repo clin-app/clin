@@ -2,6 +2,7 @@
 // OCR (Tesseract.js) e lettura PDF (pdf.js) sono ospitati insieme all'app.
 
 import { chiediDonazione } from "./dona.js";
+import { readOriented, boxBack } from "./ocr-orient.js";
 
 const $ = (id) => document.getElementById(id);
 const MAP_KEY = "clin.map";
@@ -165,7 +166,10 @@ async function runAll() {
       status(`Lettura di ${n} di ${queue.length}…`);
       const title = `Documento ${n} (${q.kind})`;
       if (q.kind === "PDF") items.push({ titolo: title, pagine: await pdfPages(q.file) });
-      else if (q.kind === "foto") { items.push({ titolo: title, pagine: [await ocrImage(q.file)], ocr: true }); notes.push(`${title}: testo letto con OCR, verificarlo.`); }
+      else if (q.kind === "foto") {
+        items.push({ titolo: title, pagine: [await ocrImage(q.file)], ocr: true });
+        notes.push(image?.weak ? `${title}: lettura OCR poco affidabile (foto sfocata, storta o piccola): controllare che nessun dato sia sfuggito.` : `${title}: testo letto con OCR, verificarlo.`);
+      }
       else if (q.kind === "tabella") tables.push({ title, file: q.file });
       else items.push({ titolo: title, pagine: [await viaFS(q.file, (p) => py.extract(p))] });
     }
@@ -225,15 +229,19 @@ async function ocrWorker() {
 
 async function ocrImage(file) {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  const scale = Math.min(1, MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  // foto piccole ingrandite: sotto i ~20 pixel di altezza delle lettere Tesseract perde nomi e numeri
+  const long = Math.max(bitmap.width, bitmap.height);
+  const scale = long < 1400 ? Math.min(2.5, 1800 / long) : Math.min(1, MAX_SIDE / long);
   const canvas = $("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
 
+  // foto girata di lato o capovolta: si legge nella rotazione piu' leggibile, i riquadri tornano sulla foto
   const worker = await ocrWorker();
-  const { data } = await worker.recognize(canvas);
+  const { data, back, mean } = await readOriented(canvas, async (img) => (await worker.recognize(img)).data);
 
   // Testo ricostruito riga per riga, con la posizione (in code-point Unicode) di ogni parola.
   const words = [];
@@ -244,7 +252,8 @@ async function ocrImage(file) {
         line.words.forEach((w, i) => {
           if (i > 0) { text += " "; cp += 1; }
           const wLen = Array.from(w.text).length;
-          words.push({ start: cp, end: cp + wLen, bbox: w.bbox });
+          const [x0, y0, x1, y1] = boxBack(w.bbox, back);
+          words.push({ start: cp, end: cp + wLen, bbox: { x0, y0, x1, y1 } });
           text += w.text;
           cp += wLen;
         });
@@ -263,6 +272,7 @@ async function ocrImage(file) {
   image = { bitmap, words, redacted, scale };
   drawImage();
   $("image-wrap").hidden = false;  // l'immagine oscurata si puo' anche condividere com'e'
+  image.weak = mean < 0.6;
   return text;
 }
 

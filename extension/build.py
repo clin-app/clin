@@ -56,6 +56,7 @@ for f in FILES:
     shutil.copy2(EXT / f, DIST / f)
 shutil.copytree(WEB / "vendor", DIST / "vendor")
 shutil.copytree(WEB / "py", DIST / "py")
+shutil.copy2(WEB / "ocr-orient.js", DIST / "ocr-orient.js")  # orientamento delle foto, lo stesso dell'app web
 ner = DIST / "vendor" / "gliner"
 ner.mkdir(parents=True)
 for name, (url, sha) in NER_VENDOR.items():

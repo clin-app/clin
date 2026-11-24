@@ -2,6 +2,8 @@
 // eseguito con Pyodide. Riceve testi e file dalla pagina della chat tramite il service worker
 // e restituisce il testo con i segnaposto. Nessuna connessione di rete.
 
+import { readOriented, boxBack } from "./ocr-orient.js";
+
 let py = null, fs = null, pdfjs = null, booting = null, step = "", activeTabId = null, nerMod = null;
 
 function report(msg, pct) {
@@ -119,13 +121,27 @@ async function recognize(image) {
   finally { tessPending--; }
 }
 
-async function ocr(data, type) {
+// foto ridisegnata su una tela per l'OCR: niente EXIF; le foto piccole vengono ingrandite, perche' sotto
+// i ~20 pixel di altezza delle lettere Tesseract perde nomi e numeri
+async function photoCanvas(data, type, max) {
   const bitmap = await createImageBitmap(new Blob([data], { type }), { imageOrientation: "from-image" });
-  const scale = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
-  const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
-  canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const long = Math.max(bitmap.width, bitmap.height);
+  const scale = long < 1400 ? Math.min(2.5, 1800 / long) : Math.min(1, max / long);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close();
-  return (await recognize(await canvas.convertToBlob())).text || "";
+  return canvas;
+}
+
+async function ocr(data, type) {
+  const canvas = await photoCanvas(data, type, 2200);
+  try {
+    const r = await readOriented(canvas, recognize);
+    return { text: r.data.text || "", weak: r.mean < 0.6 };
+  } finally { canvas.width = canvas.height = 0; }
 }
 
 async function anonymize(items, previous) {
@@ -142,7 +158,11 @@ async function anonymize(items, previous) {
     const ext = (it.name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
     // testo estratto una volta per revisione: a ogni spunta cambia solo la copertura
     if (it.kind === "PDF") bundle.push({ titolo: title, pagine: it.pages || (it.pages = await pdfPages(data.slice())) });
-    else if (it.kind === "foto") { bundle.push({ titolo: title, pagine: [it.ocrText ?? (it.ocrText = await ocr(data, it.type))], ocr: true }); notes.push(`${title}: letto con OCR, da verificare.`); }
+    else if (it.kind === "foto") {
+      const r = it.ocrRead ?? (it.ocrRead = await ocr(data, it.type));
+      bundle.push({ titolo: title, pagine: [r.text], ocr: true });
+      notes.push(r.weak ? `${title}: lettura OCR poco affidabile (foto sfocata, storta o piccola): controllare che nessun dato sia sfuggito.` : `${title}: letto con OCR, da verificare.`);
+    }
     else if (it.kind === "tabella") tables.push({ title, data, ext });
     else bundle.push({ titolo: title, pagine: [viaFS(data, ext, (p) => py.extract(p))] });
   }
@@ -200,12 +220,15 @@ async function pdfSegments(page, viewport) {
   return segs;
 }
 
+// parole lette con OCR, nella rotazione piu' leggibile; i riquadri restano nelle coordinate della tela.
+// Una parola letta ruotata viene coperta per intero (whole): la posizione dei singoli caratteri non e' affidabile.
 async function ocrSegments(canvas) {
-  const data = await recognize(canvas);
+  const { data, back, mean } = await readOriented(canvas, recognize);
   const segs = [];
   for (const block of data.blocks || []) for (const para of block.paragraphs || []) for (const line of para.lines || []) {
-    line.words.forEach((w, i) => segs.push({ str: w.text, box: [w.bbox.x0, w.bbox.y0, w.bbox.x1, w.bbox.y1], eol: i === line.words.length - 1 }));
+    line.words.forEach((w, i) => segs.push({ str: w.text, box: boxBack(w.bbox, back), whole: !!back, eol: i === line.words.length - 1 }));
   }
+  segs.weak = mean < 0.6;
   return segs;
 }
 
@@ -242,16 +265,17 @@ function cover(ctx, segs, spans) {
       if (sg.end <= s || sg.start >= e) continue;
       const chars = sg.chars || Array.from(sg.str);
       const a = Math.max(s, sg.start) - sg.start, b = Math.min(e, sg.end) - sg.start;
+      const ga = sg.whole ? 0 : a, gb = sg.whole ? chars.length : b;  // geometria: parola intera se letta ruotata
       let r;
-      if (sg.vertical) {
+      if (sg.vertical || (sg.whole && sg.box[3] - sg.box[1] > sg.box[2] - sg.box[0])) {
         const w = sg.box[2] - sg.box[0], totalH = sg.box[3] - sg.box[1], slack = w * 0.2;
-        const y0 = sg.box[1] + totalH * (a / Math.max(1, chars.length)) - slack;
-        const y1 = sg.box[1] + totalH * (b / Math.max(1, chars.length)) + slack;
+        const y0 = sg.box[1] + totalH * (ga / Math.max(1, chars.length)) - slack;
+        const y1 = sg.box[1] + totalH * (gb / Math.max(1, chars.length)) + slack;
         r = [sg.box[0] - 2, Math.min(y0, y1), sg.box[2] + 2, Math.max(y0, y1)];
         lines.push(r);
       } else {
         const h = sg.box[3] - sg.box[1], slack = h * 0.18;  // margine: nessuna lettera deve restare visibile
-        r = [xAt(sg, a) - slack, sg.box[1] - 2, xAt(sg, b) + slack, sg.box[3] + 2];
+        r = [xAt(sg, ga) - slack, sg.box[1] - 2, xAt(sg, gb) + slack, sg.box[3] + 2];
         const line = lines.find((l) => Math.abs((l[1] + l[3]) / 2 - (r[1] + r[3]) / 2) < h * 0.6);
         if (line) { line[0] = Math.min(line[0], r[0]); line[1] = Math.min(line[1], r[1]); line[2] = Math.max(line[2], r[2]); line[3] = Math.max(line[3], r[3]); }
         else lines.push(r);
@@ -425,18 +449,13 @@ async function redactPdf(data, state, slot) {
     out.push({ w: p.w, h: p.h, iw: canvas.width, ih: canvas.height, jpeg: await jpegOf(canvas), texts });
     canvas.width = canvas.height = 0;  // libera subito la memoria della copia
   }
-  return { bytes: buildPdf(out), ocr: pages.some((p) => p.ocrUsed), previews };
+  return { bytes: buildPdf(out), ocr: pages.some((p) => p.ocrUsed), weak: pages.some((p) => p.segs.weak), previews };
 }
 
 async function redactImage(data, type, state, slot) {
   if (!slot.img) {
     report("Lettura testo dalla foto (OCR)…", 32);
-    const bitmap = await createImageBitmap(new Blob([data], { type }), { imageOrientation: "from-image" });
-    const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale); canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);  // ridisegnata: niente EXIF (posizione, data, dispositivo)
-    bitmap.close();
+    const canvas = await photoCanvas(data, type, 2400);  // ridisegnata: niente EXIF (posizione, data, dispositivo)
     const segs = await ocrSegments(canvas);
     slot.img = { canvas, segs, text: joinSegs(segs) };
   }
@@ -447,7 +466,7 @@ async function redactImage(data, type, state, slot) {
   state.map = { ...state.map, ...plan.mapping };
   for (const sg of segs) sg.out = undefined;
   cover(canvas.getContext("2d"), segs, plan.spans[0]);
-  return { bytes: await jpegOf(canvas), previews: [previewDataUrl(canvas)] };
+  return { bytes: await jpegOf(canvas), previews: [previewDataUrl(canvas)], weak: segs.weak };
 }
 
 function viaFSout(data, ext, fn) {
@@ -471,11 +490,11 @@ async function redact(items, state) {
       if (it.kind === "PDF") {
         const r = await redactPdf(data, state, slot);
         out = r.bytes; type = "application/pdf"; pages = r.previews || [];
-        if (r.ocr) notes.push(`${it.name}: pagine scansionate lette con OCR, verificare.`);
+        if (r.ocr) notes.push(r.weak ? `${it.name}: alcune pagine scansionate sono poco leggibili per l'OCR: controllare che nessun dato sia sfuggito.` : `${it.name}: pagine scansionate lette con OCR, verificare.`);
       } else if (it.kind === "foto") {
         const r = await redactImage(data, it.type, state, slot);
         out = r.bytes; type = "image/jpeg"; outExt = ".jpg"; pages = r.previews || [];
-        notes.push(`${it.name}: letta con OCR, verificare.`);
+        notes.push(r.weak ? `${it.name}: lettura OCR poco affidabile (foto sfocata, storta o piccola): controllare che nessun dato sia sfuggito.` : `${it.name}: letta con OCR, verificare.`);
       } else if (it.kind === "Word") {
         await withNer([viaFS(data, ext, (p) => py.extract(p))]);
         const { r, bytes: b } = viaFSout(data, ext, (i, o) => py.redact_docx(i, o, JSON.stringify(state.map)));

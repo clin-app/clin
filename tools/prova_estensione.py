@@ -48,6 +48,13 @@ with zipfile.ZipFile(SP / "site" / "caso.pptx", "w") as z:  # diapositiva minima
     z.writestr("ppt/slides/slide1.xml", '<p:sld xmlns:a="x" xmlns:p="y"><a:p><a:r><a:t>Paziente: Mario Rossi, CF RSSMRA58C12L219X</a:t></a:r></a:p>'
                                         '<a:p><a:r><a:t>Emoglobina 13,5 g/dL.</a:t></a:r></a:p></p:sld>')
     z.writestr("ppt/media/image1.png", b"FOTO DEL REFERTO DI MARIO ROSSI")
+# carta d'identita' (inventata) fotografata di lato: l'OCR deve leggerla nel verso giusto
+card = fitz.open(); cp = card.new_page(width=450, height=280)
+for i, (k, v) in enumerate([("Cognome", "ROSSI"), ("Nome", "MARIO"), ("nato il", "12/03/1958"), ("a", "Torino (TO)"),
+                            ("Residenza", "Via Garibaldi 14"), ("Codice fiscale", "RSSMRA58C12L219X")]):
+    cp.insert_text((20, 35 + i * 38), k, fontsize=13, fontname="tiro"); cp.insert_text((150, 35 + i * 38), v, fontsize=15, fontname="cour")
+pix = cp.get_pixmap(dpi=200); rot = fitz.open(); rp = rot.new_page(width=pix.height, height=pix.width)
+rp.insert_image(rp.rect, pixmap=pix, rotate=90); rp.get_pixmap(dpi=72).save(str(SP / "site" / "carta.png"))
 EXT = str(SP / "ext")
 PAGE = "index.html"
 h = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(SP / "site"))
@@ -142,6 +149,17 @@ async def main():
         raw = await page.evaluate("document.querySelector('#f').files[0].text()")
         assert "Rossi" not in raw and "ROSSI" not in raw and "RSSMRA" not in raw
         print("F PowerPoint: anteprima e file consegnato senza dati personali")
+        # G: foto ruotata di un documento d'identita'
+        await page.evaluate("document.querySelector('#f').value = ''")
+        t = time.time(); await page.set_input_files("#f", str(SP / "site" / "carta.png"))
+        await page.locator(".dlg-b").wait_for(state="visible", timeout=180000)
+        await page.wait_for_function("!document.querySelector('clin-panel').shadowRoot.querySelector('.dlg').classList.contains('updating') && document.querySelector('clin-panel').shadowRoot.querySelectorAll('.it').length > 0", timeout=180000)
+        found = " ".join(await page.locator(".it").all_inner_texts())
+        await page.screenshot(path=str(SP / "shot_carta_.png"))
+        for v in ("ROSSI", "MARIO", "12/03/1958", "Torino", "RSSMRA58C12L219X"):
+            assert v in found, (v, found)
+        print("G carta d'identita' ruotata: dati trovati in %.1fs" % (time.time() - t))
+        await page.locator(".go").click()
         errs = [l for l in logs if "Clin" in l or "rror" in l]
         print("console:", errs[:8])
         print("screenshot in", SP)
