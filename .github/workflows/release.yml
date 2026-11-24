@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: PySide6 (icone dell'app web dal logo)
+        run: python -m pip install --quiet "PySide6-Essentials==6.11.1"
       - name: Modello GLiNER (release modello-gliner-v1, impronte verificate)
         run: |
           set -euo pipefail
