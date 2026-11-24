@@ -60,6 +60,9 @@ def main():
     if not (EXT / "dist" / "vendor" / "gliner" / "model" / "model.onnx").exists():
         sys.exit("Modello GLiNER assente: esportarlo con tools/export_gliner_onnx.py prima di pubblicare.")
 
+    # plugin per Claude Code: ramo `plugin` con i soli file necessari (da inviare dopo il push di main)
+    run(sys.executable, "tools/plugin_branch.py")
+
     for f in sorted(OUT.glob("*.zip")):
         print(f"  {f.name}: {f.stat().st_size / 1e6:.1f} MB")
     if "--solo-build" in sys.argv:

@@ -6,7 +6,8 @@
 #   clin mcp                       server MCP
 #   clin prepara                   inizio sessione: percorso stabile ~/.clin/bin/clin e ambiente in background
 #
-# Al primo uso crea un ambiente Python dedicato in ~/.clin/plugin-venv (PyMuPDF, openpyxl) e scarica il
+# Al primo uso crea un ambiente Python dedicato in ~/.clin/plugin-venv (PyMuPDF e openpyxl, in versione
+# fissa: un aggiornamento dei pacchetti passa da un aggiornamento del plugin) e scarica il
 # modello OCR italiano (2,6 MB, impronta verificata). Ogni messaggio va su stderr: stdout resta libero
 # per gli hook e per il server MCP. I documenti non passano mai dalla rete.
 set -euo pipefail
@@ -51,7 +52,7 @@ setup() {
   py="$(find_python)" || { say "serve Python 3.10 o successivo: https://www.python.org/downloads/"; return 1; }
   say "preparazione dell'ambiente locale (una volta sola, circa un minuto)…"
   [ -x "$VPY" ] || "$py" -m venv "$VENV" >&2
-  "$VPY" -m pip install -q --disable-pip-version-check "PyMuPDF>=1.24" "openpyxl>=3.1" >&2 \
+  "$VPY" -m pip install -q --disable-pip-version-check "PyMuPDF==1.28.0" "openpyxl==3.1.5" >&2 \
     || { say "installazione dei pacchetti Python non riuscita"; return 1; }
   "$VPY" "$ROOT/scripts/fetch_ocr_model.py" --dest "$CLIN_TESSDATA" >/dev/null 2>&1 \
     || say "modello OCR non scaricato (facoltativo): le scansioni verranno solo segnalate"

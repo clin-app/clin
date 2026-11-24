@@ -10,7 +10,11 @@
     {
       "name": "clin",
       "description": "Skill /clin: l'agente lavora solo su copie anonime di referti, cartelle cliniche, Excel e dataset; i risultati tornano con i dati reali in una cartella che l'agente non vede.",
-      "source": "./",
+      "source": {
+        "source": "github",
+        "repo": "clin-app/clin",
+        "ref": "plugin"
+      },
       "category": "productivity"
     }
   ]
