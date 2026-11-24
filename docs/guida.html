@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Guida tecnica — Clin</title>
+  <meta name="description" content="Guida tecnica di Clin per IT, DPO, ricercatori e sviluppatori: riconoscimento dei dati, codici e date, protezione negli agenti, servizio per i server, API, HL7 e FHIR, limiti.">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css?v=20261123a">
+  <link rel="stylesheet" href="clin.css?v=20261125b">
+  <link rel="stylesheet" href="guida.css?v=20261125a">
+</head>
+<body>
+
+<header class="guide-top">
+  <a class="brand" href="./"><span class="brand-mark"><img src="logo.svg" alt="" width="30" height="30"></span><span class="clin">/Clin</span></a>
+  <span class="crumb">Per gli addetti ai lavori · Guida tecnica</span>
+  <span class="grow"></span>
+  <a class="top-link" href="./#installazione">Installazione</a>
+  <a class="top-link" href="https://github.com/clin-app/clin">Codice</a>
+</header>
+
+<div class="guide">
+  <nav class="toc" aria-label="Indice della guida"></nav>
+
+  <article class="doc-body">
+    <div class="doc-head">
+      <span class="eyebrow">Per gli addetti ai lavori</span>
+      <h1>Guida tecnica di <span class="clin">/Clin</span></h1>
+      <p class="lede">Come <span class="clin">/Clin</span> riconosce e sostituisce i dati personali, come si integra negli agenti e nei sistemi dell’ospedale, che cosa garantisce e dove si ferma. Per IT, DPO, ricercatori e sviluppatori.</p>
+      <div class="doc-meta"><span>Versione 2.3</span><span>Licenza AGPL-3.0</span><span>Elaborazione locale</span></div>
+    </div>
+
+    <!-- ===================================================== 1 -->
+    <section id="architettura">
+      <h2>Architettura</h2>
+      <p class="intro">Tutto ciò che riguarda i dati gira sul computer, o sul server, di chi usa <span class="clin">/Clin</span>. Al fornitore dell’IA arriva solo il risultato: testo e file in cui i dati personali sono già stati sostituiti.</p>
+      <h3 id="componenti">Componenti</h3>
+      <ul>
+        <li><b>Motore</b> (Python): regole per i dati strutturati (codici, date, recapiti, etichette come «Paziente:»), riconoscimento dei nomi dal contesto, scrittura delle copie.</li>
+        <li><b>Modello locale per i nomi</b>, facoltativo: <a href="https://github.com/urchade/GLiNER">GLiNER</a>, specializzato in dati personali, oppure un modello via <a href="https://ollama.com">Ollama</a>. Trova i nomi citati senza alcuna etichetta.</li>
+        <li><b>OCR</b>: Tesseract con il modello italiano, per scansioni e fotografie.</li>
+        <li><b>Tabelle di corrispondenza</b>: collegano ogni etichetta o codice al dato originale. Restano nella cartella dati di <span class="clin">/Clin</span> e servono solo per il ritorno ai dati reali.</li>
+      </ul>
+      <h3 id="forme">Le forme di Clin</h3>
+      <table>
+        <thead><tr><th>Forma</th><th>Dove gira</th><th>Per chi</th></tr></thead>
+        <tbody>
+          <tr><td>App nel browser</td><td>Nella pagina, con il motore compilato per il browser</td><td>Uso in reparto, senza installazione; anche sul telefono</td></tr>
+          <tr><td>Estensione Chrome/Edge</td><td>Nel browser, dentro l’estensione</td><td>Chi usa ChatGPT, Claude, Gemini, Copilot, Mistral</td></tr>
+          <tr><td>App desktop</td><td>Sul computer</td><td>Anteprima visiva, oscuramento di PDF e fogli</td></tr>
+          <tr><td>Skill e guardia per agenti</td><td>Sul computer, negli hook dell’agente</td><td>Claude Code, Codex, Antigravity</td></tr>
+          <tr><td>Servizio</td><td>Su un server della rete ospedaliera</td><td>Agenti autonomi, pipeline, integrazioni</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===================================================== nel browser -->
+    <section id="browser">
+      <h2>Nel browser e nella chat</h2>
+      <h3 id="app-browser">App nel browser</h3>
+      <p>Lo stesso motore di <span class="clin">/Clin</span>, compilato per il browser (Python in WebAssembly), con lettura dei PDF e OCR inclusi nella pagina. Si usa senza installazione, anche sul telefono, dove si aggiunge alla schermata Home e funziona senza rete.</p>
+      <ul>
+        <li><b>Nessuna connessione verso altri siti</b>: la pagina dichiara una politica di sicurezza che consente richieste solo verso sé stessa; i documenti non lasciano il dispositivo.</li>
+        <li><b>Tabella delle etichette</b> solo nella scheda del browser (nell’app installata sul telefono, nel dispositivo), con scadenza dopo 12 ore.</li>
+        <li><b>Più documenti insieme</b>: PDF, Word, foto e testi copiati ricevono le stesse etichette, così la risposta dell’IA si riconduce in un passaggio.</li>
+        <li>Le date diventano etichette ([DATA_1]); le foto vengono coperte direttamente sui pixel e si possono condividere così.</li>
+      </ul>
+      <h3 id="estensione">Estensione per Chrome ed Edge</h3>
+      <p>Si attiva solo sulle pagine di ChatGPT, Claude, Gemini, Copilot e Mistral. Ferma ciò che si incolla o si trascina nella chat (testo, PDF, Word, PowerPoint, Excel, foto), lo anonimizza sul computer e mostra una finestra di controllo prima dell’invio.</p>
+      <ul>
+        <li><b>Tutto dentro l’estensione</b>: motore, lettura dei PDF, OCR e modello per i nomi (GLiNER, eseguito nel browser). Dopo l’installazione non fa richieste di rete; la versione per il Chrome Web Store scarica il modello una sola volta, con verifica dell’impronta SHA-256.</li>
+        <li><b>Finestra di controllo</b>: anteprima del documento coperto e dati trovati per tipo, ciascuno con un interruttore; una parola sfuggita si aggiunge a mano. Un testo breve senza dati personali passa senza domande.</li>
+        <li><b>Al sito arriva</b> lo stesso tipo di file, con i dati sostituiti: nei PDF ridisegnati c’è anche un livello di testo già anonimizzato.</li>
+        <li><b>Risposta con i nomi veri</b> in un pannello che la pagina della chat non può leggere.</li>
+        <li>Senza estensione, un file trascinato nella chat raggiunge subito il fornitore, prima di qualsiasi anonimizzazione.</li>
+      </ul>
+    </section>
+
+    <!-- ===================================================== 2 -->
+    <section id="riconoscimento">
+      <h2>Riconoscimento dei dati</h2>
+      <p class="intro">Per impostazione predefinita si rimuove tutto ciò che identifica; ciò che serve alla clinica resta. Le regole sono deterministiche: un modello locale può aggiungere nomi, mai togliere ciò che le regole hanno trovato.</p>
+      <h3 id="categorie">Categorie</h3>
+      <table>
+        <thead><tr><th>Categoria</th><th>Esempi</th></tr></thead>
+        <tbody>
+          <tr><td>Persone</td><td>pazienti, familiari, medici, operatori, firmatari; anche senza titolo né etichetta</td></tr>
+          <tr><td>Identificativi</td><td>codice fiscale (anche omocodico), tessera sanitaria, STP/ENI, documenti</td></tr>
+          <tr><td>Codici clinici</td><td>nosologico, cartella, ricovero, episodio, ricetta, referto, campione, letto</td></tr>
+          <tr><td>Recapiti e luoghi</td><td>telefoni, email, indirizzi, CAP e comune, luogo di nascita</td></tr>
+          <tr><td>Date ed età</td><td>date in ogni formato, anche senza anno («dal 01/11»); età dai 90 anni come «90+»</td></tr>
+          <tr><td>Altro</td><td>IBAN, firme digitali, strutture, metadati, immagini incorporate</td></tr>
+        </tbody>
+      </table>
+      <p>Restano invariati termini clinici ed eponimi («morbo di Parkinson»), farmaci, dosi e vie, valori ed esami, germi, MIC e S/I/R, punteggi, codici ICD, ATC e LOINC, durate. Documenti in 40 lingue europee, con date, codici, titoli e indirizzi nei formati nazionali.</p>
+      <h3 id="scansioni">Scansioni e fotografie</h3>
+      <p>Le pagine senza testo e le immagini passano dall’OCR. Se la prima lettura è poco affidabile, l’immagine viene riletta ruotata di 90°, 180° e 270° e si tiene la versione più leggibile (foto scattate di lato, documenti capovolti). Le parole vengono raggruppate in righe in base alla loro posizione, così etichetta e valore di un modulo restano insieme. Le foto piccole vengono ingrandite prima della lettura. Quando la lettura resta incerta, <span class="clin">/Clin</span> lo segnala.</p>
+      <div class="callout"><b>Da sapere.</b> Un nome scritto a mano o molto sfocato può sfuggire all’OCR: le pagine scansionate vanno sempre ricontrollate.</div>
+      <h3 id="controllo-categorie">Categorie lasciate in chiaro</h3>
+      <p>Per esigenze precise (per esempio il nome della struttura in uno studio multicentrico) una categoria si può lasciare in chiaro dall’app (Aiuto › Cosa rimuovere) o con <code>clin impostazioni categorie</code>. Senza intervento si rimuove tutto.</p>
+    </section>
+
+    <!-- ===================================================== 3 -->
+    <section id="codici">
+      <h2>Codici, etichette e date</h2>
+      <h3 id="etichette">Etichette nei testi, codici nei fogli</h3>
+      <p>Nei testi i dati diventano etichette come <code>[PAZIENTE_1]</code>, <code>[MEDICO_1]</code>, <code>[CONTATTO_1]</code>. Nei fogli di calcolo, e con gli agenti anche nei testi, il paziente diventa un codice: <code>PAZ-0001</code>; il codice fiscale <code>ID-0001</code>; cartella, nosologico e letto <code>IDC-0001</code>; i medici <code>MED-0001</code>.</p>
+      <h3 id="stabili">Stabili e collegabili</h3>
+      <ul>
+        <li>Lo stesso paziente riceve sempre lo stesso codice, in tutti i file e in tutte le sessioni: «Rossi | Mario», «ROSSI MARIO» e «Mario Rossi» sono la stessa persona.</li>
+        <li>Con gli agenti il codice è lo stesso in referti, export CSV ed Excel, messaggi HL7 e risorse FHIR, quindi le fonti si possono incrociare.</li>
+        <li>Due omonimi con ruoli diversi (il medico Luca Rossi e il paziente Mario Rossi) restano distinti.</li>
+        <li>Ripassare da <span class="clin">/Clin</span> una copia già trattata non la cambia: codici, etichette e date restano identici.</li>
+      </ul>
+      <h3 id="date">Date</h3>
+      <p>Nei percorsi per gli agenti e per la ricerca le date non diventano etichette: vengono spostate in avanti di un intervallo fisso che conserva giorno, mese e giorno della settimana. Intervalli, giorni di terapia, età, stagioni e analisi di sopravvivenza danno gli stessi risultati dei dati reali; nei risultati le date tornano vere. In alternativa si può usare uno spostamento casuale e segreto (<code>clin impostazioni date_calendario no</code>). Nell’app e nell’estensione le date diventano etichette.</p>
+      <h3 id="ritorno">Ritorno ai dati reali</h3>
+      <p>Solo in locale, con le tabelle di corrispondenza: <code>clin ripristina</code> (testo negli appunti), <code>clin risultati CARTELLA</code> (file prodotti), <code>clin originale PAZ-0147</code> (un singolo codice). Un’etichetta inesistente resta visibile, invece di essere attribuita alla persona sbagliata.</p>
+    </section>
+
+    <!-- ===================================================== 4 -->
+    <section id="documenti">
+      <h2>Documenti e fogli di calcolo</h2>
+      <h3 id="formati">Formati</h3>
+      <table>
+        <thead><tr><th>Formato</th><th>Trattamento</th></tr></thead>
+        <tbody>
+          <tr><td>PDF</td><td>Testo identificativo rimosso dal file, non solo coperto; metadati, allegati, campi modulo, testo nascosto o fuori pagina eliminati; il PDF prodotto viene riletto per escludere residui</td></tr>
+          <tr><td>Word, PowerPoint</td><td>Etichette nel testo, nelle note e nei commenti; immagini incorporate svuotate; autori rimossi</td></tr>
+          <tr><td>Foto (JPG, PNG)</td><td>OCR e copertura sui pixel; metadati della foto (posizione, dispositivo) non conservati</td></tr>
+          <tr><td>Excel, CSV, TSV</td><td>Copia con la stessa struttura: fogli, colonne, formule e formattazione</td></tr>
+          <tr><td>SPSS, Stata, SAS</td><td>Convertiti e trattati come fogli di calcolo</td></tr>
+          <tr><td>HL7 v2, FHIR</td><td>Campo per campo (vedi <a href="#hl7">Server</a>)</td></tr>
+        </tbody>
+      </table>
+      <h3 id="colonne">Colonne dei fogli</h3>
+      <p>Le colonne si riconoscono dall’intestazione (paziente, medico, familiare, codice fiscale, nosologico, ricetta, campione, nascita, residenza, recapiti...) e, con il modello locale, dal contenuto. Le colonne cliniche restano intatte; nelle celle di testo libero si cercano nomi, recapiti e codici come in un referto.</p>
+      <h3 id="schema">Schema delle colonne</h3>
+      <p>Per gli export ripetuti il ruolo di ogni colonna si dichiara una volta in <code>clin-colonne.json</code>, nella cartella degli export:</p>
+<pre><code>{
+  "terapie_*.csv": {
+    "cognome": "paziente", "nome": "paziente", "codice fiscale": "id",
+    "nosologico": "id_clinico", "letto": "id_clinico", "data_nascita": "data_nascita",
+    "reparto": "clinico", "farmaco": "clinico", "dose": "clinico", "via": "clinico",
+    "data_inizio": "data", "note": "testo",
+    "*": "elimina"
+  }
+}</code></pre>
+      <p>Ruoli: <code>paziente</code>, <code>id</code>, <code>id_clinico</code>, <code>medico</code>, <code>operatore</code>, <code>persona</code>, <code>data_nascita</code>, <code>data</code>, <code>contatto</code>, <code>clinico</code>, <code>testo</code>, <code>elimina</code>. Con <code>"*": "elimina"</code> escono solo le colonne elencate. Un ruolo scritto male ferma il file invece di lasciarlo passare.</p>
+    </section>
+
+    <!-- ===================================================== 5 -->
+    <section id="agenti">
+      <h2>Negli agenti di coding</h2>
+      <p class="intro">Con Claude Code, Codex e Antigravity la protezione non si affida alle istruzioni date al modello: gli hook dell’agente intercettano letture, comandi e messaggi prima che il contenuto venga inviato.</p>
+      <h3 id="attivazione">Attivazione</h3>
+      <p><code>/clin</code> nella cartella dei dati la protegge e crea le copie in <code>Clin_anonimizzati/</code>, sottocartelle comprese; ripetuto, rielabora solo i file nuovi o cambiati. <code>/clin stato</code> mostra che cosa è attivo, <code>/clin off</code> disattiva la protezione. Articoli e linee guida si escludono con <code>clin escludi</code>.</p>
+      <h3 id="guardia">Che cosa fa la guardia</h3>
+      <table>
+        <thead><tr><th>Evento</th><th>Effetto</th></tr></thead>
+        <tbody>
+          <tr><td>Lettura di un originale</td><td>L’agente riceve la copia con le etichette; se l’anonimizzazione non riesce, la lettura viene negata</td></tr>
+          <tr><td>Comandi sugli originali</td><td><code>cat</code>, <code>head</code>, ricerche, script che li aprono: negati</td></tr>
+          <tr><td>Output dei comandi</td><td>Ripulito dai dati personali (Claude Code)</td></tr>
+          <tr><td>Messaggio dell’utente</td><td>Fermato se contiene codice fiscale, telefono o simili (Claude Code, Codex)</td></tr>
+          <tr><td>Fine della risposta</td><td>I file prodotti vengono ricondotti ai dati reali in <code>Clin_risultati/</code>, invisibile all’agente</td></tr>
+          <tr><td>Tabelle e risultati</td><td>Mai leggibili dall’agente</td></tr>
+        </tbody>
+      </table>
+      <h3 id="differenze">Differenze tra agenti</h3>
+      <ul>
+        <li><b>Claude Code</b>: tutte le protezioni; installabile anche come plugin (<code>/plugin install clin --marketplace clin-app/clin</code>).</li>
+        <li><b>Codex</b>: l’hook va approvato una volta da <code>/hooks</code>; gli hook di Codex non permettono di riscrivere l’output dei comandi.</li>
+        <li><b>Antigravity</b>: letture e comandi protetti; non offre un controllo dei messaggi prima dell’invio.</li>
+        <li><b>Altri client MCP</b> (Cursor, Windsurf, Claude Desktop): strumenti <code>anonimizza_documento</code> e <code>crea_copie_anonime</code>, senza guardia.</li>
+      </ul>
+      <h3 id="impostazioni">Impostazioni</h3>
+      <p>Dall’app (IA › Agenti IA) o con <code>clin impostazioni</code>: ripristino automatico dei risultati e relativa cartella, blocco dei messaggi, pulizia dell’output, modello per i nomi, OCR, categorie lasciate in chiaro, date, percorsi esclusi.</p>
+    </section>
+
+    <!-- ===================================================== 6 -->
+    <section id="server">
+      <h2>Server e agenti autonomi</h2>
+      <p class="intro">Per un agente che lavora da solo sui dati dell’ospedale (sorveglianza, audit, registri), con la Messages API o con i Claude Managed Agents, <span class="clin">/Clin</span> gira come servizio nella rete dell’ospedale. Tutto ciò che il modello legge è già passato da <span class="clin">/Clin</span>; ciò che uno strumento restituisce al modello va considerato inviato al fornitore.</p>
+      <h3 id="flusso-server">Flusso</h3>
+<pre><code>Gestionale --export--> /export_raw       (solo Clin, sola lettura)
+                            |
+                 clin copie --uscita /dati_anon   (solo file nuovi)
+                            v
+                       /dati_anon <-- strumenti del worker <--> modello
+                                      /verifica, /controlla  (chiave agente)
+                            |
+                            v
+               segnalazioni PAZ-0001 --> notifiche --> team, nomi veri
+                                         /ripristina  (chiave ripristino)</code></pre>
+      <h3 id="api">API</h3>
+      <p><code>clin servizio --host 127.0.0.1 --porta 8765</code>. Ogni richiesta con <code>Authorization: Bearer &lt;chiave&gt;</code>; due chiavi diverse, <code>CLIN_TOKEN_AGENTE</code> e <code>CLIN_TOKEN_RIPRISTINO</code>.</p>
+      <table>
+        <thead><tr><th>Percorso</th><th>Chiave</th><th>Funzione</th></tr></thead>
+        <tbody>
+          <tr><td><code>POST /pseudonimizza</code></td><td>agente</td><td>Testo, HL7, FHIR, CSV (con schema), oppure file in base64 (PDF, Word, Excel, foto)</td></tr>
+          <tr><td><code>POST /filtra_immagine</code></td><td>agente</td><td>Screenshot con i dati coperti, stesse dimensioni (computer use)</td></tr>
+          <tr><td><code>POST /verifica</code></td><td>agente</td><td>Conta i dati originali noti ancora presenti in un testo</td></tr>
+          <tr><td><code>POST /controlla</code></td><td>agente</td><td>Ammette un testo nella memoria dell’agente solo senza dati di pazienti</td></tr>
+          <tr><td><code>POST /ripristina</code></td><td>ripristino</td><td>Riporta ai dati reali; con la chiave dell’agente risponde 403</td></tr>
+          <tr><td><code>GET /stato</code></td><td>entrambe</td><td>Stato del servizio</td></tr>
+        </tbody>
+      </table>
+      <p>Ogni uscita verso l’agente viene riletta: se contiene ancora un dato originale noto, la risposta è 422 e il contenuto non esce. Le stesse operazioni sono funzioni Python in <code>clin_api.py</code>.</p>
+      <h3 id="hl7">HL7 v2 e FHIR</h3>
+      <p>Trattati campo per campo con regole fisse: PID, NK1, PV1, ORC, OBR, OBX, RXE, RXA, SPM, NTE; risorse Patient, Practitioner, RelatedPerson e i riferimenti tra risorse. Dei segmenti anagrafici restano solo i campi necessari (per esempio il sesso); stanza e letto diventano codici, il reparto resta; le date vengono spostate in qualsiasi campo, anche dentro le componenti (inizio terapia in RXE-1); testo libero e segmenti sconosciuti passano dal motore; gli allegati in base64 dentro FHIR vengono tolti.</p>
+      <h3 id="managed-agents">Con i Claude Managed Agents</h3>
+      <ul>
+        <li>In ambiente self-hosted: il worker esegue gli strumenti nella rete dell’ospedale.</li>
+        <li><span class="clin">/Clin</span> non va collegato come server MCP dell’agente: i server MCP dei Managed Agents sono chiamati dall’infrastruttura del fornitore, e le tabelle devono restare in locale.</li>
+        <li>Strumenti pochi e personalizzati (leggere le copie dopo <code>/verifica</code>, registrare una segnalazione, salvare una regola dopo <code>/controlla</code>); niente bash, niente lettura libera di file, niente ricerca web.</li>
+        <li>Lo stesso nucleo serve il ciclo sulla Messages API, anche via Bedrock o Vertex in regione UE: cambia solo chi gestisce il ciclo dell’agente.</li>
+      </ul>
+      <p>Esempi pronti: <a href="https://github.com/clin-app/clin/blob/main/deploy/esempio_strumenti.py">strumenti del worker</a> e <a href="https://github.com/clin-app/clin/blob/main/deploy/esempio_notifiche.py">servizio notifiche</a>.</p>
+      <h3 id="docker">Docker</h3>
+<pre><code>python3 -c 'import secrets; print(secrets.token_urlsafe(32))'   # chiave agente, poi chiave ripristino
+python3 clin.py chiave                                          # chiave di cifratura delle tabelle
+docker compose -f deploy/docker-compose.yml up -d</code></pre>
+      <p>Il container di <span class="clin">/Clin</span> è l’unico a montare gli export grezzi e le tabelle; non ha accesso a internet; gira con un utente non privilegiato e file system in sola lettura. Guida completa: <a href="https://github.com/clin-app/clin/blob/main/deploy/README.md">deploy/README.md</a>.</p>
+    </section>
+
+    <!-- ===================================================== 7 -->
+    <section id="sicurezza">
+      <h2>Sicurezza dei dati locali</h2>
+      <ul>
+        <li><b>Nessuna connessione verso l’esterno</b> durante l’elaborazione; la rete serve solo all’installazione (pacchetti in versione fissa, modelli con impronta SHA-256 verificata).</li>
+        <li><b>Tabelle di corrispondenza</b> nella cartella dati (<code>CLIN_DATI</code>, predefinita <code>~/.clin</code>), permessi 600; sul server cifrate con <code>CLIN_CHIAVE</code>. Senza la chiave <span class="clin">/Clin</span> si ferma: non riparte mai con una tabella vuota che sovrascriverebbe quella esistente.</li>
+        <li><b>Scritture concorrenti</b>: due processi che assegnano codici insieme non si cancellano a vicenda; le tabelle vengono fuse al salvataggio.</li>
+        <li><b>Modello locale</b>: GLiNER su un socket accessibile solo all’utente, senza porte di rete; con Ollama è ammesso soltanto 127.0.0.1.</li>
+        <li><b>Registro</b> (<code>registro.jsonl</code>): ora, operazione, dimensione e impronta dell’ingresso, esito. Nessun dato personale.</li>
+        <li><b>Verifica delle copie</b>: <code>clin verifica CARTELLA</code> conta i dati originali noti ancora presenti, file per file, senza mostrarli. Utile come prova nella DPIA.</li>
+      </ul>
+    </section>
+
+    <!-- ===================================================== 8 -->
+    <section id="installazione">
+      <h2>Installazione e comandi</h2>
+      <h3 id="installare">Installare, aggiornare, disinstallare</h3>
+<pre><code>curl -fsSL https://clin-app.github.io/clin/install.sh | bash     # installare o aggiornare
+~/.clin/app/.venv/bin/python ~/.clin/app/clin.py ner installa     # modello per i nomi (GLiNER, ~2,4 GB)
+~/.clin/app/.venv/bin/python ~/.clin/app/clin.py disinstalla      # --tutto cancella anche le tabelle</code></pre>
+      <p>Requisiti: macOS o Linux (Windows tramite WSL o con l’installer dell’app desktop), Python 3.10 o successivo. Nessun permesso di amministratore.</p>
+      <h3 id="comandi">Riga di comando</h3>
+      <table>
+        <thead><tr><th>Comando</th><th>Funzione</th></tr></thead>
+        <tbody>
+          <tr><td><code>testo FILE</code></td><td>Stampa il testo anonimizzato di un documento</td></tr>
+          <tr><td><code>copie PERCORSO [--uscita DIR]</code></td><td>Copie anonime di un file o di una cartella</td></tr>
+          <tr><td><code>pseudonimizza FILE|-</code></td><td>Testo, HL7, FHIR o CSV da file o stdin a stdout</td></tr>
+          <tr><td><code>immagine IN OUT.png</code></td><td>Screenshot o foto con i dati coperti</td></tr>
+          <tr><td><code>appunti</code> / <code>ripristina</code></td><td>Anonimizza gli appunti / rimette i dati reali</td></tr>
+          <tr><td><code>risultati CARTELLA</code></td><td>Riconduce ai dati reali i file prodotti</td></tr>
+          <tr><td><code>originale CODICE</code></td><td>Valore originale di un codice (es. PAZ-0147)</td></tr>
+          <tr><td><code>verifica CARTELLA</code></td><td>Controlla che nelle copie non resti alcun dato originale noto</td></tr>
+          <tr><td><code>impostazioni</code></td><td>Mostra o modifica le impostazioni</td></tr>
+          <tr><td><code>servizio</code> / <code>chiave</code></td><td>Servizio HTTP / nuova chiave di cifratura</td></tr>
+          <tr><td><code>mcp</code> / <code>collega CLIENT</code></td><td>Server MCP / collegamento a Claude Desktop o Claude Code</td></tr>
+          <tr><td><code>avvia</code> / <code>stato</code></td><td>Protegge la cartella e crea le copie (ciò che fa <code>/clin</code>) / mostra che cosa è attivo</td></tr>
+          <tr><td><code>escludi PERCORSO</code></td><td>Lascia fuori articoli e linee guida senza dati di pazienti</td></tr>
+          <tr><td><code>proteggi</code> / <code>attiva</code> / <code>disattiva</code></td><td>Protezione della cartella, senza creare le copie</td></tr>
+          <tr><td><code>ner installa</code> / <code>ner stato</code></td><td>Modello locale per i nomi (GLiNER)</td></tr>
+          <tr><td><code>installa</code> / <code>disinstalla</code></td><td>Skill e guardia negli agenti presenti / rimozione</td></tr>
+          <tr><td><code>dimentica</code></td><td>Cancella le tabelle di corrispondenza</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ===================================================== 9 -->
+    <section id="limiti">
+      <h2>Limiti e responsabilità</h2>
+      <ul>
+        <li>I dati pseudonimizzati restano dati personali (GDPR, considerando 26): servono comunque base giuridica, DPIA e, per i fornitori di IA, un accordo sul trattamento.</li>
+        <li><span class="clin">/Clin</span> riduce il rischio; non sostituisce la verifica di chi lo usa. Le pagine lette con l’OCR richiedono sempre un controllo visivo.</li>
+        <li>Il controllo in uscita del servizio confronta solo dati già visti da <span class="clin">/Clin</span>; i nomi mai incontrati si riconoscono dalle regole e dal modello locale.</li>
+        <li>Un nome presente nel nome di un file originale resta visibile negli elenchi della cartella; le copie hanno nomi già ripuliti.</li>
+        <li>Strumenti MCP di terze parti che leggono file non passano dalla guardia.</li>
+        <li>Uno strumento che segnala problemi sul singolo paziente può rientrare tra i dispositivi medici (MDR) e tra i sistemi ad alto rischio dell’AI Act: la valutazione regolatoria spetta a chi lo mette in uso.</li>
+      </ul>
+      <div class="callout lime"><b>Codice aperto.</b> Ogni regola descritta qui si può leggere e verificare nel <a href="https://github.com/clin-app/clin">repository</a>, con i test che la mettono alla prova.</div>
+    </section>
+
+    <p class="doc-foot"><span class="clin">/Clin</span> · Guida tecnica · Licenza AGPL-3.0 · <a href="./">Torna alla pagina principale</a></p>
+  </article>
+</div>
+
+<script>
+// indice costruito dai titoli: capitoli (h2 nelle sezioni) e paragrafi (h3 con id); evidenzia il capitolo in lettura
+(() => {
+  const toc = document.querySelector('.toc');
+  const secs = [...document.querySelectorAll('.doc-body section[id]')];
+  const list = document.createElement('ol');
+  secs.forEach((sec, i) => {
+    const h2 = sec.querySelector('h2');
+    h2.insertAdjacentHTML('afterbegin', `<span class="num">${String(i + 1).padStart(2, '0')}</span>`);
+    const li = document.createElement('li');
+    li.innerHTML = `<a href="#${sec.id}">${h2.lastChild.textContent.trim()}</a>`;
+    const subs = [...sec.querySelectorAll('h3[id]')];
+    if (subs.length) li.insertAdjacentHTML('beforeend', '<ol>' + subs.map(h => `<li><a href="#${h.id}">${h.textContent}</a></li>`).join('') + '</ol>');
+    list.appendChild(li);
+  });
+  toc.innerHTML = '<p>Indice</p>';
+  toc.appendChild(list);
+  const mobile = document.createElement('details');
+  mobile.innerHTML = '<summary>Indice della guida</summary>';
+  mobile.appendChild(list.cloneNode(true));
+  toc.appendChild(mobile);
+  mobile.addEventListener('click', e => { if (e.target.closest('a')) mobile.open = false; });
+  const links = new Map([...list.querySelectorAll(':scope > li > a')].map(a => [a.getAttribute('href').slice(1), a]));
+  let current = '';
+  const mark = () => {   // capitolo in lettura: l'ultimo il cui titolo ha superato un terzo dello schermo
+    const line = innerHeight / 3;
+    const sec = secs.filter(x => x.getBoundingClientRect().top <= line).pop() || secs[0];
+    if (sec.id === current) return;
+    current = sec.id;
+    links.forEach(a => a.classList.remove('on'));
+    links.get(sec.id)?.classList.add('on');
+  };
+  addEventListener('scroll', mark, { passive: true });
+  // aperta da «Approfondisci»: porta al capitolo (l'indice e' costruito dopo il caricamento)
+  const target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+  if (target) target.scrollIntoView({ behavior: 'instant', block: 'start' });
+  mark();
+})();
+</script>
+</body>
+</html>

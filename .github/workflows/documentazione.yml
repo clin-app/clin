@@ -1,0 +1,17 @@
+# A ogni push: la documentazione (sito, guida tecnica, guida per i server) segue ancora il codice?
+# Fallisce se un comando, un percorso dell'API, un ruolo dello schema, un formato o la versione non sono
+# descritti, o se un collegamento interno non porta da nessuna parte. Solo libreria standard.
+name: Documentazione allineata
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  documentazione:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest tests.test_documentazione -v
