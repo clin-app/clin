@@ -23,7 +23,18 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .hero::before { background: linear-gradient(90deg, rgba(8, 17, 11, .92) 0%, rgba(8, 17, 11, .55) 42%, rgba(8, 17, 11, 0) 72%); z-index: -1; }
 .hero-ascii { position: absolute; inset: 0; z-index: -2; pointer-events: none; }
 
-.hero-stage { width: min(560px, 100%); justify-self: end; }
+.hero-stage { position: relative; width: min(560px, 100%); justify-self: end; }
+.hero-stage .stage-card { position: relative; z-index: 1; }
+/* flusso di dati che entra nella scheda da sinistra (hero-stage.js) */
+.stage-stream { position: absolute; z-index: 2; top: 0; right: calc(100% - 26px); width: min(380px, 30vw); height: 100%; pointer-events: none; }
+@media (max-width: 1100px), (prefers-reduced-motion: reduce) { .stage-stream { display: none; } }
+/* sul computer il testo si stringe e lascia fra titolo e scheda la corsia del flusso */
+@media (min-width: 1101px) {
+  .hero-grid { grid-template-columns: minmax(0, 520px) minmax(0, 1fr); }
+  .hero h1 { font-size: clamp(44px, 4.4vw, 62px); }
+  .hero-stage { width: min(490px, 100%); }
+  .stage-stream { width: min(260px, 18vw); }
+}
 .stage-card { padding: 18px 18px 14px; }
 .stage-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-2); }
 .stage-file { font: 500 13px ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink); }
@@ -35,8 +46,8 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .stage-body { position: relative; min-height: 318px; padding: 16px 16px 12px; border-radius: 14px; background: var(--soft); overflow: hidden; transition: opacity .4s; }
 .stage-body.out { opacity: 0; }
 .stage-foot { margin: 10px 2px 0; font-size: 12px; color: var(--ink-3); }
-.stage-scan { position: absolute; left: 0; right: 0; top: 0; height: 64px; margin-top: -64px; opacity: 0; pointer-events: none;
-  background: linear-gradient(180deg, rgba(212, 240, 107, 0) 0%, rgba(212, 240, 107, .35) 100%); border-bottom: 2px solid var(--lime-2); transition: opacity .3s; }
+.stage-scan { position: absolute; top: 0; bottom: 0; left: 0; width: 72px; margin-left: -72px; opacity: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(212, 240, 107, 0) 0%, rgba(212, 240, 107, .4) 100%); border-right: 2px solid var(--lime-2); transition: opacity .3s; }
 .stage-scan.on { opacity: 1; }
 .pii { display: inline-block; padding: 0 5px; border-radius: 6px; background: rgba(16, 20, 17, .07); font: 500 .92em/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink); white-space: nowrap; transition: opacity .18s, background .25s; }
 .pii.flip { opacity: 0; }
@@ -387,10 +398,32 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .nav-more[open] .nav-more-ico { background: transparent; }
 .nav-more[open] .nav-more-ico::before { transform: translateY(5px) rotate(45deg); }
 .nav-more[open] .nav-more-ico::after { transform: translateY(-5px) rotate(-45deg); }
-.nav-menu { position: absolute; right: 0; top: calc(100% + 12px); width: 280px; max-height: calc(100vh - 110px); overflow-y: auto;
-  display: grid; gap: 2px; padding: 8px; border-radius: 22px; background: #fff; box-shadow: 0 16px 40px rgba(16,20,17,.16); }
-.nav-menu a { padding: 10px 14px; border-radius: 14px; font-size: 15px; color: var(--ink); text-decoration: none; }
-.nav-menu a:hover { background: var(--soft); }
+/* pannello: a sinistra una scheda scura con una figura in caratteri (ascii-fig.js), a destra le sezioni con icona */
+.nav-menu { position: absolute; right: 0; top: calc(100% + 12px); width: min(780px, calc(100vw - 32px)); max-height: calc(100vh - 110px); overflow-y: auto;
+  display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 10px; padding: 10px; border-radius: 26px; background: #fff; box-shadow: 0 24px 60px rgba(16,20,17,.22);
+  animation: nav-in .18s ease-out; }
+@keyframes nav-in { from { opacity: 0; transform: translateY(-6px); } }
+.nav-feature { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 18px; min-height: 380px; padding: 22px; border-radius: 18px; overflow: hidden;
+  background: linear-gradient(180deg, #070d09 0%, #0d1c12 45%, #1c3d27 78%, #3c7a4b 100%); color: #fff; text-decoration: none; isolation: isolate; }
+.nav-feature .ascii-fig { position: absolute; inset: 70px 0 60px; z-index: -1; width: 100%; height: calc(100% - 130px); }
+.nf-text { display: grid; gap: 6px; font-size: 14px; line-height: 1.45; color: rgba(255,255,255,.72); }
+.nf-text b { font-size: 21px; font-weight: 500; line-height: 1.15; letter-spacing: -.02em; color: #fff; }
+.nf-btn { align-self: flex-start; padding: 11px 18px; border-radius: 999px; background: #fff; font-size: 15px; font-weight: 500; color: var(--forest); transition: background .15s; }
+.nav-feature:hover .nf-btn { background: var(--lime); color: var(--ink); }
+.nav-list { display: grid; grid-template-columns: 1fr 1fr; align-content: start; gap: 2px; padding: 8px 4px; }
+.nav-list a { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; font-size: 15px; font-weight: 500; line-height: 1.25; color: var(--ink); text-decoration: none; }
+.nav-list a:hover { background: var(--soft); }
+.ni { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--ink-2); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.nav-list a:hover .ni { stroke: var(--forest-2); }
+@media (max-width: 760px) {
+  .nav-menu { grid-template-columns: 1fr; }
+  .nav-feature { min-height: 0; padding: 18px; flex-direction: row; align-items: flex-end; }
+  .nav-feature .ascii-fig { inset: 0 0 0 52%; width: 48%; height: 100%; }
+  .nf-text { max-width: 54%; }
+  .nf-btn { display: none; }
+  .nav-list { padding: 0; }
+  .nav-list a { padding: 9px 10px; font-size: 14px; gap: 10px; }
+}
 @media (min-width: 1101px) { .nav-more-txt { display: none; } .nav-more > summary { padding: 0 12px; } }
 @media (max-width: 1100px) { .nav-actions { margin-left: auto; } }
 @media (max-width: 600px) {
@@ -436,3 +469,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 @media (max-width: 900px) { .features.three { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .features.three { grid-template-columns: 1fr; } }
 .features + .note { margin-top: 40px; }
+
+/* figure in caratteri accanto ai titoli di sezione (ascii-fig.js) */
+.sec-fig { display: block; width: min(440px, 100%); height: 320px; margin-top: 28px; }
+@media (max-width: 880px) { .sec-fig { height: 190px; margin: 18px auto 0; } }
