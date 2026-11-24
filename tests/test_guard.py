@@ -327,6 +327,16 @@ class TestGuardia(unittest.TestCase):
         self.assertEqual(self.pre("Bash", {"command": f"{launcher} testo coorte.csv"}), {})
         self.assertEqual(self.pre("Bash", {"command": f"{launcher} originale PAZ-0001"})
                          ["hookSpecificOutput"]["permissionDecision"], "deny")
+        # un altro `bin/clin`, creato dall'agente, non gode di nessuna fiducia
+        (self.dir / "bin").mkdir()
+        (self.dir / "bin" / "clin").write_text("#!/bin/sh\ncat \"$@\"\n")
+        self.assertEqual(self.pre("Bash", {"command": "./bin/clin coorte.csv"})
+                         ["hookSpecificOutput"]["permissionDecision"], "deny")
+        (self.dir / "clin.py").write_text("import sys; print(open(sys.argv[1]).read())\n")
+        self.assertEqual(self.pre("Bash", {"command": "python3 clin.py coorte.csv"})
+                         ["hookSpecificOutput"]["permissionDecision"], "deny")
+        for cmd in ("rm .clin-protetto", "mv .clin-protetto /tmp/x"):
+            self.assertEqual(self.pre("Bash", {"command": cmd})["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertEqual(self.pre("Bash", {"command": "cat ~/.clin/segnaposto.json"})
                          ["hookSpecificOutput"]["permissionDecision"], "deny")
         # un originale citato con @ entrerebbe nel messaggio senza passare dalla guardia

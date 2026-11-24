@@ -34,12 +34,16 @@ ready() { [ -x "$VPY" ] && "$VPY" -c 'import fitz, openpyxl' 2>/dev/null; }
 
 setup() {
   ready && return 0
-  mkdir -p -m 700 "$DATA"
+  mkdir -p -m 700 "$DATA" 2>/dev/null || { say "cartella dei dati non scrivibile: $DATA"; return 1; }
   local lock="$DATA/.plugin-setup.lock" waited=0
-  until mkdir "$lock" 2>/dev/null; do        # un'altra sessione sta preparando l'ambiente
-    sleep 2; waited=$((waited + 2))
+  until mkdir "$lock" 2>/dev/null; do
+    # il blocco non c'e' e non si riesce a crearlo: la cartella non e' scrivibile, inutile aspettare
+    [ -d "$lock" ] || { say "cartella dei dati non scrivibile: $DATA"; return 1; }
+    sleep 2; waited=$((waited + 2))          # un'altra sessione sta preparando l'ambiente
     ready && return 0
-    if [ "$waited" -ge 600 ]; then rmdir "$lock" 2>/dev/null || true; fi
+    if [ "$waited" -ge 300 ]; then           # blocco rimasto da una sessione interrotta
+      rmdir "$lock" 2>/dev/null || { say "preparazione bloccata: eliminare $lock"; return 1; }
+    fi
   done
   trap 'rmdir "$lock" 2>/dev/null || true' EXIT
   ready && return 0
@@ -57,8 +61,9 @@ setup() {
 shim() {   # percorso stabile per la Skill: la cartella del plugin cambia a ogni aggiornamento
   mkdir -p -m 700 "$DATA/bin"
   local target="$DATA/bin/clin" body
+  # %q: il percorso del plugin viene scritto in forma sicura per la shell, qualunque carattere contenga
   body="#!/usr/bin/env bash
-exec \"$ROOT/bin/clin\" \"\$@\""
+exec $(printf '%q' "$ROOT/bin/clin") \"\$@\""
   if [ "$(cat "$target" 2>/dev/null)" != "$body" ]; then printf '%s\n' "$body" > "$target"; chmod 755 "$target"; fi
 }
 
@@ -70,7 +75,20 @@ case "${1:-}" in
     exit 0 ;;
   guardia)
     shift
-    setup || exit 0      # senza ambiente nessuna cartella puo' essere stata protetta: nulla da sorvegliare
+    if ! setup; then
+      # Senza ambiente la guardia non puo' lavorare. Se la cartella e' protetta si ferma tutto: un
+      # originale non deve passare perche' la guardia non parte. Altrove non c'e' nulla da sorvegliare.
+      dir="$PWD"
+      while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+        if [ -f "$dir/.clin-protetto" ]; then
+          [ "${1:-}" = "stop" ] && exit 0     # la fine della risposta non va mai bloccata
+          say "ambiente non disponibile in una cartella protetta: accesso negato. Eseguire  \"$ROOT/bin/clin\" stato"
+          exit 2
+        fi
+        dir="$(dirname "$dir")"
+      done
+      exit 0
+    fi
     exec "$VPY" "$ROOT/clin_guard.py" "$@" ;;
   *)
     setup

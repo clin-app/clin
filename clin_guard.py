@@ -185,6 +185,21 @@ def results_dir_for(cwd: str) -> Optional[Path]:
     return clin_settings.results_dir(root) if root else None
 
 
+def is_launcher(word: str, cwd: str = "") -> bool:
+    """Vero solo per i programmi di Clin: il lanciatore del plugin (nella cartella dati o in questa
+    cartella), clin.py e clin_guard.py di questa cartella. Un altro file con lo stesso nome non lo e':
+    chiunque potrebbe crearne uno che apre gli originali."""
+    import clin_settings
+    try:
+        p = Path(os.path.expandvars(os.path.expanduser(word.strip("'\""))))
+        p = (p if p.is_absolute() else Path(cwd or os.getcwd()) / p).resolve()
+        own = {(clin_settings.DATA_DIR.expanduser() / "bin" / "clin").resolve(), (HERE / "bin" / "clin").resolve(),
+               (HERE / "clin.py").resolve(), (HERE / "clin_guard.py").resolve()}
+        return p in own
+    except OSError:
+        return False
+
+
 def in_data_dir(path: Path) -> bool:
     """Vero per le tabelle locali di Clin (~/.clin), escluse le copie di lettura della guardia."""
     import clin
@@ -193,7 +208,7 @@ def in_data_dir(path: Path) -> bool:
         reads = READS_DIR.resolve()
         if resolved == reads or reads in resolved.parents:
             return False
-        if resolved.parent.name == "bin" and resolved.name == "clin":
+        if is_launcher(str(resolved)):
             return False   # lanciatore del plugin (~/.clin/bin/clin)
         data_dirs = {clin.MAP_DIR.expanduser().resolve()}
         import clin_settings
@@ -400,10 +415,10 @@ def risky_paths(command: str, cwd: str) -> List[str]:
         name = Path(words[0]).name
         if name in _SAFE_CMDS and not ({"-exec", "-execdir", "-ok"} & set(words)):
             continue
-        if name.startswith("python") and len(words) > 1 and Path(words[1]).name in {"clin.py", "clin_guard.py"}:
-            continue
-        if name == "clin" and Path(words[0]).parent.name == "bin":
-            continue   # lanciatore del plugin: e' Clin che apre i documenti, in modo anonimo
+        if name.startswith("python") and len(words) > 1 and is_launcher(words[1], cwd):
+            continue   # clin.py di questa installazione: e' Clin che apre i documenti, in modo anonimo
+        if name == "clin" and is_launcher(words[0], cwd):
+            continue   # lanciatore del plugin
         if name in _SEARCH_CMDS:
             found.extend(_risky_search(words, cwd))
         seg = " ".join(words)
@@ -440,11 +455,14 @@ def bash_reason(command: str, cwd: str) -> str:
         return RESULTS_DENIED
     if "segnaposto.json" in command or "pseudonimi.json" in command:
         return DATA_DENIED
+    if MARKER in command:   # togliere o spostare il segno della protezione la spegnerebbe in silenzio
+        return ("Clin: la protezione della cartella si disattiva solo con `clin.py disattiva` "
+                "(/clin off), su richiesta dell'utente.")
     for words in _segments(command):
         # i comandi di Clin che mostrano dati reali o cambiano la protezione li esegue solo l'utente
         for i, w in enumerate(words[:-1]):
             w0 = Path(w.strip("'\""))
-            if w0.name == "clin.py" or (i == 0 and w0.name == "clin" and w0.parent.name == "bin"):
+            if w0.name == "clin.py" or (i == 0 and w0.name == "clin" and is_launcher(w, cwd)):
                 sub, rest = words[i + 1], words[i + 2:]
                 if sub in _USER_ONLY or (sub == "impostazioni" and len(rest) >= 2):
                     return (f"Clin: `clin.py {sub}` mostra dati reali o cambia la protezione: puo' eseguirlo "
