@@ -1,0 +1,58 @@
+# Ripubblica release esistenti con gli stessi file, note e tag, ma create dall'utente automatico di GitHub
+# invece che da un account personale. Si avvia a mano da Actions indicando i tag (separati da spazi).
+# Per ogni release: scarica gli allegati e ne verifica le dimensioni, la cancella (il tag resta) e la ricrea.
+# Le release gia' create dal flusso vengono saltate; nessuna diventa "Latest".
+name: Ripubblica release
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Tag delle release da ripubblicare, separati da spazi"
+        required: true
+permissions:
+  contents: write
+concurrency: release
+jobs:
+  ripubblica:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAGS: ${{ inputs.tags }}
+    steps:
+      - run: |
+          set -euo pipefail
+          for tag in $TAGS; do
+            echo "::group::$tag"
+            d="$RUNNER_TEMP/ripubblica/$tag"; mkdir -p "$d"
+            gh release view "$tag" --json name,body,isDraft,isPrerelease,assets,author > "$d/info.json"
+            if [ "$(jq -r .author.login "$d/info.json")" = "github-actions[bot]" ]; then
+              echo "$tag: gia' creata dal flusso"; echo "::endgroup::"; continue
+            fi
+            gh release download "$tag" -D "$d/a"
+            # prima di cancellare: ogni allegato scaricato per intero
+            while read -r name size; do
+              got=$(stat -c%s "$d/a/$name")
+              [ "$got" = "$size" ] || { echo "$tag/$name: $got byte invece di $size"; exit 1; }
+            done < <(jq -r '.assets[] | "\(.name) \(.size)"' "$d/info.json")
+            jq -r .body "$d/info.json" > "$d/body.md"
+            flags=(--title "$(jq -r .name "$d/info.json")" --notes-file "$d/body.md" --latest=false)
+            if [ "$(jq -r .isDraft "$d/info.json")" = true ]; then flags+=(--draft); else flags+=(--verify-tag); fi
+            if [ "$(jq -r .isPrerelease "$d/info.json")" = true ]; then flags+=(--prerelease); fi
+            gh release delete "$tag" --yes
+            ok=0
+            for i in 1 2 3; do
+              if gh release create "$tag" "$d"/a/* "${flags[@]}"; then ok=1; break; fi
+              sleep 15
+            done
+            [ "$ok" = 1 ] || { echo "$tag: ricreazione non riuscita"; exit 1; }
+            rm -rf "$d"
+            echo "::endgroup::"
+          done
+      - name: In caso di errore conserva i file scaricati
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-scaricate
+          path: ${{ runner.temp }}/ripubblica
+          retention-days: 30
