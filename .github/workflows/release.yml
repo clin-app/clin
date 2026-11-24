@@ -1,0 +1,43 @@
+# Release dell'estensione: quando cambia "version" in extension/manifest.json, GitHub compila l'estensione
+# (completa e per il Chrome Web Store) e pubblica la release vX.Y.Z. La crea l'utente automatico di GitHub,
+# non un account personale. Si puo' anche avviare a mano da Actions; se la release esiste gia' si limita a compilare.
+name: Release dell'estensione
+on:
+  push:
+    branches: [main]
+    paths: [extension/manifest.json]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: release
+jobs:
+  release:
+    runs-on: macos-latest          # sips per le icone, come in locale
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Modello GLiNER (release modello-gliner-v1, impronte verificate)
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/gliner-onnx"
+          mkdir -p "$d"
+          base=https://github.com/clin-app/clin/releases/download/modello-gliner-v1
+          for f in model.onnx tokenizer.json tokenizer_config.json gliner_config.json; do
+            curl -fsSL --retry 3 -o "$d/$f" "$base/$f"
+          done
+          cd "$d"
+          shasum -a 256 -c <<'EOF'
+          559ae3e5c5303b008796a4543b315a66812c9458f4c8196bc91de291c2db716e  model.onnx
+          c5b8041501fcdee792b9b112dd592861f04391a24633a73fd9f05aaaf6e8eff1  tokenizer.json
+          c12b7b3bab6cd638f70b203daf1438bf7fedbeab4728a1e155728af9a5a55687  tokenizer_config.json
+          5e77904c4332c4477097c726b8f9dd7029c351e1ed010da0253be524f046c09b  gliner_config.json
+          EOF
+          echo "CLIN_MODELLO_ONNX=$d" >> "$GITHUB_ENV"
+      - name: Compila e pubblica
+        run: python tools/pubblica.py
+        env:
+          GH_TOKEN: ${{ github.token }}

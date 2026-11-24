@@ -1,8 +1,11 @@
 """
 Pubblicazione completa di Clin dall'unico repository clin-app/clin.
 
-    python3 tools/pubblica.py            # compila, aggiorna docs/app e crea la release
-    python3 tools/pubblica.py --solo-build
+    python3 tools/pubblica.py            # compila e aggiorna docs/app (in locale)
+
+La release non si crea dal computer: la pubblica il flusso .github/workflows/release.yml quando su main cambia
+"version" in extension/manifest.json, cosi' risulta creata dall'utente automatico di GitHub e non da un
+account personale. In locale lo script compila soltanto (come con --solo-build).
 
 Cosa fa:
 1. compila l'app web (web/build.py) e la copia in docs/app/, servita da GitHub Pages
@@ -22,6 +25,7 @@ Il modello GLiNER ONNX va esportato una volta in ~/.clin/modelli/gliner-onnx
 con tools/export_gliner_onnx.py.
 """
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -65,7 +69,8 @@ def main():
 
     for f in sorted(OUT.glob("*.zip")):
         print(f"  {f.name}: {f.stat().st_size / 1e6:.1f} MB")
-    if "--solo-build" in sys.argv:
+    if "--solo-build" in sys.argv or not os.environ.get("GITHUB_ACTIONS"):
+        print("Release: la crea il flusso di GitHub dopo il push di una nuova \"version\" in extension/manifest.json.")
         return
 
     # 4. release su GitHub (solo se la versione e' nuova)
