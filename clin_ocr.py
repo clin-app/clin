@@ -71,11 +71,63 @@ def ocr_suspects(text: str) -> List[str]:
     return out
 
 
-def ocr_words(page: "fitz.Page") -> List[tuple]:
-    """Parole lette dall'OCR, nello stesso formato di page.get_text('words')."""
+_WORDLIKE = re.compile(r"[A-Za-zÀ-ÿ]{3,}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}|\d{3,}")
+_VOWELS = set("aeiouàèéìòùAEIOUÀÈÉÌÒÙ")
+
+
+def legibility(words: Sequence[tuple]) -> int:
+    """Caratteri in parole plausibili: alte nella lettura giusta, basse nei frammenti di un testo ruotato."""
+    score = 0
+    for w in words:
+        tok = w[4].strip(".,;:()[]«»\"'")
+        if _WORDLIKE.fullmatch(tok) and (not tok[0].isalpha() or 0.2 <= sum(c in _VOWELS for c in tok) / len(tok) <= 0.75):
+            score += len(tok)
+    return score
+
+
+def _read(page: "fitz.Page") -> List[tuple]:
     tp = page.get_textpage_ocr(language=LANGUAGE, dpi=OCR_DPI, full=True,
                                tessdata=str(tessdata_dir()))
     return page.get_text("words", textpage=tp, sort=True)
+
+
+def _read_rotated(page: "fitz.Page", deg: int) -> List[tuple]:
+    """Legge la pagina ruotata di `deg` gradi; i riquadri tornano nelle coordinate della pagina originale."""
+    zoom = OCR_DPI / 72
+    m = fitz.Matrix(zoom, zoom).prerotate(deg)
+    pix = page.get_pixmap(matrix=m)
+    tl = (page.rect * m).irect.top_left          # i pixel partono dall'angolo del riquadro ruotato
+    tmp = fitz.open()
+    try:
+        tp = tmp.new_page(width=pix.width / zoom, height=pix.height / zoom)
+        tp.insert_image(tp.rect, pixmap=pix)
+        inv = ~m
+        out = []
+        for w in _read(tp):
+            r = fitz.Rect(w[0] * zoom + tl.x, w[1] * zoom + tl.y, w[2] * zoom + tl.x, w[3] * zoom + tl.y) * inv
+            out.append((r.x0, r.y0, r.x1, r.y1, *w[4:]))
+        return out
+    finally:
+        tmp.close()
+
+
+def ocr_words(page: "fitz.Page") -> List[tuple]:
+    """Parole lette dall'OCR, nello stesso formato di page.get_text('words').
+
+    Una foto o una scansione girata di lato, letta cosi' com'e', da' frammenti senza senso e i dati
+    personali restano scoperti: se la lettura e' povera si provano le altre rotazioni e si tiene la
+    piu' leggibile (con un margine, nel dubbio resta la lettura diritta)."""
+    words = _read(page)
+    best, best_score = words, legibility(words)
+    chars = sum(len(w[4]) for w in words)
+    if chars and best_score >= 0.6 * chars:
+        return words
+    for deg in (90, 270, 180):
+        alt = _read_rotated(page, deg)
+        s = legibility(alt)
+        if s > best_score * 1.25 + 5:
+            best, best_score = alt, s
+    return best
 
 
 def open_as_pdf(path: Path) -> "fitz.Document":

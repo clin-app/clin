@@ -187,11 +187,14 @@ DOB_PATTERNS = [
 ]
 
 # luogo di nascita dopo la data, anche separato da piu' spazi (moduli e PDF a colonne):
-# "Nato il 03/05/2014    a  MONTEROTONDO", "nata il 3/5/2014 a Castel San Pietro Terme (BO)"
+# "Nato il 03/05/2014    a  MONTEROTONDO", "nata il 3/5/2014 a Castel San Pietro Terme (BO)",
+# "nato il 16/12/1996\n(atto n. 1608 P. I S. A)\na ........ San Giovanni Rotondo ( FG )"
 _PLACE_WORD = r"[" + _UP + r"][" + _LETTER + r"'’\-]+"
 _PLACE_LINK = r"(?:di|del|della|dei|delle|in|sul|sulla|al|DI|DEL|DELLA|DEI|DELLE|IN|SUL|SULLA|AL)"
 DOB_PATTERNS.append(
-    r'(?i)\b(?:Nat[oa](?:\/a)?|Nascit[oa])[ \t]+(?:il[ \t]+)?\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}[ \t]+a[ \t]+'
+    # carta d'identita': il luogo sta spesso sulla riga sotto, dopo "(atto n. ...)" e una fila di puntini
+    r'(?i)\b(?:Nat[oa](?:\/a)?|Nascit[oa])[ \t.]+(?:il[ \t.]+)?\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}'
+    r'(?:[ \t]*\n?[ \t]*\(?atto\b[^\n]{0,40})?(?:[ \t]*\n)?[ \t]*a[ \t.…]+'
     r'(?P<v>(?-i:' + _PLACE_WORD + r'(?:[ \t]+(?:' + _PLACE_LINK + r'[ \t]+)?' + _PLACE_WORD + r'){0,4}))'
 )
 
