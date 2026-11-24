@@ -81,6 +81,7 @@ def main() -> int:
             pass
     if parent and old and git("rev-parse", f"{parent}^{{tree}}") == tree_for(old):
         print(f"Ramo {BRANCH} gia' aggiornato (versione {old}).")
+        return 0   # niente da inviare (nel flusso di GitHub il ramo esiste solo come origin/plugin)
     else:
         # versione nuova: quella dell'estensione (maggiore.minore) e il numero di commit di main
         base = json.loads((ROOT / "extension" / "manifest.json").read_text(encoding="utf-8"))["version"].split(".")
