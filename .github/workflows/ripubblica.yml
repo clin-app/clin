@@ -35,7 +35,7 @@ jobs:
               got=$(stat -c%s "$d/a/$name")
               [ "$got" = "$size" ] || { echo "$tag/$name: $got byte invece di $size"; exit 1; }
             done < <(jq -r '.assets[] | "\(.name) \(.size)"' "$d/info.json")
-            jq -r .body "$d/info.json" > "$d/body.md"
+            jq -j .body "$d/info.json" > "$d/body.md"
             flags=(--title "$(jq -r .name "$d/info.json")" --notes-file "$d/body.md" --latest=false)
             if [ "$(jq -r .isDraft "$d/info.json")" = true ]; then flags+=(--draft); else flags+=(--verify-tag); fi
             if [ "$(jq -r .isPrerelease "$d/info.json")" = true ]; then flags+=(--prerelease); fi
