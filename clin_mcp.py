@@ -19,7 +19,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from clin_text import DEFAULT_LEVEL, SUPPORTED_SUFFIXES, anonymize_file, check_path
 
@@ -146,7 +146,7 @@ def _documents(target: Path) -> Dict[Path, List[Path]]:
     return groups
 
 
-def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
+def tool_crea_copie_anonime(args: Dict[str, Any], uscita: Optional[Path] = None) -> str:
     import hashlib
     from anonymize_engine import BatchResult, process_batch_files
     from clin_text import _is_forbidden_path
@@ -163,13 +163,19 @@ def tool_crea_copie_anonime(args: Dict[str, Any]) -> str:
     else:
         base, groups = target.parent, {target.parent: [check_path(target, roots)]}
     out_dir = base / "Clin_anonimizzati"
+    if uscita is not None:   # solo da riga di comando (server): l'agente via MCP non sceglie dove scrivere
+        out_dir = Path(uscita).expanduser().resolve()
+        if not any(out_dir.is_relative_to(r.expanduser().resolve()) for r in roots):
+            raise ValueError("La cartella delle copie e' fuori da quelle autorizzate per Clin.")
     total = sum(len(f) for f in groups.values())
     from tabular_engine import _PseudonymBook
     level = DEFAULT_LEVEL
     # stesso paziente, stesso pseudonimo in tutti i file e in tutte le sessioni
     import clin_settings
-    book_path = clin_settings.DATA_DIR / "pseudonimi.json"
+    book_path = clin_settings.book_path()
     book = _PseudonymBook.load(book_path)
+    import clin_text
+    clin_text.use_book(book)   # testi e fogli: un solo codice per paziente
     # note e recapiti nei fogli: segnaposto ripristinabili, nella stessa tabella dei testi
     import clin
     from clin_text import _Registry

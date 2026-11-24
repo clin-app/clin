@@ -460,6 +460,21 @@ limitarlo ulteriormente: variabile d'ambiente `CLIN_CARTELLE`
 
 ---
 
+## Agenti su server (sorveglianza, audit, ricerca)
+
+Per un agente che lavora da solo su dati ospedalieri, con la Messages API o con i Claude Managed Agents,
+Clin gira come servizio nella rete dell'ospedale (`clin servizio`, immagine Docker in `deploy/`):
+
+- lo stesso paziente ha lo stesso codice (`PAZ-0001`) in referti, export CSV/Excel, messaggi HL7 v2 e risorse FHIR;
+- lo schema delle colonne (`clin-colonne.json`) dichiara una volta il ruolo di ogni colonna degli export,
+  con `"*": "elimina"` per far uscire solo cio' che serve;
+- due chiavi d'accesso: l'agente pseudonimizza e verifica, solo il servizio delle notifiche riconduce ai dati reali;
+- ogni uscita verso l'agente viene riletta e bloccata se contiene un dato originale noto; la memoria
+  dell'agente accetta solo regole senza dati di pazienti;
+- tabelle cifrate (`CLIN_CHIAVE`), registro delle operazioni senza dati personali, `clin verifica` sulle copie.
+
+Guida completa, API ed esempi di strumenti per il worker: [deploy/README.md](deploy/README.md).
+
 ## Cosa viene riconosciuto
 
 Non c'è una scala di sensibilità: per impostazione predefinita Clin rimuove

@@ -85,10 +85,32 @@ def legibility(words: Sequence[tuple]) -> int:
     return score
 
 
+def visual_lines(words: Sequence[tuple]) -> List[tuple]:
+    """Riassegna blocco e riga in base alla posizione: parole alla stessa altezza = stessa riga, da sinistra
+    a destra. Tesseract su moduli e documenti d'identita' (etichetta a sinistra, valore a destra) mette spesso
+    ogni parola in un blocco a se': «Via» «Garibaldi» «12» su tre righe, e un indirizzo non si riconosce piu'."""
+    rows: List[List[tuple]] = []
+    for w in sorted(words, key=lambda w: (w[1] + w[3]) / 2):
+        mid, h = (w[1] + w[3]) / 2, max(1.0, w[3] - w[1])
+        if rows:
+            last = rows[-1]
+            lmid = sum((x[1] + x[3]) / 2 for x in last) / len(last)
+            lh = sum(x[3] - x[1] for x in last) / len(last)
+            if abs(mid - lmid) <= 0.5 * max(h, lh):
+                last.append(w)
+                continue
+        rows.append([w])
+    out = []
+    for n, row in enumerate(rows):
+        for k, w in enumerate(sorted(row, key=lambda w: w[0])):
+            out.append((w[0], w[1], w[2], w[3], w[4], 0, n, k))
+    return out
+
+
 def _read(page: "fitz.Page") -> List[tuple]:
     tp = page.get_textpage_ocr(language=LANGUAGE, dpi=OCR_DPI, full=True,
                                tessdata=str(tessdata_dir()))
-    return page.get_text("words", textpage=tp, sort=True)
+    return visual_lines(page.get_text("words", textpage=tp, sort=True))
 
 
 def _read_rotated(page: "fitz.Page", deg: int) -> List[tuple]:

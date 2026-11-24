@@ -1,0 +1,49 @@
+# Clin accanto a un agente (Messages API o worker self-hosted dei Managed Agents), nella rete dell'ospedale.
+#
+#   export_raw  : export del gestionale (CSV, HL7, PDF). Montato SOLO in clin, in sola lettura.
+#   dati_clin   : tabelle di corrispondenza e registro. Montato SOLO in clin.
+#   dati_anon   : copie pseudonimizzate prodotte da clin (da un job, vedi README). L'agente le legge, mai i dati grezzi.
+#
+# Le chiavi stanno in un file .env fuori dal repository (permessi 600):
+#   CLIN_TOKEN_AGENTE, CLIN_TOKEN_RIPRISTINO, CLIN_CHIAVE
+# L'agente riceve solo CLIN_TOKEN_AGENTE: puo' pseudonimizzare e controllare, non risalire ai dati reali.
+services:
+  clin:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment:
+      CLIN_TOKEN_AGENTE: ${CLIN_TOKEN_AGENTE:?manca}
+      CLIN_TOKEN_RIPRISTINO: ${CLIN_TOKEN_RIPRISTINO:?manca}
+      CLIN_CHIAVE: ${CLIN_CHIAVE:?manca}
+      CLIN_CARTELLE: /export_raw:/dati_anon
+    volumes:
+      - dati_clin:/dati_clin
+      - ${EXPORT_RAW:?percorso degli export}:/export_raw:ro
+      - dati_anon:/dati_anon
+    networks: [interna]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  agente:
+    # il vostro worker: ciclo dell'agente (Messages API) o EnvironmentWorker dei Managed Agents
+    image: ${IMMAGINE_AGENTE:?immagine del worker}
+    environment:
+      CLIN_URL: http://clin:8765
+      CLIN_TOKEN: ${CLIN_TOKEN_AGENTE}
+    volumes:
+      - dati_anon:/dati_anon:ro          # solo le copie pseudonimizzate, in sola lettura
+    networks: [interna, uscita]         # "uscita": solo verso l'API del modello (proxy/firewall dell'ospedale)
+    depends_on: [clin]
+
+volumes:
+  dati_clin:
+  dati_anon:
+
+networks:
+  interna:
+    internal: true                      # clin non ha accesso a internet
+  uscita: {}

@@ -345,6 +345,10 @@ class TestGuardiaSicurezza(unittest.TestCase):
 
 
 class TestNominativiETabelle(unittest.TestCase):
+    def setUp(self):
+        import anonymize_engine   # segnaposto dell'app (non i codici degli agenti), qualunque test sia girato prima
+        anonymize_engine.DATE_SHIFT = None
+
     def test_particelle_apostrofi_e_cognome_virgola_nome(self):
         casi = [
             ("Paziente: Lo Iacono Salvatore. Iacono riferisce febbre.", ("Lo Iacono", "Iacono", "Salvatore")),

@@ -48,3 +48,22 @@ export function boxBack(bbox, back) {
   const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
+
+// parole della lettura raggruppate in righe visive (stessa altezza, da sinistra a destra), nel verso di
+// lettura scelto. Tesseract su moduli e documenti d'identita' mette spesso etichetta e valore, o le parole
+// di un indirizzo, in blocchi diversi: un indirizzo spezzato su tre righe non si riconosce piu'.
+export function visualLines(data) {
+  const words = data.words || (data.blocks || []).flatMap((b) => b.paragraphs.flatMap((p) => p.lines.flatMap((l) => l.words)));
+  const rows = [];
+  for (const w of [...words].sort((a, b) => (a.bbox.y0 + a.bbox.y1) - (b.bbox.y0 + b.bbox.y1))) {
+    const mid = (w.bbox.y0 + w.bbox.y1) / 2, h = Math.max(1, w.bbox.y1 - w.bbox.y0);
+    const last = rows[rows.length - 1];
+    if (last) {
+      const lmid = last.reduce((s, x) => s + (x.bbox.y0 + x.bbox.y1) / 2, 0) / last.length;
+      const lh = last.reduce((s, x) => s + x.bbox.y1 - x.bbox.y0, 0) / last.length;
+      if (Math.abs(mid - lmid) <= 0.5 * Math.max(h, lh)) { last.push(w); continue; }
+    }
+    rows.push([w]);
+  }
+  return rows.map((r) => r.sort((a, b) => a.bbox.x0 - b.bbox.x0));
+}

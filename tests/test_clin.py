@@ -351,7 +351,8 @@ class TestServerMcp(unittest.TestCase):
         out = replies[3]["result"]["content"][0]["text"]
         self.assertNotIn("ROSSI", out)
         self.assertNotIn("RSSMRA", out)
-        self.assertIn("[PAZIENTE_1]", out)
+        self.assertIn("PAZ-0001", out)   # agenti: lo stesso codice dei fogli di calcolo
+        self.assertIn("ID-0001", out)
         self.assertTrue(replies[4]["result"]["isError"])
 
 

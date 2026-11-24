@@ -2,7 +2,7 @@
 // OCR (Tesseract.js) e lettura PDF (pdf.js) sono ospitati insieme all'app.
 
 import { chiediDonazione } from "./dona.js";
-import { readOriented, boxBack } from "./ocr-orient.js";
+import { readOriented, boxBack, visualLines } from "./ocr-orient.js";
 
 const $ = (id) => document.getElementById(id);
 const MAP_KEY = "clin.map";
@@ -246,21 +246,17 @@ async function ocrImage(file) {
   // Testo ricostruito riga per riga, con la posizione (in code-point Unicode) di ogni parola.
   const words = [];
   let text = "", cp = 0;
-  for (const block of data.blocks || []) {
-    for (const para of block.paragraphs || []) {
-      for (const line of para.lines || []) {
-        line.words.forEach((w, i) => {
-          if (i > 0) { text += " "; cp += 1; }
-          const wLen = Array.from(w.text).length;
-          const [x0, y0, x1, y1] = boxBack(w.bbox, back);
-          words.push({ start: cp, end: cp + wLen, bbox: { x0, y0, x1, y1 } });
-          text += w.text;
-          cp += wLen;
-        });
-        text += "\n";
-        cp += 1;
-      }
-    }
+  for (const line of visualLines(data)) {   // righe visive: etichetta e valore restano insieme
+    line.forEach((w, i) => {
+      if (i > 0) { text += " "; cp += 1; }
+      const wLen = Array.from(w.text).length;
+      const [x0, y0, x1, y1] = boxBack(w.bbox, back);
+      words.push({ start: cp, end: cp + wLen, bbox: { x0, y0, x1, y1 } });
+      text += w.text;
+      cp += wLen;
+    });
+    text += "\n";
+    cp += 1;
   }
 
   const spans = JSON.parse(py.spans(text, level(), JSON.stringify(loadMap())));

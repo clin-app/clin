@@ -242,7 +242,8 @@ CONTACT_PATTERNS = [
     r'(?i)\b(?:residente|domiciliat[oa]|abitante|vive|nat[oa])[ \t]+(?:a|ad|in)[ \t]+(?P<v>(?-i:[A-ZÀ-Ö][a-zà-öø-ÿ\']+(?:[ \t]+[A-ZÀ-Ö][a-zà-öø-ÿ\']+){0,2}))',
     # telefoni senza etichetta (cellulari, fissi, internazionali)
     r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?3\d{2}(?:[ \t.\-/]?\d){6,7}(?!\d|[.,]\d)',
-    r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?0\d{1,3}[ \t.\-/]\d{2,4}(?:[ \t.\-]?\d{2,5}){0,2}(?!\d|[.,/]\d)',
+    # almeno 6 cifre: "dal 01/11" e' una data, non un numero fisso
+    r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?(?=(?:[ \t.\-/]?\d){6})0\d{1,3}[ \t.\-/]\d{2,4}(?:[ \t.\-]?\d{2,5}){0,2}(?!\d|[.,/]\d)',
     r'(?<![\d,./])(?:(?:\+|00)39[ \t.\-]?)?0\d{8,9}(?!\d|[.,]\d)',  # compatto: 9-10 cifre (P.IVA ne ha 11)
     r'(?<![\w+])\+(?!39)\d{1,3}[ \t.\-]?\(?\d{1,4}\)?(?:[ \t.\-]?\d{2,4}){2,4}\b',
 ]
@@ -377,6 +378,10 @@ DATE_PATTERNS = [
     r'(?i)\b\d{1,2}(?:er|st|nd|rd|th|º|\.)?\s+(?:de\s+)?' + _MONTHS_EU + r'\.?\s+(?:de\s+)?(?:19|20)\d{2}\b',
     r'(?i)\b' + _MONTHS_EU + r'\s+(?:de\s+)?(?:19|20)\d{2}\b',          # "März 2024", "mayo de 2024"
     r'\b(?:19|20)\d{2}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\b',  # data ISO
+    # giorno e mese senza anno, con una parola che la introduce: "dal 01/11", "fino al 7/12";
+    # non le frazioni di dose ("il 1/2 cp")
+    r'(?i)\b(?:dal|dall\'|al|del|il|fino\s+al|entro\s+il|in\s+data|data)\s+(?P<v>(?:0?[1-9]|[12]\d|3[01])[/.\-](?:0?[1-9]|1[0-2]))'
+    r'(?![\d/.\-]|,\d)(?!\s*(?:cp|cpr|compress\w*|fl|fiale?|dose|della|delle|di|del)\b)',
 ]
 
 # Categoria -> livello minimo di sensibilita' che la attiva.
@@ -485,6 +490,11 @@ _multilingual_rules()
 # Identificativi in forma di codice: lettere, separatori e almeno 5 cifre di seguito
 # ("KH-23-869672-G", "SDO/2023/176329", "N.2023/298603-A", "NOS24/531196", "MRN-2023-90385A").
 # I codici ICD ("C18.9", "G20") e i dosaggi non hanno 5 cifre consecutive.
+# posto letto: con reparto e data identifica il paziente; nei fogli e' gia' un identificativo clinico (IDC)
+RECORD_PATTERNS.append(
+    r'(?i)\b(?:posto\s+letto|letto|p\.\s?l\.)\s*(?:n\.?|nr\.?|n[°º])?\s*(?P<v>\d{1,3}[A-Za-z]?)\b'
+    r'(?!\s*(?:giorni|gg|ore|h|ml|mg|kg|%|volte))'
+)
 RECORD_PATTERNS.append(
     r'(?<![\w./\-])[A-Z]{1,5}(?:[.\-/]|(?=\d))(?:\d{2,4}[.\-/])?\d{5,8}[A-Z]?(?:[.\-/][A-Z0-9]{1,2})?(?![\w/])'
 )
@@ -788,9 +798,13 @@ class _PageIndex:
         return buf[0].start, buf[-1].end, rect, self.text[buf[0].start:buf[-1].end]
 
 
+_CLIN_CODE_RX = re.compile(r"\b(?:PAZ|ID|IDC|MED|OPE|PER|DOC|STR)-\d{4,}\b|\[[A-Z_]+_\d+\]")
+
+
 def _protected_spans(text: str, whitelist: Sequence[str]) -> List[Tuple[int, int]]:
     """Intervalli di caratteri da non oscurare mai (whitelist)."""
-    spans: List[Tuple[int, int]] = []
+    # codici e segnaposto di Clin: un documento gia' pseudonimizzato ripassato resta identico
+    spans: List[Tuple[int, int]] = [m.span() for m in _CLIN_CODE_RX.finditer(text)]
     for term in whitelist:
         term = term.strip()
         if not term:

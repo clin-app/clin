@@ -26,6 +26,7 @@ FILES = [
     "integrations/claude-code/clin/SKILL.md", "LICENSE",
     "anonymize_engine.py", "clin.py", "clin_guard.py", "clin_lingue.py", "clin_llm.py", "clin_mcp.py",
     "clin_ner.py", "clin_ocr.py", "clin_results.py", "clin_settings.py", "clin_text.py", "tabular_engine.py",
+    "clin_api.py", "clin_sanitario.py",
 ]
 README = "integrations/claude-code/PLUGIN.md"   # diventa il README del ramo
 LIMIT = 256 * 1024                              # oltre, il catalogo trattiene il plugin per revisione

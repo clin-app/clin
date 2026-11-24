@@ -292,6 +292,8 @@ class _PseudonymBook:
         self.originals: Dict[str, str] = originals or {}  # codice -> valore com'era scritto
 
     def get(self, sheet: str, col: int, prefix: str, value: str) -> str:
+        if re.fullmatch(r"(?:PAZ|ID|IDC|MED|OPE|PER|DOC|STR)-\d{4,}", value.strip()):
+            return value.strip()   # gia' un codice di Clin (copia ripassata): resta lo stesso, non uno nuovo
         table = self._maps.setdefault(prefix, {})
         key = " ".join(value.split()).casefold()
         if prefix == "PAZ":
@@ -305,11 +307,32 @@ class _PseudonymBook:
     def count(self) -> int:
         return sum(len(t) for t in self._maps.values())
 
+    def merge(self, other: "_PseudonymBook") -> None:
+        """Aggiunge i codici di un'altra copia della tabella (scritta da un altro processo). Se lo stesso codice
+        e' stato dato a due valori diversi vince quello gia' su disco, e il conflitto viene segnalato."""
+        import sys
+        for prefix, table in other._maps.items():
+            mine = self._maps.setdefault(prefix, {})
+            used = {code: key for key, code in mine.items()}
+            for key, code in table.items():
+                if key in mine:
+                    continue
+                if code in used and used[code] != key:
+                    print(f"Clin: codice {code} assegnato in parallelo a due valori diversi; "
+                          "si mantiene quello gia' salvato.", file=sys.stderr)
+                    mine.pop(used[code], None)
+                mine[key] = code
+        for code, original in other.originals.items():
+            self.originals[code] = original
+
     @classmethod
     def load(cls, path: Path) -> "_PseudonymBook":
         import json
         try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            import clin_settings
+            data = json.loads(clin_settings.read_private(Path(path)))
+        except ImportError:   # app web: nessuna tabella su disco
+            return cls()
         except (OSError, ValueError):
             return cls()
         if "codici" in data:
@@ -319,15 +342,9 @@ class _PseudonymBook:
     def save(self, path: Path) -> None:
         """Scrive la tabella (contiene i valori originali): permessi 600."""
         import json
-        import os
-        path = Path(path)
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(path.parent, 0o700)
-        tmp = path.with_suffix(".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump({"codici": self._maps, "originali": self.originals}, fh, ensure_ascii=False)
-        os.replace(tmp, path)
+        import clin_settings
+        clin_settings.write_private(Path(path), json.dumps({"codici": self._maps, "originali": self.originals},
+                                                           ensure_ascii=False))
 
 
 # prefisso per tipo di dato: "Paziente", "Cognome e nome", "Nominativo" -> PAZ
@@ -399,7 +416,9 @@ _HEADER_RULES: List[Tuple[re.Pattern, str, str]] = [
      MODE_PSEUDO, "ID ufficiali"),
     (re.compile(r"(?:data (?:di )?nascita|data nasc|nascita|dob|date of birth|birth ?date|luogo (?:e data )?(?:di )?nascita|luogo nascita|comune (?:di )?nascita)"),
      MODE_ALL, "Data di nascita"),
-    (re.compile(r"(?:tel(?:efono)?|cell(?:ulare)?|phone|mobile|e ?mail|pec|indirizzo|residenza|domicilio|via|address|cap|iban)(?: \w+)?"
+    (re.compile(r"(?:tel(?:efono)?|cell(?:ulare)?|phone|mobile|e ?mail|pec|indirizzo|residenza|domicilio|address|cap|iban)(?: \w+)?"
+                # "via" da sola e' anche la via di somministrazione (ev, os): indirizzo solo se lo dice
+                r"|via (?:e )?(?:civico|n|numero|residenza|domicilio|indirizzo)"
                 r"|(?:comune|citt[aà]|city|localit[aà]|provincia|prov|regione di residenza|frazione|luogo)"
                 r"(?: (?:di |del |della )?(?:residenza|domicilio|abitazione|provenienza))?"),
      MODE_ALL, "Contatti"),
@@ -420,6 +439,17 @@ _HEADER_RULES: List[Tuple[re.Pattern, str, str]] = [
 ]
 
 
+_CLIN_CELL = re.compile(r"(?:PAZ|ID|IDC|MED|OPE|PER|DOC|STR)-\d{4,}|\[[A-Z_]+_\d+\]")
+
+
+def _already_shifted(value: str) -> bool:
+    try:
+        from clin_results import already_shifted
+    except ImportError:   # app web: le date non si spostano
+        return False
+    return already_shifted(value)
+
+
 _AGE_HEADER = re.compile(r"(?:eta|età|age|anni|eta anni|età anni|eta all[' ]?\w+|età all[' ]?\w+)")
 
 
@@ -427,9 +457,61 @@ def _norm_header(header: str) -> str:
     return re.sub(r"[\s_\-\.\/:#°()%]+", " ", (header or "").lower()).strip()
 
 
+# Schema delle colonne (clin-colonne.json nella cartella dell'export, o in una cartella sopra): per gli export
+# ripetuti (terapie, microbiologia, laboratorio) il ruolo di ogni colonna e' dichiarato una volta, invece di
+# essere dedotto dall'intestazione. Esempio:
+#   {"terapie*.csv": {"cognome": "paziente", "nome": "paziente", "letto": "id_clinico", "via": "clinico",
+#                     "note": "testo", "*": "elimina"}}
+# "*" vale per le colonne non elencate: con "elimina" escono solo le colonne dichiarate (minimizzazione).
+SCHEMA_FILE = "clin-colonne.json"
+MODE_DROP = "drop"
+SCHEMA_ROLES: Dict[str, Optional[Tuple[str, str]]] = {
+    "paziente": (MODE_PSEUDO, "Nome paziente"),
+    "id": (MODE_PSEUDO, "ID ufficiali"),
+    "id_clinico": (MODE_PSEUDO, "Identificativi clinici"),
+    "medico": (MODE_PSEUDO, "Medici"),
+    "operatore": (MODE_PSEUDO, "Personale sanitario"),
+    "persona": (MODE_PSEUDO, "Persone"),
+    "data_nascita": (MODE_ALL, "Data di nascita"),
+    "contatto": (MODE_ALL, "Contatti"),
+    "clinico": (MODE_KEEP, "Dato clinico"),
+    "testo": (MODE_AUTO, "Testo libero"),     # analizzato cella per cella; le date vengono spostate
+    "data": (MODE_AUTO, "Data"),
+    "elimina": (MODE_DROP, "Colonna eliminata"),
+}
+_SCHEMA: Optional[Dict[str, str]] = None   # schema del file in elaborazione: intestazione normalizzata -> ruolo
+
+
+def load_schema(table_path: Path) -> Optional[Dict[str, str]]:
+    """Ruoli delle colonne per questo file, dal primo clin-colonne.json trovato salendo di cartella.
+    Un ruolo sconosciuto e' un errore: meglio fermarsi che lasciar passare una colonna per un refuso."""
+    import fnmatch
+    import json
+    for folder in [Path(table_path).parent, *list(Path(table_path).parents)[1:5]]:
+        f = folder / SCHEMA_FILE
+        if not f.is_file():
+            continue
+        data = json.loads(f.read_text(encoding="utf-8"))
+        for pattern, cols in data.items():
+            if fnmatch.fnmatch(Path(table_path).name.lower(), pattern.lower()):
+                out = {}
+                for header, role in cols.items():
+                    if role not in SCHEMA_ROLES:
+                        raise ValueError(f"{SCHEMA_FILE}: ruolo «{role}» non valido per «{header}» "
+                                         f"(ammessi: {', '.join(SCHEMA_ROLES)}).")
+                    out["*" if header == "*" else _norm_header(header)] = role
+                return out
+        return None
+    return None
+
+
 def header_category(header: str, level: int = 10) -> Optional[Tuple[str, str]]:
     """(modalita', categoria) suggerite dall'intestazione di colonna, o None."""
     norm = re.sub(r"[\s_\-\.\/:#°]+", " ", (header or "").lower()).strip()
+    if _SCHEMA is not None:   # schema dichiarato: decide lui, anche per le colonne non elencate ("*")
+        role = _SCHEMA.get(_norm_header(header)) or _SCHEMA.get("*")
+        if role:
+            return SCHEMA_ROLES[role]
     if not norm:
         return None
     excl = excluded_categories()
@@ -474,7 +556,8 @@ def _placeholder(settings: TableSettings, category: str, original: str,
         code = codes.get(key) or (codes.get(key.split()[-1]) if len(key.split()) == 1 else None)
         if code:
             return prefix + code
-    return prefix + settings.registry.get(_PLACEHOLDER.get(category, "DATO"), name, link=category != "Persone")
+    return prefix + settings.registry.link(
+        settings.registry.get(_PLACEHOLDER.get(category, "DATO"), name, link=category != "Persone"))
 
 
 def _apply_auto(
@@ -643,11 +726,18 @@ def plan_sheet(
             value = "" if raw is None else str(raw)
             if not value.strip():
                 continue
+            if _CLIN_CELL.fullmatch(value.strip()):
+                continue   # gia' un codice o un segnaposto di Clin (copia ripassata): resta com'e'
             mode = (settings.cell_mode(sheet.name, r, c) or header_modes.get(c)
                     or settings.column_mode(sheet.name, c))
             if mode == MODE_KEEP:
                 continue
+            if mode == MODE_DROP:   # schema: colonna non necessaria, il contenuto non esce
+                plans[(r, c)] = CellPlan("", "Colonna eliminata", mode)
+                continue
             if mode == MODE_ALL:
+                if shift and header_cats.get(c) == "Data di nascita" and _already_shifted(value):
+                    continue   # data di nascita gia' spostata
                 moved = shift_date(value, shift) if shift and header_cats.get(c) == "Data di nascita" else None
                 if moved:
                     plans[(r, c)] = CellPlan(moved, DATE_SHIFTED, mode)
@@ -703,7 +793,9 @@ def anonymize_table(
         result.error = "Il file di output coincide con l'input."
         return result
 
+    global _SCHEMA
     try:
+        _SCHEMA = load_schema(input_path)
         doc = load_table(input_path)  # lettura completa
         result.pages = len(doc.sheets)
         book = settings.pseudonyms if settings.pseudonyms is not None else _PseudonymBook()
@@ -735,6 +827,8 @@ def anonymize_table(
             )
     except Exception as exc:
         result.error = f"{type(exc).__name__}: {exc}"
+    finally:
+        _SCHEMA = None
 
     return result
 

@@ -96,20 +96,18 @@ def notify(message: str) -> None:
 # Tabella segnaposto: solo in locale, leggibile solo dall'utente
 # --------------------------------------------------------------------------
 def save_mapping(mapping: dict) -> None:
-    MAP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    os.chmod(MAP_DIR, 0o700)
+    import clin_settings
     old = load_mapping()
     old.update(mapping)
-    tmp = MAP_FILE.with_suffix(".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(old, fh, ensure_ascii=False)
-    os.replace(tmp, MAP_FILE)
+    clin_settings.write_private(MAP_FILE, json.dumps(old, ensure_ascii=False))
+    import clin_text   # codici PAZ assegnati nei testi: senza, non si potrebbero ricondurre al paziente
+    clin_text.save_book()
 
 
 def load_mapping() -> dict:
+    import clin_settings
     try:
-        return json.loads(MAP_FILE.read_text(encoding="utf-8"))
+        return json.loads(clin_settings.read_private(MAP_FILE))
     except (OSError, ValueError):
         return {}
 
@@ -187,9 +185,9 @@ def cmd_dimentica(a) -> int:
 
 def cmd_originale(a) -> int:
     """Risale da uno pseudonimo dei fogli (PAZ-0147) al valore originale, in locale."""
-    path = MAP_DIR / "pseudonimi.json"
+    import clin_settings
     try:
-        book = json.loads(path.read_text(encoding="utf-8"))
+        book = json.loads(clin_settings.read_private(clin_settings.book_path()))
     except (OSError, ValueError):
         raise ValueError("Nessuna tabella pseudonimi in ~/.clin: nessuna copia creata con /clin.")
     code = a.codice.strip().upper()
@@ -254,7 +252,9 @@ def cmd_ner(a) -> int:
 
 def cmd_copie(a) -> int:
     from clin_mcp import tool_crea_copie_anonime
-    print(tool_crea_copie_anonime({"percorso": str(Path(a.percorso).expanduser().resolve())}))
+    # server: export in sola lettura, copie in un'altra cartella (quella che l'agente legge)
+    print(tool_crea_copie_anonime({"percorso": str(Path(a.percorso).expanduser().resolve())},
+                                  uscita=Path(a.uscita) if a.uscita else None))
     return 0
 
 
@@ -580,6 +580,52 @@ def cmd_mcp(a) -> int:
     return 0
 
 
+def cmd_servizio(a) -> int:
+    import clin_api
+    clin_api.serve(a.host, a.porta)
+    return 0
+
+
+def cmd_chiave(a) -> int:
+    from cryptography.fernet import Fernet
+    print(Fernet.generate_key().decode())
+    print("Conservarla fuori dalla cartella dati (gestore di segreti) e passarla al servizio come CLIN_CHIAVE: "
+          "senza, le tabelle cifrate non si possono piu' leggere.", file=sys.stderr)
+    return 0
+
+
+def cmd_pseudonimizza(a) -> int:
+    """Testo, HL7 v2, FHIR o CSV da file o da stdin -> stdout, per script e pipeline."""
+    import clin_api
+    raw = sys.stdin.read() if a.file == "-" else Path(a.file).read_text(encoding="utf-8-sig")
+    schema = json.loads(Path(a.schema).read_text(encoding="utf-8")) if a.schema else None
+    print(clin_api.pseudonimizza(raw, a.nome or ("" if a.file == "-" else Path(a.file).name), schema)["contenuto"])
+    return 0
+
+
+def cmd_immagine(a) -> int:
+    import clin_api
+    Path(a.uscita).write_bytes(clin_api.filtra_immagine(Path(a.file).read_bytes(), Path(a.file).name))
+    print(f"Immagine con i dati coperti: {a.uscita}")
+    return 0
+
+
+def cmd_verifica(a) -> int:
+    """Rilegge le copie: quanti valori originali noti vi compaiono ancora, file per file (mai quali)."""
+    import clin_api
+    root = Path(a.cartella).expanduser()
+    files = [root] if root.is_file() else [p for p in root.rglob("*") if p.is_file() and not p.name.startswith(".")]
+    total = 0
+    for f in sorted(files):
+        n = clin_api.residui(clin_api._text_of(f))
+        total += n
+        if n:
+            print(f"  {f.relative_to(root) if root.is_dir() else f.name}: {n} dati originali ancora presenti")
+    print(f"Controllati {len(files)} file: " + ("nessun dato originale noto." if not total else
+                                                f"{total} residui da correggere."))
+    return 1 if total else 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="clin", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -609,6 +655,7 @@ def main(argv=None) -> int:
     p.set_defaults(fn=cmd_originale)
     p = sub.add_parser("copie", help="crea copie anonime di un file o di una cartella (Clin_anonimizzati/)")
     p.add_argument("percorso")
+    p.add_argument("--uscita", help="cartella delle copie (predefinita: Clin_anonimizzati/ accanto ai file)")
     p.set_defaults(fn=cmd_copie)
     p = sub.add_parser("avvia", help="protegge la cartella e crea le copie anonime (cio' che fa /clin)")
     p.add_argument("percorso", nargs="?", default=".")
@@ -639,6 +686,23 @@ def main(argv=None) -> int:
     p.set_defaults(fn=cmd_proteggi)
     sub.add_parser("dimentica", help="cancella la tabella segnaposto").set_defaults(fn=cmd_dimentica)
     sub.add_parser("mcp", help="server MCP su stdio").set_defaults(fn=cmd_mcp)
+    p = sub.add_parser("servizio", help="servizio HTTP locale per agenti e programmi (vedi clin_api.py)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--porta", type=int, default=8765)
+    p.set_defaults(fn=cmd_servizio)
+    sub.add_parser("chiave", help="nuova chiave per cifrare le tabelle (CLIN_CHIAVE)").set_defaults(fn=cmd_chiave)
+    p = sub.add_parser("pseudonimizza", help="testo, HL7 v2, FHIR o CSV da file o stdin (-) a stdout")
+    p.add_argument("file")
+    p.add_argument("--nome", help="nome del contenuto letto da stdin (es. terapie.csv)")
+    p.add_argument("--schema", help="ruoli delle colonne per un CSV (JSON come in clin-colonne.json)")
+    p.set_defaults(fn=cmd_pseudonimizza)
+    p = sub.add_parser("immagine", help="screenshot o foto con i dati coperti, stesse dimensioni")
+    p.add_argument("file")
+    p.add_argument("uscita")
+    p.set_defaults(fn=cmd_immagine)
+    p = sub.add_parser("verifica", help="controlla che nelle copie non resti alcun dato originale noto")
+    p.add_argument("cartella")
+    p.set_defaults(fn=cmd_verifica)
     p = sub.add_parser("collega", help="collega Clin a un client IA")
     p.add_argument("client", choices=["claude-desktop", "claude-code"])
     p.set_defaults(fn=cmd_collega)

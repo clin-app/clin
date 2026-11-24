@@ -2,7 +2,7 @@
 // eseguito con Pyodide. Riceve testi e file dalla pagina della chat tramite il service worker
 // e restituisce il testo con i segnaposto. Nessuna connessione di rete.
 
-import { readOriented, boxBack } from "./ocr-orient.js";
+import { readOriented, boxBack, visualLines } from "./ocr-orient.js";
 
 let py = null, fs = null, pdfjs = null, booting = null, step = "", activeTabId = null, nerMod = null;
 
@@ -225,8 +225,8 @@ async function pdfSegments(page, viewport) {
 async function ocrSegments(canvas) {
   const { data, back, mean } = await readOriented(canvas, recognize);
   const segs = [];
-  for (const block of data.blocks || []) for (const para of block.paragraphs || []) for (const line of para.lines || []) {
-    line.words.forEach((w, i) => segs.push({ str: w.text, box: boxBack(w.bbox, back), whole: !!back, eol: i === line.words.length - 1 }));
+  for (const line of visualLines(data)) {
+    line.forEach((w, i) => segs.push({ str: w.text, box: boxBack(w.bbox, back), whole: !!back, eol: i === line.length - 1 }));
   }
   segs.weak = mean < 0.6;
   return segs;
