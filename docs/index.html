@@ -8,7 +8,7 @@
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css?v=20261123a">
-  <link rel="stylesheet" href="clin.css?v=20261123f">
+  <link rel="stylesheet" href="clin.css?v=20261124a">
 </head>
 <body>
 
@@ -73,7 +73,7 @@
       <div class="split split-top">
         <div>
           <span class="eyebrow">Perché <span class="clin">/Clin</span></span>
-          <h2>Si richiama dentro l’agente di coding, <span>dove i documenti vengono già analizzati.</span></h2>
+          <h2>Una Skill dentro l’agente di coding, <span>dove i documenti vengono già analizzati.</span></h2>
         </div>
         <div>
           <p class="lede">Claude Code, Codex e Antigravity leggono file, eseguono codice e producono analisi su intere cartelle. <span class="clin">/Clin</span> rende possibile farlo anche con documenti clinici.</p>
@@ -99,7 +99,7 @@
         </div>
         <ul class="checks value-list">
           <li><span><b>Nessun copia e incolla</b>I file si trascinano nella cartella del progetto. L’agente li apre direttamente; <span class="clin">/Clin</span> gli passa soltanto la copia anonimizzata.</span></li>
-          <li><span><b>Un comando, tre agenti</b><span class="clin">/Clin</span> nella barra dei comandi di Claude Code, Codex o Antigravity. Nessuna configurazione per progetto.</span></li>
+          <li><span><b>Una Skill, tre agenti</b>La Skill <span class="clin">/Clin</span> nella barra dei comandi di Claude Code, Codex o Antigravity. Nessuna configurazione per progetto.</span></li>
           <li><span><b>Analisi vere, non solo chat</b>L’agente scrive ed esegue codice su cartelle intere: join tra fogli, statistiche, grafici, relazioni.</span></li>
           <li><span><b>Risultati con i nomi reali</b>Tabelle e relazioni tornano con i dati originali in una cartella locale che l’agente non vede.</span></li>
         </ul>
@@ -199,31 +199,38 @@
         <div class="feature"><span class="n">03</span><h3>Ripristinare</h3><p>Incollare la risposta in <span class="clin">/Clin</span>: segnaposto e codici tornano ai nomi e ai dati reali.</p></div>
         <div class="feature"><span class="n">04</span><h3>Riportare</h3><p>«Copia con i dati reali» e incollare la lettera nella cartella clinica. Nessun dato è uscito dal computer.</p></div>
       </div>
-      <div class="card ext" id="estensione">
-        <h3>Ancora più semplice: l’estensione per Chrome ed Edge</h3>
-        <p class="muted">Se il computer consente le estensioni, <span class="clin">/Clin</span> lavora dentro la pagina di ChatGPT, Claude, Gemini, Copilot e Mistral. Si incolla o si trascina come sempre: prima che il sito riceva qualcosa si apre una finestra di controllo, con l’anteprima reale del documento già coperto e l’elenco dei dati trovati, ciascuno con il suo interruttore. Con «Inserisci nella chat» l’IA riceve lo stesso file, con i segnaposto al posto dei dati personali.</p>
-        <ul class="checks ext-points">
-          <li><span><b>Nessun passaggio in più quando non serve</b>Un testo breve senza dati personali entra nella chat senza domande.</span></li>
-          <li><span><b>Rapida anche sui documenti lunghi</b>Il documento viene letto una volta sola: ogni correzione nella finestra di controllo si applica in una frazione di secondo. Le pagine scansionate si leggono in parallelo.</span></li>
-          <li><span><b>I nomi veri restano tuoi</b>Il pannello di <span class="clin">/Clin</span> mostra la risposta dell’IA con i dati reali in un’area che la pagina della chat non può leggere.</span></li>
-        </ul>
-        <p class="muted">Il riconoscimento dei nomi usa lo stesso modello locale della versione per agenti, eseguito dentro il browser.</p>
-        <div class="actions ext-actions">
-          <a class="btn btn-dark" href="https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip" data-dona>Scarica l’estensione completa (.zip, circa 500 MB)</a>
-          <a class="link-in" href="https://github.com/clin-app/clin/releases/latest">Note di versione</a>
-        </div>
-        <ol class="ext-steps">
-          <li>Estrarre lo zip in una cartella stabile, per esempio <code>Documenti/Clin-estensione</code> (non va cancellata: il browser la legge da lì).</li>
-          <li>Aprire <code>chrome://extensions</code> (Chrome) o <code>edge://extensions</code> (Edge) e attivare <b>Modalità sviluppatore</b>.</li>
-          <li>Cliccare <b>Carica estensione non pacchettizzata</b> e scegliere la cartella estratta. Ricaricare le schede di ChatGPT, Claude o Gemini già aperte.</li>
-        </ol>
-        <p class="muted small">Il pacchetto contiene tutto (motore, lettura PDF, OCR e modello GLiNER): dopo l’installazione l’estensione non effettua alcuna richiesta di rete. Per aggiornarla: sostituire il contenuto della cartella con il nuovo zip e premere ⟳ sulla scheda Clin. In arrivo anche sul Chrome Web Store.</p>
-      </div>
       <p class="note">Senza estensione, non trascinare i documenti direttamente nella chat dell’IA: un file caricato lì raggiunge subito i server del fornitore, prima di qualsiasi anonimizzazione. Sul telefono la stessa pagina si aggiunge alla schermata Home e legge anche le foto dei fogli cartacei.</p>
     </div>
   </section>
 
-  <section class="section soft" id="come">
+  <!-- ------------------------------------------------ estensione per Chrome ed Edge -->
+  <section class="section soft" id="estensione">
+    <div class="wrap">
+      <div class="split split-top">
+        <div>
+          <span class="eyebrow">Estensione per Chrome ed Edge</span>
+          <h2>Dentro la chat che usi già: <span><span class="clin">/Clin</span> controlla prima che il sito riceva.</span></h2>
+        </div>
+        <div>
+          <p class="lede">Si incolla o si trascina nella pagina di ChatGPT, Claude, Gemini, Copilot o Mistral come sempre: <span class="clin">/Clin</span> ferma il contenuto sul computer e lo anonimizza prima dell’invio.</p>
+          <p class="sub">Una finestra di controllo mostra il documento già coperto e l’elenco dei dati trovati, ciascuno con il suo interruttore. All’IA arriva lo stesso file, con i segnaposto al posto dei dati personali. Motore, lettura dei PDF e riconoscimento dei nomi sono dentro l’estensione: dopo l’installazione non effettua alcuna richiesta di rete.</p>
+          <div class="actions ext-actions">
+            <a class="btn btn-dark" href="https://github.com/clin-app/clin/releases/latest/download/clin-estensione.zip" data-dona>Scarica l’estensione</a>
+            <a class="link-in" href="https://github.com/clin-app/clin/releases/latest">Note di versione</a>
+          </div>
+        </div>
+      </div>
+      <div class="features four">
+        <div class="feature"><span class="n">01</span><h3>Incollare o trascinare</h3><p>PDF, Word, PowerPoint, foto, Excel e testi, direttamente nella chat. Un testo breve senza dati personali passa senza domande.</p></div>
+        <div class="feature"><span class="n">02</span><h3>Controllare</h3><p>Anteprima reale del documento coperto e dati trovati per tipo. Un interruttore lascia un dato in chiaro, una parola sfuggita si aggiunge al volo.</p></div>
+        <div class="feature"><span class="n">03</span><h3>Inserire</h3><p>«Inserisci nella chat»: il sito riceve il file anonimizzato. Ogni correzione si applica in una frazione di secondo, anche sui documenti lunghi.</p></div>
+        <div class="feature"><span class="n">04</span><h3>Rileggere</h3><p>Il pannello di <span class="clin">/Clin</span> mostra la risposta dell’IA con i nomi veri, in un’area che la pagina della chat non può leggere.</p></div>
+      </div>
+      <p class="note">Installazione: estrarre lo zip in una cartella stabile (per esempio <code>Documenti/Clin-estensione</code>), aprire <code>chrome://extensions</code> o <code>edge://extensions</code>, attivare <b>Modalità sviluppatore</b> e scegliere <b>Carica estensione non pacchettizzata</b>. Per aggiornarla: sostituire il contenuto della cartella con il nuovo zip e premere ⟳ sulla scheda Clin. In arrivo anche sul Chrome Web Store.</p>
+    </div>
+  </section>
+
+  <section class="section" id="come">
     <div class="wrap">
       <div class="split split-top">
         <div>
@@ -231,13 +238,13 @@
           <h2>Installazione una tantum, <span>attivazione per singola cartella.</span></h2>
         </div>
         <div>
-          <p class="lede"><span class="clin">/Clin</span> viene installato una sola volta e rimane inattivo finché non è richiamato.</p>
-          <p class="sub">Nella cartella di lavoro si invoca <code>/clin</code>. Da quel momento l’agente non può leggere, cercare né stampare i file originali e opera sulle copie anonimizzate in <code>Clin_anonimizzati/</code>. Gli altri progetti non sono interessati.</p>
+          <p class="lede"><span class="clin">/Clin</span> è una Skill per Claude Code, Codex e Antigravity: si installa una sola volta e resta inattiva finché non la si richiama.</p>
+          <p class="sub">Nella cartella di lavoro si richiama la Skill con <code>/clin</code>. Da quel momento l’agente non può leggere, cercare né stampare i file originali e opera sulle copie anonimizzate in <code>Clin_anonimizzati/</code>. Gli altri progetti non sono interessati.</p>
         </div>
       </div>
       <div class="features four">
-        <div class="feature"><span class="n">01</span><h3>Installazione</h3><p>Un comando nel Terminale scarica <span class="clin">/Clin</span>, configura un ambiente Python dedicato e lo collega agli agenti presenti.</p></div>
-        <div class="feature"><span class="n">02</span><h3>Attivazione</h3><p>Nella sessione dell’agente, aperta sulla cartella con documenti, fogli di calcolo o immagini, si invoca <code>/clin</code>.</p></div>
+        <div class="feature"><span class="n">01</span><h3>Installazione</h3><p>Un comando nel Terminale scarica <span class="clin">/Clin</span>, configura un ambiente Python dedicato e installa la Skill negli agenti presenti.</p></div>
+        <div class="feature"><span class="n">02</span><h3>Attivazione</h3><p>Nella sessione dell’agente, aperta sulla cartella con documenti, fogli di calcolo o immagini, si richiama la Skill con <code>/clin</code>.</p></div>
         <div class="feature"><span class="n">03</span><h3>Anonimizzazione</h3><p><span class="clin">/Clin</span> genera le copie in locale: oscuramento irreversibile nei PDF, segnaposto in Word e PowerPoint, pseudonimi nei fogli di calcolo e nei dataset SPSS, Stata e SAS. Le date, nei documenti e nei fogli, vengono modificate in modo da conservare intervalli, età e stagioni; nei risultati tornano quelle vere.</p></div>
         <div class="feature"><span class="n">04</span><h3>Risultati</h3><p>L’agente opera sulle copie; a fine risposta <span class="clin">/Clin</span> riconduce ai dati reali lettere Word, presentazioni PowerPoint, tabelle Excel, relazioni e quaderni di analisi, in una cartella che l’agente non vede.</p></div>
       </div>
@@ -245,7 +252,7 @@
   </section>
 
   <!-- ------------------------------------------------ casi d'uso -->
-  <section class="section" id="casi">
+  <section class="section soft" id="casi">
     <div class="wrap">
       <span class="eyebrow">Casi d’uso</span>
       <h2>Documentazione clinica, registri e immagini, <span>trattati con gli stessi controlli.</span></h2>
@@ -411,7 +418,7 @@
         </div>
         <div class="card">
           <h3>Formati e limiti</h3>
-          <p class="muted">Excel (.xlsx, .xlsm), CSV e TSV, con più fogli. I file .xls e .ods vanno salvati in .xlsx. Le date vengono rimosse: per analisi di sopravvivenza o tempi di degenza, gli intervalli in giorni vanno calcolati in una colonna numerica prima di <code>/clin</code>.</p>
+          <p class="muted">Excel (.xlsx, .xlsm), CSV e TSV, con più fogli. I file .xls e .ods vanno salvati in .xlsx. Le date vengono modificate ma restano utilizzabili: sopravvivenza, tempi di degenza e follow-up si calcolano direttamente sulle copie.</p>
         </div>
       </div>
     </div>
@@ -509,7 +516,7 @@
       </div>
       <div class="tabpanel" role="tabpanel" id="t-codex" aria-labelledby="b-codex" hidden>
         <ul class="checks">
-          <li><span><b>Richiamo</b>Nella sessione aperta sulla cartella, chiedere «usa clin su questa cartella»: Codex attiva la skill <code>clin</code> installata in <code>~/.agents/skills</code>.</span></li>
+          <li><span><b>Richiamo</b>Nella sessione aperta sulla cartella, chiedere «usa clin su questa cartella»: Codex attiva la Skill <code>clin</code> installata in <code>~/.agents/skills</code>.</span></li>
           <li><span><b>Approvazione</b>Al primo avvio dopo l’installazione, aprire <code>/hooks</code> e approvare l’hook di <span class="clin">/Clin</span>: Codex non esegue hook non approvati.</span></li>
           <li><span><b>Comandi e messaggi</b>I comandi che aprono gli originali vengono negati; i messaggi con dati personali vengono fermati. Gli hook di Codex non permettono di riscrivere l’output dei comandi.</span></li>
         </ul>
@@ -517,7 +524,7 @@
       </div>
       <div class="tabpanel" role="tabpanel" id="t-ag" aria-labelledby="b-ag" hidden>
         <ul class="checks">
-          <li><span><b>Richiamo</b>Nell’app Antigravity, aperta sulla cartella dei dati, scrivere <code>/clin</code>. La skill viene installata in <code>~/.gemini/config/skills</code>.</span></li>
+          <li><span><b>Richiamo</b>Nell’app Antigravity, aperta sulla cartella dei dati, scrivere <code>/clin</code>. La Skill viene installata in <code>~/.gemini/config/skills</code>.</span></li>
           <li><span><b>Controllo</b>In Customizations › Hooks deve comparire l’hook «clin» attivo.</span></li>
           <li><span><b>Letture e comandi</b>I file aperti con <code>view_file</code> vengono sostituiti dalla copia anonimizzata; comandi e ricerche sugli originali vengono negati. Antigravity non offre un controllo sui messaggi prima dell’invio.</span></li>
         </ul>
@@ -644,7 +651,7 @@
 <footer class="foot">
   <div class="wrap">
     <div class="foot-top">
-      <h2><span class="clin">/Clin</span> si installa con un comando <span>e si richiama dall’agente.</span></h2>
+      <h2><span class="clin">/Clin</span> si installa con un comando <span>e si usa come Skill dell’agente.</span></h2>
       <div class="actions"><a class="btn btn-white" href="#installazione">Installazione</a></div>
     </div>
     <div class="foot-cols">
