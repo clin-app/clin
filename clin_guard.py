@@ -193,6 +193,8 @@ def in_data_dir(path: Path) -> bool:
         reads = READS_DIR.resolve()
         if resolved == reads or reads in resolved.parents:
             return False
+        if resolved.parent.name == "bin" and resolved.name == "clin":
+            return False   # lanciatore del plugin (~/.clin/bin/clin)
         data_dirs = {clin.MAP_DIR.expanduser().resolve()}
         import clin_settings
         data_dirs.add(clin_settings.DATA_DIR.expanduser().resolve())
@@ -400,6 +402,8 @@ def risky_paths(command: str, cwd: str) -> List[str]:
             continue
         if name.startswith("python") and len(words) > 1 and Path(words[1]).name in {"clin.py", "clin_guard.py"}:
             continue
+        if name == "clin" and Path(words[0]).parent.name == "bin":
+            continue   # lanciatore del plugin: e' Clin che apre i documenti, in modo anonimo
         if name in _SEARCH_CMDS:
             found.extend(_risky_search(words, cwd))
         seg = " ".join(words)
@@ -439,7 +443,8 @@ def bash_reason(command: str, cwd: str) -> str:
     for words in _segments(command):
         # i comandi di Clin che mostrano dati reali o cambiano la protezione li esegue solo l'utente
         for i, w in enumerate(words[:-1]):
-            if Path(w.strip("'\"")).name == "clin.py":
+            w0 = Path(w.strip("'\""))
+            if w0.name == "clin.py" or (i == 0 and w0.name == "clin" and w0.parent.name == "bin"):
                 sub, rest = words[i + 1], words[i + 2:]
                 if sub in _USER_ONLY or (sub == "impostazioni" and len(rest) >= 2):
                     return (f"Clin: `clin.py {sub}` mostra dati reali o cambia la protezione: puo' eseguirlo "
@@ -567,8 +572,31 @@ def personal_categories(text: str, block: frozenset = None) -> List[str]:
     return sorted(cats)
 
 
+def mentioned_originals(prompt: str, cwd: str) -> List[str]:
+    """Originali protetti citati con @ nel messaggio: il loro contenuto entrerebbe nella conversazione
+    senza passare dalla guardia."""
+    found = []
+    for m in re.finditer(r"(?<![\w])@(\"[^\"]+\"|[^\s]+)", prompt):
+        raw = m.group(1).strip('"').rstrip(".,;:)")
+        path = _abs(raw, cwd)
+        try:
+            if path.is_file() and protected_root(path.parent) is not None and needs_guard(path):
+                found.append(path.name)
+        except OSError:
+            continue
+    return found
+
+
 def on_prompt(data: dict) -> None:
     prompt = data.get("prompt") or ""
+    mentioned = mentioned_originals(prompt, data.get("cwd", ""))
+    if mentioned:   # nemmeno [clin:ok] lo permette: il file entrerebbe intero
+        _out({"decision": "block",
+              "reason": (f"Clin ha fermato il messaggio: cita con @ un documento originale protetto "
+                         f"({', '.join(mentioned[:3])}). Scrivere il nome del file senza @: l'agente lo "
+                         "leggera' attraverso Clin, nella copia anonima."),
+              "suppressOriginalPrompt": True})
+        return
     if "[clin:ok]" in prompt:
         return
     cats = personal_categories(prompt)

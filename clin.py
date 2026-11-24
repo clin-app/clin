@@ -290,11 +290,20 @@ def _save_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+# nel plugin la Skill chiama un percorso stabile, che il plugin aggiorna a ogni sessione
+PLUGIN_COMMAND = '"$HOME/.clin/bin/clin"'
+
+
+def skill_text(command: str = "") -> str:
+    """Testo della Skill: con `command` vuoto, per l'installazione da questa cartella."""
+    template = (HERE / "integrations" / "claude-code" / "clin" / "SKILL.md").read_text(encoding="utf-8")
+    command = command or f'"{python_path()}" "{HERE}/clin.py"'
+    return template.replace('"{PYTHON}" "{CLIN_PATH}/clin.py"', command)
+
+
 def _install_skill(skill_dir: Path) -> None:
     skill_dir.mkdir(parents=True, exist_ok=True)
-    template = (HERE / "integrations" / "claude-code" / "clin" / "SKILL.md").read_text(encoding="utf-8")
-    text = template.replace("{PYTHON}", python_path()).replace("{CLIN_PATH}", str(HERE))
-    (skill_dir / "SKILL.md").write_text(text, encoding="utf-8")
+    (skill_dir / "SKILL.md").write_text(skill_text(), encoding="utf-8")
 
 
 def protect_claude_code(base: Optional[Path]) -> str:

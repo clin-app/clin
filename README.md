@@ -35,6 +35,19 @@ python3 clin.py ner installa  # facoltativo, consigliato: nomi senza etichetta (
 python3 clin.py installa      # una volta: collega Clin a Claude Code
 ```
 
+In Claude Code c'è anche il **plugin**, senza terminale: Skill `/clin`, guardia
+sugli originali e server MCP in un'installazione sola.
+
+```text
+/plugin install clin --marketplace clin-app/clin
+```
+
+Con Claude Code precedente alla 2.1.275: `/plugin marketplace add clin-app/clin`,
+poi `/plugin install clin@clin`. Al primo uso il plugin prepara da solo un ambiente
+Python dedicato in `~/.clin/plugin-venv` (PyMuPDF, openpyxl e modello OCR, circa un
+minuto; serve Python 3.10 o successivo). Chi ha già installato Clin dal terminale non
+ha bisogno del plugin: le due installazioni insieme eseguono la guardia due volte.
+
 Poi si apre Claude Code (terminale, IDE o scheda Code di Claude Desktop) nella
 cartella dei dati e si scrive `/clin`. Clin protegge la cartella, crea copie
 anonime di Excel, CSV, PDF, Word e file di testo in `Clin_anonimizzati/`

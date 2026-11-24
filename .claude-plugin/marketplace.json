@@ -1,0 +1,17 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "clin",
+  "description": "Clin: anonimizzazione locale di documenti sanitari per gli agenti IA.",
+  "owner": {
+    "name": "Clin",
+    "url": "https://github.com/clin-app"
+  },
+  "plugins": [
+    {
+      "name": "clin",
+      "description": "Skill /clin: l'agente lavora solo su copie anonime di referti, cartelle cliniche, Excel e dataset; i risultati tornano con i dati reali in una cartella che l'agente non vede.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}

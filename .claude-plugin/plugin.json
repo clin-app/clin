@@ -1,0 +1,58 @@
+{
+  "name": "clin",
+  "version": "2.2.0",
+  "description": "Anonimizza in locale documenti sanitari e dati di ricerca prima che l'agente li legga: Skill /clin, guardia sugli originali, risultati ricondotti ai dati reali.",
+  "author": {
+    "name": "Clin",
+    "url": "https://github.com/clin-app"
+  },
+  "homepage": "https://clin-app.github.io/clin/",
+  "repository": "https://github.com/clin-app/clin",
+  "license": "AGPL-3.0",
+  "keywords": ["sanità", "privacy", "anonimizzazione", "pseudonimizzazione", "ricerca clinica", "GDPR"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/clin\" prepara", "timeout": 30 }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Read|Bash|Grep",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/clin\" guardia", "timeout": 900 }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/clin\" guardia", "timeout": 120 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/clin\" guardia", "timeout": 120 }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/clin\" guardia stop", "timeout": 300 }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "clin": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/bin/clin",
+      "args": ["mcp"]
+    }
+  }
+}

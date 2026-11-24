@@ -317,6 +317,24 @@ class TestGuardia(unittest.TestCase):
                          ["hookSpecificOutput"]["permissionDecision"], "deny")
         self.assertEqual(self.pre("Read", {"file_path": "coorte.csv"})["hookSpecificOutput"]["permissionDecision"], "allow")
 
+    def test_plugin_di_claude_code(self):
+        import clin
+        # la Skill del plugin e' la stessa dell'installazione da terminale, con il lanciatore del plugin
+        self.assertEqual((ROOT / "skills" / "clin" / "SKILL.md").read_text(encoding="utf-8"),
+                         clin.skill_text(clin.PLUGIN_COMMAND))
+        launcher = f'"{Path.home()}/.clin/bin/clin"'
+        self.assertEqual(self.pre("Bash", {"command": f"{launcher} avvia ."}), {})
+        self.assertEqual(self.pre("Bash", {"command": f"{launcher} testo coorte.csv"}), {})
+        self.assertEqual(self.pre("Bash", {"command": f"{launcher} originale PAZ-0001"})
+                         ["hookSpecificOutput"]["permissionDecision"], "deny")
+        self.assertEqual(self.pre("Bash", {"command": "cat ~/.clin/segnaposto.json"})
+                         ["hookSpecificOutput"]["permissionDecision"], "deny")
+        # un originale citato con @ entrerebbe nel messaggio senza passare dalla guardia
+        ask = lambda text: run({"hook_event_name": "UserPromptSubmit", "cwd": str(self.dir), "prompt": text})
+        self.assertEqual(ask("riassumi @coorte.csv [clin:ok]").get("decision"), "block")
+        self.assertEqual(ask("riassumi @Clin_anonimizzati/coorte_ANONIMIZZATO.csv"), {})
+        self.assertEqual(ask("scrivi a @mario sul canale"), {})
+
     def test_bash_permesso(self):
         for cmd in ("ls -la *.csv", "wc -l coorte.csv", "cat Clin_anonimizzati/*.csv",
                     "python3 analisi.py", f"python3 {ROOT / 'clin.py'} copie .",

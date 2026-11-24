@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# Clin - avvio dal plugin di Claude Code.
+#
+#   clin <comando> [argomenti]     comandi di clin.py (avvia, testo, stato, risultati...)
+#   clin guardia [stop]            guardia per gli hook del plugin
+#   clin mcp                       server MCP
+#   clin prepara                   inizio sessione: percorso stabile ~/.clin/bin/clin e ambiente in background
+#
+# Al primo uso crea un ambiente Python dedicato in ~/.clin/plugin-venv (PyMuPDF, openpyxl) e scarica il
+# modello OCR italiano (2,6 MB, impronta verificata). Ogni messaggio va su stderr: stdout resta libero
+# per gli hook e per il server MCP. I documenti non passano mai dalla rete.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DATA="${CLIN_DATI:-$HOME/.clin}"
+VENV="$DATA/plugin-venv"
+VPY="$VENV/bin/python"
+export CLIN_TESSDATA="${CLIN_TESSDATA:-$DATA/tessdata}"
+
+say() { printf 'Clin: %s\n' "$*" >&2; }
+
+find_python() {
+  for p in python3.14 python3.13 python3.12 python3.11 python3.10 python3 \
+           /opt/homebrew/bin/python3 /usr/local/bin/python3; do
+    if command -v "$p" >/dev/null 2>&1 &&
+       "$p" -c 'import sys, venv; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+      command -v "$p"; return 0
+    fi
+  done
+  return 1
+}
+
+ready() { [ -x "$VPY" ] && "$VPY" -c 'import fitz, openpyxl' 2>/dev/null; }
+
+setup() {
+  ready && return 0
+  mkdir -p -m 700 "$DATA"
+  local lock="$DATA/.plugin-setup.lock" waited=0
+  until mkdir "$lock" 2>/dev/null; do        # un'altra sessione sta preparando l'ambiente
+    sleep 2; waited=$((waited + 2))
+    ready && return 0
+    if [ "$waited" -ge 600 ]; then rmdir "$lock" 2>/dev/null || true; fi
+  done
+  trap 'rmdir "$lock" 2>/dev/null || true' EXIT
+  ready && return 0
+  local py
+  py="$(find_python)" || { say "serve Python 3.10 o successivo: https://www.python.org/downloads/"; return 1; }
+  say "preparazione dell'ambiente locale (una volta sola, circa un minuto)…"
+  [ -x "$VPY" ] || "$py" -m venv "$VENV" >&2
+  "$VPY" -m pip install -q --disable-pip-version-check "PyMuPDF>=1.24" "openpyxl>=3.1" >&2 \
+    || { say "installazione dei pacchetti Python non riuscita"; return 1; }
+  "$VPY" "$ROOT/scripts/fetch_ocr_model.py" --dest "$CLIN_TESSDATA" >/dev/null 2>&1 \
+    || say "modello OCR non scaricato (facoltativo): le scansioni verranno solo segnalate"
+  say "ambiente pronto."
+}
+
+shim() {   # percorso stabile per la Skill: la cartella del plugin cambia a ogni aggiornamento
+  mkdir -p -m 700 "$DATA/bin"
+  local target="$DATA/bin/clin" body
+  body="#!/usr/bin/env bash
+exec \"$ROOT/bin/clin\" \"\$@\""
+  if [ "$(cat "$target" 2>/dev/null)" != "$body" ]; then printf '%s\n' "$body" > "$target"; chmod 755 "$target"; fi
+}
+
+case "${1:-}" in
+  prepara)
+    shim
+    # all'inizio della sessione l'ambiente si prepara in background: la sessione non aspetta
+    ready || (setup >/dev/null 2>&1 &)
+    exit 0 ;;
+  guardia)
+    shift
+    setup || exit 0      # senza ambiente nessuna cartella puo' essere stata protetta: nulla da sorvegliare
+    exec "$VPY" "$ROOT/clin_guard.py" "$@" ;;
+  *)
+    setup
+    exec "$VPY" "$ROOT/clin.py" "$@" ;;
+esac

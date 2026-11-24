@@ -507,6 +507,9 @@
       </div>
 
       <div class="tabpanel" role="tabpanel" id="t-claude" aria-labelledby="b-claude">
+        <p class="sub">In Claude Code la Skill si installa anche come <b>plugin</b>, senza terminale: scrivere nella sessione</p>
+        <div class="cmd light wide"><code id="plugin">/plugin install clin --marketplace clin-app/clin</code><button class="copy" type="button" data-copy="plugin">Copia</button></div>
+        <p class="note">Il plugin porta con sé la Skill, la guardia sugli originali e il server MCP. Al primo uso prepara da solo l’ambiente locale (circa un minuto, serve Python 3.10 o successivo). Con versioni di Claude Code precedenti alla 2.1.275: <code>/plugin marketplace add clin-app/clin</code> e poi <code>/plugin install clin@clin</code>.</p>
         <ul class="checks">
           <li><span><b>Richiamo</b>Nel terminale, nell’estensione per VS Code o JetBrains, o nella scheda Code di Claude Desktop: aprire una nuova sessione nella cartella e scrivere <code>/clin</code>: la cartella viene protetta e le copie anonime vengono create, sottocartelle comprese. Ripeterlo dopo aver aggiunto documenti rielabora solo quelli nuovi o modificati. <code>/clin stato</code> mostra che cosa è attivo, <code>/clin off</code> disattiva la protezione.</span></li>
           <li><span><b>Letture</b>Quando Claude apre un documento della cartella, legge la copia con segnaposto. Se l’anonimizzazione non riesce, la lettura viene negata.</span></li>
