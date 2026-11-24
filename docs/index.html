@@ -8,7 +8,7 @@
   <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="preload" href="fonts/AlbertSans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css?v=20261123a">
-  <link rel="stylesheet" href="clin.css?v=20261124h">
+  <link rel="stylesheet" href="clin.css?v=20261124l">
 </head>
 <body>
 
@@ -242,7 +242,6 @@
         <div>
           <span class="eyebrow">Come funziona</span>
           <h2>Installazione una tantum, <span>attivazione per singola cartella.</span></h2>
-          <canvas class="ascii-fig sec-fig" data-shape="fogli" aria-hidden="true"></canvas>
         </div>
         <div>
           <p class="lede"><span class="clin">/Clin</span> è una Skill per Claude Code, Codex e Antigravity: si installa una sola volta e resta inattiva finché non la si richiama.</p>
@@ -330,7 +329,6 @@
         <div>
           <span class="eyebrow">Per la ricerca clinica</span>
           <h2>Dai documenti del reparto al dataset dello studio, <span>senza che un nome lasci l’ospedale.</span></h2>
-          <canvas class="ascii-fig sec-fig" data-shape="molecola" aria-hidden="true"></canvas>
         </div>
         <div>
           <p class="lede">Uno studio vive di cartelle piene di referti, lettere, registri e file di follow-up. Con <span class="clin">/Clin</span> l’IA può leggerli, collegarli e analizzarli, mentre nomi, codici e recapiti restano sul computer.</p>
@@ -356,7 +354,6 @@
         <div>
           <span class="eyebrow">Excel e database</span>
           <h2>Registri di ricerca pseudonimizzati, <span>senza perdere i collegamenti tra i file.</span></h2>
-          <canvas class="ascii-fig sec-fig" data-shape="archivio" aria-hidden="true"></canvas>
         </div>
         <div>
           <p class="lede"><span class="clin">/Clin</span> tratta i fogli Excel e i file CSV colonna per colonna e restituisce una copia con la stessa struttura: stessi fogli, stesse colonne, formule e formattazione conservate.</p>
@@ -600,7 +597,6 @@
           <span class="eyebrow">Sicurezza</span>
           <h2>Elaborazione locale, <span>controlli applicati dall’agente stesso.</span></h2>
           <p class="sub">La protezione non dipende dal fatto che il modello segua le istruzioni: gli hook degli agenti intercettano letture, comandi e messaggi prima che il contenuto venga inviato.</p>
-          <canvas class="ascii-fig sec-fig" data-shape="lucchetto" aria-hidden="true"></canvas>
         </div>
         <ul class="checks">
           <li><span><b>Nessuna connessione verso l’esterno</b>I documenti vengono elaborati in locale. La connessione di rete serve soltanto per l’installazione.</span></li>
@@ -610,6 +606,7 @@
         </ul>
       </div>
       <div class="limits">
+        <canvas class="ascii-fig sec-fig" data-shape="lucchetto" aria-hidden="true"></canvas>
         <h3>Limiti</h3>
         <ul class="plainlist">
           <li>Un nominativo manoscritto o poco leggibile su una scansione può sfuggire all’OCR: le pagine lette con OCR richiedono una verifica visiva.</li>
@@ -628,6 +625,7 @@
         <div>
           <span class="eyebrow">Domande frequenti</span>
           <h2>Uso, dati <span>e compatibilità.</span></h2>
+          <canvas class="ascii-fig sec-fig" data-shape="archivio" aria-hidden="true"></canvas>
         </div>
         <div class="faq">
           <details><summary>Che cosa riceve l’agente?</summary><p>Testo con segnaposto stabili ([PAZIENTE_1], [ID_1], [DATA_1]…) oppure fogli di calcolo con pseudonimi (PAZ-0001). A ogni persona corrisponde sempre lo stesso segnaposto, quindi l’analisi resta coerente.</p></details>
@@ -676,7 +674,7 @@
   <span class="wordmark" aria-hidden="true">/Clin</span>
 </footer>
 
-<script src="hero-stage.js?v=20261124e" defer></script>
+<script src="hero-stage.js?v=20261124g" defer></script>
 <!-- Ko-fi e richiesta di donazione a ogni download: configurati in web/dona.js -->
 <script type="module" src="app/dona.js"></script>
 <script src="hero-ascii.js?v=20261123b" defer></script>
@@ -713,6 +711,6 @@
   })();
 </script>
 <script src="nav.js" defer></script>
-<script src="ascii-fig.js?v=20261124i" defer></script>
+<script src="ascii-fig.js?v=20261124l" defer></script>
 </body>
 </html>

@@ -1,9 +1,9 @@
 'use strict';
-/* Figure in caratteri: piccoli solidi (fogli impilati, archivio, molecola, lucchetto) disegnati
+/* Figure in caratteri: piccoli solidi (fogli impilati, archivio, lucchetto) disegnati
    con un raymarching a bassa risoluzione e resi come testo, dal carattere piu' leggero al piu' denso.
    Ruotano piano; in basso sfumano nello sfondo. Si muovono solo quando sono visibili e restano
    ferme con "riduci movimento".
-   Uso: <canvas class="ascii-fig" data-shape="fogli|archivio|molecola|lucchetto" data-tone="light|dark"> */
+   Uso: <canvas class="ascii-fig" data-shape="fogli|archivio|lucchetto" data-tone="light|dark"> */
 (() => {
   const figs = [...document.querySelectorAll('canvas.ascii-fig')];
   if (!figs.length) return;
@@ -19,15 +19,7 @@
     const dx = Math.hypot(x, z) - r + e, dy = Math.abs(y) - h + e;
     return Math.min(Math.max(dx, dy), 0) + Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) - e;
   }
-  function seg(x, y, z, ax, ay, az, bx, by, bz, r) {       // capsula fra due punti
-    const px = x - ax, py = y - ay, pz = z - az, vx = bx - ax, vy = by - ay, vz = bz - az;
-    const h = Math.max(0, Math.min(1, (px * vx + py * vy + pz * vz) / (vx * vx + vy * vy + vz * vz)));
-    return len3(px - vx * h, py - vy * h, pz - vz * h) - r;
-  }
-  // un anello di sei atomi con due gruppi laterali
-  const ATOMS = [...Array.from({ length: 6 }, (_, i) => [Math.cos(i * Math.PI / 3) * .85, Math.sin(i * Math.PI / 3) * .85, 0, .33]),
-    [1.75, 0, .1, .27], [-.9, 1.55, -.1, .27], [2.35, .6, 0, .21]];
-  const BONDS = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0], [0, 6], [2, 7], [6, 8]];
+
   const SHAPES = {
     fogli: { size: 1.75, tilt: .42, turn: .5, sdf(x, y, z) {          // tre fogli sospesi, come nello schema del sito
       let d = 9;
@@ -37,12 +29,6 @@
     archivio: { size: 1.5, tilt: .42, turn: 0, sdf(x, y, z) {        // tre dischi: un archivio di dati
       let d = 9;
       for (let i = 0; i < 3; i++) d = Math.min(d, cyl(x, y - (i - 1) * .62, z, .95, .24, .07));
-      return d;
-    } },
-    molecola: { size: 2.3, tilt: .3, turn: .25, sdf(x, y, z) {
-      let d = 9;
-      for (const [ax, ay, az, r] of ATOMS) d = Math.min(d, len3(x + .35 - ax, y - ay, z - az) - r);   // centrata
-      for (const [a, b] of BONDS) d = Math.min(d, seg(x + .35, y, z, ...ATOMS[a].slice(0, 3), ...ATOMS[b].slice(0, 3), .1));
       return d;
     } },
     lucchetto: { size: 1.45, tilt: .18, turn: .4, sdf(x, y, z) {
@@ -75,6 +61,7 @@
   function draw(st, t) {
     const { ctx, shape, cols, rows, cw, ch, W, H } = st;
     if (!cols) return;
+    if (H < 120) { ctx.clearRect(0, 0, W, H); return; }    // spazio troppo piccolo: meglio nessuna figura
     const scale = Math.min(W, H) / (2 * shape.size) * 1.08;  // pixel per unita'
     const a = (shape.turn ?? 0) + .55 * Math.sin(t * .28 + st.seed),   // oscilla: la figura non si mostra mai di taglio
       ca = Math.cos(a), sa = Math.sin(a);

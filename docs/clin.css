@@ -24,17 +24,6 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .hero-ascii { position: absolute; inset: 0; z-index: -2; pointer-events: none; }
 
 .hero-stage { position: relative; width: min(560px, 100%); justify-self: end; }
-.hero-stage .stage-card { position: relative; z-index: 1; }
-/* flusso di dati che entra nella scheda da sinistra (hero-stage.js) */
-.stage-stream { position: absolute; z-index: 2; top: 0; right: calc(100% - 26px); width: min(380px, 30vw); height: 100%; pointer-events: none; }
-@media (max-width: 1100px), (prefers-reduced-motion: reduce) { .stage-stream { display: none; } }
-/* sul computer il testo si stringe e lascia fra titolo e scheda la corsia del flusso */
-@media (min-width: 1101px) {
-  .hero-grid { grid-template-columns: minmax(0, 520px) minmax(0, 1fr); }
-  .hero h1 { font-size: clamp(44px, 4.4vw, 62px); }
-  .hero-stage { width: min(490px, 100%); }
-  .stage-stream { width: min(260px, 18vw); }
-}
 .stage-card { padding: 18px 18px 14px; }
 .stage-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 13px; color: var(--ink-2); }
 .stage-file { font: 500 13px ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink); }
@@ -46,8 +35,15 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 .stage-body { position: relative; min-height: 318px; padding: 16px 16px 12px; border-radius: 14px; background: var(--soft); overflow: hidden; transition: opacity .4s; }
 .stage-body.out { opacity: 0; }
 .stage-foot { margin: 10px 2px 0; font-size: 12px; color: var(--ink-3); }
-.stage-scan { position: absolute; top: 0; bottom: 0; left: 0; width: 72px; margin-left: -72px; opacity: 0; pointer-events: none;
-  background: linear-gradient(90deg, rgba(212, 240, 107, 0) 0%, rgba(212, 240, 107, .4) 100%); border-right: 2px solid var(--lime-2); transition: opacity .3s; }
+/* fascio che attraversa la scheda: linea luminosa, alone e una scia di polvere che sfuma a sinistra */
+.stage-scan { position: absolute; top: 0; bottom: 0; left: 0; width: 120px; margin-left: -120px; opacity: 0; pointer-events: none; transition: opacity .3s;
+  background: linear-gradient(90deg, rgba(212, 240, 107, 0) 0%, rgba(212, 240, 107, .14) 70%, rgba(212, 240, 107, .38) 100%); }
+.stage-scan::before { content: ""; position: absolute; inset: 0; opacity: .9;
+  background: radial-gradient(circle, #9fc23a 0 1px, transparent 1.4px) 0 0 / 9px 11px, radial-gradient(circle, #b9dc4c 0 .8px, transparent 1.2px) 4px 6px / 13px 7px;
+  -webkit-mask: linear-gradient(90deg, transparent 0%, #000 85%); mask: linear-gradient(90deg, transparent 0%, #000 85%);
+  animation: scan-dust .6s steps(4) infinite; }
+.stage-scan::after { content: ""; position: absolute; top: 0; bottom: 0; right: -1px; width: 2px; background: #c6e555; box-shadow: 0 0 10px 2px rgba(198, 229, 85, .8), 0 0 28px 6px rgba(212, 240, 107, .45); }
+@keyframes scan-dust { to { background-position: 0 -11px, 4px 13px; } }
 .stage-scan.on { opacity: 1; }
 .pii { display: inline-block; padding: 0 5px; border-radius: 6px; background: rgba(16, 20, 17, .07); font: 500 .92em/1.45 ui-monospace, "SF Mono", Menlo, monospace; color: var(--ink); white-space: nowrap; transition: opacity .18s, background .25s; }
 .pii.flip { opacity: 0; }
@@ -470,6 +466,12 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .9em; 
 @media (max-width: 640px) { .features.three { grid-template-columns: 1fr; } }
 .features + .note { margin-top: 40px; }
 
-/* figure in caratteri accanto ai titoli di sezione (ascii-fig.js) */
-.sec-fig { display: block; width: min(440px, 100%); height: 320px; margin-top: 28px; }
-@media (max-width: 880px) { .sec-fig { height: 190px; margin: 18px auto 0; } }
+/* figure in caratteri (ascii-fig.js) solo dove la pagina ha gia' uno spazio vuoto: occupano quello spazio
+   e non altro (contain: size = nessun ingombro proprio, quindi le sezioni non cambiano altezza) */
+.sec-fig { display: block; contain: size; min-height: 0; pointer-events: none; }
+#domande .split > div:first-child { align-self: stretch; display: flex; flex-direction: column; }
+#domande .sec-fig { flex: 1 1 auto; width: min(380px, 100%); margin-top: 28px; max-height: 360px; }
+.limits { display: grid; grid-template-columns: minmax(0, 860px) minmax(0, 1fr); column-gap: 48px; max-width: none; }
+.limits > :not(.sec-fig) { grid-column: 1; }
+.limits .sec-fig { grid-column: 2; grid-row: 1 / span 2; width: 100%; height: 100%; max-height: 300px; align-self: center; }
+@media (max-width: 1000px) { .sec-fig { display: none; } .limits { display: block; max-width: 860px; } }
