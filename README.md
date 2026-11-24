@@ -41,6 +41,13 @@ dal plugin.
   cartelle protette non interviene.
 - **Server MCP** `clin`: strumenti `anonimizza_documento` e `crea_copie_anonime`.
 
+## Aggiornamenti
+
+Ogni modifica pubblicata riceve un nuovo numero di versione. Claude Code la scarica
+quando si aggiorna il plugin (`/plugin` › Installed › clin › Update) oppure da solo,
+se per questo marketplace è attivo l'aggiornamento automatico (`/plugin` ›
+Marketplaces › clin).
+
 ## Limiti
 
 Clin pseudonimizza: riduce i dati che raggiungono il fornitore dell'IA, ma non

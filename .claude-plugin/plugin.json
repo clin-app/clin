@@ -1,6 +1,6 @@
 {
   "name": "clin",
-  "version": "2.2.44",
+  "version": "2.2.47",
   "description": "Anonimizza in locale documenti sanitari e dati di ricerca prima che l'agente li legga: Skill /clin, guardia sugli originali, risultati ricondotti ai dati reali.",
   "author": {
     "name": "Clin",
