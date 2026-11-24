@@ -17,6 +17,51 @@ from typing import Any, Dict
 DATA_DIR = Path(os.path.expanduser(os.environ.get("CLIN_DATI") or "~/.clin"))
 PATH = DATA_DIR / "impostazioni.json"
 
+
+def book_path() -> Path:
+    """Tabella degli pseudonimi (PAZ-0001...) condivisa da fogli di calcolo e testi: accanto alla tabella dei
+    segnaposto (clin.MAP_DIR, la stessa cartella di DATA_DIR), cosi' le due restano sempre insieme."""
+    import clin
+    return clin.MAP_DIR / "pseudonimi.json"
+
+
+# Tabelle di corrispondenza cifrate (uso su server): con CLIN_CHIAVE (chiave Fernet, 44 caratteri base64,
+# generata con `clin chiave`) le tabelle su disco sono illeggibili senza la chiave, che sta altrove
+# (variabile d'ambiente del servizio, gestore di segreti). Senza chiave: JSON in chiaro, permessi 600.
+_FERNET_HEAD = b"gAAAAA"
+
+
+def _fernet():
+    key = os.environ.get("CLIN_CHIAVE", "").strip()
+    if not key:
+        return None
+    from cryptography.fernet import Fernet
+    return Fernet(key.encode())
+
+
+def read_private(path: Path) -> str:
+    data = Path(path).read_bytes()
+    if data.startswith(_FERNET_HEAD):
+        f = _fernet()
+        if f is None:
+            raise RuntimeError(f"{Path(path).name} e' cifrata: serve la chiave CLIN_CHIAVE.")
+        return f.decrypt(data).decode("utf-8")
+    return data.decode("utf-8")
+
+
+def write_private(path: Path, text: str) -> None:
+    """Scrittura atomica, permessi 600 (cartella 700), cifrata se c'e' CLIN_CHIAVE."""
+    path = Path(path)
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    f = _fernet()
+    data = f.encrypt(text.encode("utf-8")) if f else text.encode("utf-8")
+    tmp = path.with_suffix(".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "wb") as fh:
+        fh.write(data)
+    os.replace(tmp, path)
+
 # chiave -> (valore predefinito, descrizione mostrata all'utente)
 OPTIONS: Dict[str, tuple] = {
     "ripristino_automatico": (True, "Al termine di ogni risposta dell'agente, i file prodotti con segnaposto "

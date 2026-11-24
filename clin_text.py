@@ -91,6 +91,44 @@ def _norm(value: str) -> str:
     return " ".join(_NAME_JOINER.sub(" ", value).casefold().split())
 
 
+# Codici paziente condivisi con i fogli di calcolo (PAZ-0001). Con gli agenti (date spostate) lo stesso paziente
+# ha lo stesso codice in un referto, in una lettera e in un export di terapie: l'agente puo' collegarli.
+# Caricati alla prima richiesta; clin.save_mapping li salva insieme alla tabella dei segnaposto.
+_BOOK = None
+_BOOK_AT = None   # cartella da cui e' stata letta: se cambia (altro utente, prove) si rilegge
+# tipo di segnaposto -> prefisso dei codici nei fogli di calcolo (vedi tabular_engine._CATEGORY_PREFIX)
+_BOOK_PREFIX = {"PAZIENTE": "PAZ", "ID": "ID", "ID_CLINICO": "IDC", "MEDICO": "MED"}
+
+
+def agent_book():
+    global _BOOK, _BOOK_AT
+    import clin_settings
+    if _BOOK is None or _BOOK_AT != clin_settings.book_path():
+        from tabular_engine import _PseudonymBook
+        _BOOK_AT = clin_settings.book_path()
+        _BOOK = _PseudonymBook.load(_BOOK_AT)
+    return _BOOK
+
+
+def save_book() -> None:
+    """Salva i codici assegnati, fondendoli con la tabella su disco: un altro processo (la guardia, le copie)
+    puo' averne aggiunti nel frattempo, e nessuno deve andare perso."""
+    import clin_settings
+    from tabular_engine import _PseudonymBook
+    if _BOOK is None or _BOOK_AT != clin_settings.book_path():
+        return
+    disk = _PseudonymBook.load(_BOOK_AT)
+    _BOOK.merge(disk)
+    _BOOK.save(_BOOK_AT)
+
+
+def use_book(book) -> None:
+    """Le copie caricano gia' la tabella dei fogli: testi e fogli usano lo stesso oggetto."""
+    global _BOOK, _BOOK_AT
+    import clin_settings
+    _BOOK, _BOOK_AT = book, clin_settings.book_path()
+
+
 class _Registry:
     """Assegna segnaposto stabili; riconduce le parti di un nome alla persona.
 
@@ -225,6 +263,29 @@ class _Registry:
         if _REVIEW["found"] is not None:
             _REVIEW["found"].append((ph, original))
         return ph
+
+    def link(self, text: str) -> str:
+        """Agenti (date spostate): i segnaposto di pazienti, codici fiscali, identificativi clinici e medici
+        diventano i codici dei fogli di calcolo (PAZ-0001, ID-0001, IDC-0001, MED-0001), cosi' un referto e un
+        export si collegano. Si applica a documento finito: il nome completo e' noto anche quando la prima
+        menzione era solo il cognome."""
+        import anonymize_engine as ae
+        if not ae.DATE_SHIFT:
+            return text
+        book = agent_book()
+
+        def code(m: "re.Match") -> str:
+            ph = m.group(0)
+            prefix = _BOOK_PREFIX.get(self._kind_of(ph))
+            if not prefix or ph not in self.mapping:
+                return ph
+            name = self.mapping[ph]
+            if prefix in ("PAZ", "MED"):
+                name = self.group_of.get(_norm(name)) or name
+            c = book.get("", 0, prefix, name)
+            self.mapping[c] = name   # anche `clin ripristina` e la guardia lo riconducono
+            return c
+        return _PLACEHOLDER_RX.sub(code, text)
 
     def _get(self, kind: str, original: str, link: bool = True) -> str:
         """`link=False`: persona citata dal contesto ("la moglie Anna"), da non
@@ -380,6 +441,7 @@ def anonymize_text(
     registry.add_names(_without_relatives(text, all_names, level, explicit, whitelist))
     counts: Dict[str, int] = {}
     new = _replace(text, registry, level, explicit, whitelist, all_names, counts)
+    new = registry.link(new)
     return TextResult(new, dict(registry.mapping), counts)
 
 
@@ -619,7 +681,7 @@ def redact_docx_file(
                 if re.match(r"(?:word|ppt)/(?:media|embeddings)/", fn):
                     data = _blank_media(fn)
                 elif fn in xml:
-                    out = para_rx.sub(rewrite_para, xml[fn])
+                    out = reg.link(para_rx.sub(rewrite_para, xml[fn]))
                     # autori di commenti e revisioni, testo dei commenti alle diapositive,
                     # etichette dei grafici (i valori numerici restano)
                     out = re.sub(r'\b((?:w:author|w:initials|name|initials)=)"[^"]*"', r'\1""', out) \
@@ -669,7 +731,7 @@ def anonymize_prose_document(
             counts = {}
             anon = _replace(raw, reg, sensitivity_level, explicit_targets, whitelist_words, names, counts)
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            output_path.write_text(anon, encoding="utf-8")
+            output_path.write_text(reg.link(anon), encoding="utf-8")
         res.per_category = dict(counts)
         res.redactions = sum(counts.values())
         res.detected_names = list(names)[:200]
@@ -794,7 +856,8 @@ def anonymize_file(
         new = _replace(t, registry, level, eff_explicit, whitelist,
                        names, counts)
         body.append(f"--- {title} ---\n{new.strip()}" if len(sections) > 1 else new.strip())
-    return TextResult("\n\n".join(body), dict(registry.mapping), counts, notes)
+    joined_out = registry.link("\n\n".join(body))
+    return TextResult(joined_out, dict(registry.mapping), counts, notes)
 
 
 def _header_category(header: str, level: int) -> Optional[str]:
@@ -879,4 +942,5 @@ def _anonymize_table_file_rules(path: Path, level: int, explicit, whitelist, pre
             lines.append("\t".join(cells))
         title = f"--- Foglio {sheet.name} ---\n" if len(sheets) > 1 else ""
         body.append(title + "\n".join(lines))
-    return TextResult("\n\n".join(body), dict(registry.mapping), counts)
+    joined_out = registry.link("\n\n".join(body))
+    return TextResult(joined_out, dict(registry.mapping), counts)

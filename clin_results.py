@@ -38,7 +38,8 @@ def _tables() -> tuple:
     seg = clin.load_mapping()
     pseudo: Dict[str, str] = {}
     try:
-        data = json.loads((clin.MAP_DIR / "pseudonimi.json").read_text(encoding="utf-8"))
+        import clin_settings
+        data = json.loads(clin_settings.read_private(clin_settings.book_path()))
         pseudo = dict(data.get("originali", {}))
     except (OSError, ValueError):
         pass
@@ -204,6 +205,9 @@ def shift_span(text: str, days: int):
         if m:
             return m.start(), m.end(), _move_dates(m[0], days, _REAL, compact_too=False)
     if days == CALENDAR_SHIFT:   # date parziali: con i 400 anni cambia solo l'anno
+        m = _DAY_MONTH.search(text)
+        if m and not _REAL_YEAR.search(text):   # giorno e mese senza anno: con 400 anni esatti restano uguali
+            return m.start(), m.end(), m[0]
         m = _REAL_MONTH_YEAR.search(text)
         if m:
             return m.start(), m.end(), m[1] + m[2] + str(int(m[3]) + 400)

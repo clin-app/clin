@@ -59,7 +59,7 @@ _SAFE_CMDS = {"ls", "find", "stat", "file", "du", "mkdir", "touch", "wc",
 _SEARCH_CMDS = {"grep", "egrep", "fgrep", "rg", "ripgrep", "ag", "ack"}
 _SHELL_WRAPPERS = {"sh", "bash", "zsh", "dash", "ksh"}
 # sottocomandi di clin.py riservati all'utente: rivelano dati reali o smontano la protezione
-_USER_ONLY = {"originale", "ripristina", "dimentica", "disinstalla", "escludi"}
+_USER_ONLY = {"originale", "ripristina", "dimentica", "disinstalla", "escludi", "servizio", "chiave"}
 
 
 def is_anonymized(path: Path) -> bool:
