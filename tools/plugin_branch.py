@@ -8,8 +8,8 @@ Il repository intero contiene anche il sito, l'app web (con file di diversi mega
 l'applicazione desktop, che al plugin non servono: chi lo installa scaricherebbe tutto, e il
 catalogo dei plugin trattiene per revisione i pacchetti con file grandi. Il ramo `plugin` contiene
 solo la Skill, la guardia, il server MCP e il motore. Il marketplace in `main` e la richiesta al
-catalogo puntano a quel ramo. Va eseguito dopo ogni push su main (lo fa tools/pubblica.py);
-tools/plugin_workflow.yml e' il flusso GitHub che lo farebbe da solo, da attivare.
+catalogo puntano a quel ramo. Lo aggiorna da solo .github/workflows/plugin.yml a ogni push su
+main; a mano serve solo per provarlo in locale.
 """
 import json
 import os
